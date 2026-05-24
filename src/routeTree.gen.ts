@@ -11,10 +11,16 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as MemberRouteImport } from './routes/member'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as MemberIndexRouteImport } from './routes/member.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as MemberUpdatesRouteImport } from './routes/member.updates'
+import { Route as MemberProfileRouteImport } from './routes/member.profile'
+import { Route as MemberElectionsRouteImport } from './routes/member.elections'
+import { Route as MemberDuesRouteImport } from './routes/member.dues'
 import { Route as AdminSubscriptionRouteImport } from './routes/admin.subscription'
 import { Route as AdminOnboardingRouteImport } from './routes/admin.onboarding'
 import { Route as AdminMembersRouteImport } from './routes/admin.members'
@@ -35,6 +41,11 @@ const PricingRoute = PricingRouteImport.update({
   path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MemberRoute = MemberRouteImport.update({
+  id: '/member',
+  path: '/member',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -50,10 +61,35 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MemberIndexRoute = MemberIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => MemberRoute,
+} as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminRoute,
+} as any)
+const MemberUpdatesRoute = MemberUpdatesRouteImport.update({
+  id: '/updates',
+  path: '/updates',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberProfileRoute = MemberProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberElectionsRoute = MemberElectionsRouteImport.update({
+  id: '/elections',
+  path: '/elections',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberDuesRoute = MemberDuesRouteImport.update({
+  id: '/dues',
+  path: '/dues',
+  getParentRoute: () => MemberRoute,
 } as any)
 const AdminSubscriptionRoute = AdminSubscriptionRouteImport.update({
   id: '/subscription',
@@ -105,6 +141,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/login': typeof LoginRoute
+  '/member': typeof MemberRouteWithChildren
   '/pricing': typeof PricingRoute
   '/signup': typeof SignupRoute
   '/admin/birthdays': typeof AdminBirthdaysRoute
@@ -116,7 +153,12 @@ export interface FileRoutesByFullPath {
   '/admin/members': typeof AdminMembersRoute
   '/admin/onboarding': typeof AdminOnboardingRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
+  '/member/dues': typeof MemberDuesRoute
+  '/member/elections': typeof MemberElectionsRoute
+  '/member/profile': typeof MemberProfileRoute
+  '/member/updates': typeof MemberUpdatesRoute
   '/admin/': typeof AdminIndexRoute
+  '/member/': typeof MemberIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -132,13 +174,19 @@ export interface FileRoutesByTo {
   '/admin/members': typeof AdminMembersRoute
   '/admin/onboarding': typeof AdminOnboardingRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
+  '/member/dues': typeof MemberDuesRoute
+  '/member/elections': typeof MemberElectionsRoute
+  '/member/profile': typeof MemberProfileRoute
+  '/member/updates': typeof MemberUpdatesRoute
   '/admin': typeof AdminIndexRoute
+  '/member': typeof MemberIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/login': typeof LoginRoute
+  '/member': typeof MemberRouteWithChildren
   '/pricing': typeof PricingRoute
   '/signup': typeof SignupRoute
   '/admin/birthdays': typeof AdminBirthdaysRoute
@@ -150,7 +198,12 @@ export interface FileRoutesById {
   '/admin/members': typeof AdminMembersRoute
   '/admin/onboarding': typeof AdminOnboardingRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
+  '/member/dues': typeof MemberDuesRoute
+  '/member/elections': typeof MemberElectionsRoute
+  '/member/profile': typeof MemberProfileRoute
+  '/member/updates': typeof MemberUpdatesRoute
   '/admin/': typeof AdminIndexRoute
+  '/member/': typeof MemberIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -158,6 +211,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/login'
+    | '/member'
     | '/pricing'
     | '/signup'
     | '/admin/birthdays'
@@ -169,7 +223,12 @@ export interface FileRouteTypes {
     | '/admin/members'
     | '/admin/onboarding'
     | '/admin/subscription'
+    | '/member/dues'
+    | '/member/elections'
+    | '/member/profile'
+    | '/member/updates'
     | '/admin/'
+    | '/member/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -185,12 +244,18 @@ export interface FileRouteTypes {
     | '/admin/members'
     | '/admin/onboarding'
     | '/admin/subscription'
+    | '/member/dues'
+    | '/member/elections'
+    | '/member/profile'
+    | '/member/updates'
     | '/admin'
+    | '/member'
   id:
     | '__root__'
     | '/'
     | '/admin'
     | '/login'
+    | '/member'
     | '/pricing'
     | '/signup'
     | '/admin/birthdays'
@@ -202,13 +267,19 @@ export interface FileRouteTypes {
     | '/admin/members'
     | '/admin/onboarding'
     | '/admin/subscription'
+    | '/member/dues'
+    | '/member/elections'
+    | '/member/profile'
+    | '/member/updates'
     | '/admin/'
+    | '/member/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
   LoginRoute: typeof LoginRoute
+  MemberRoute: typeof MemberRouteWithChildren
   PricingRoute: typeof PricingRoute
   SignupRoute: typeof SignupRoute
 }
@@ -227,6 +298,13 @@ declare module '@tanstack/react-router' {
       path: '/pricing'
       fullPath: '/pricing'
       preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/member': {
+      id: '/member'
+      path: '/member'
+      fullPath: '/member'
+      preLoaderRoute: typeof MemberRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -250,12 +328,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/member/': {
+      id: '/member/'
+      path: '/'
+      fullPath: '/member/'
+      preLoaderRoute: typeof MemberIndexRouteImport
+      parentRoute: typeof MemberRoute
+    }
     '/admin/': {
       id: '/admin/'
       path: '/'
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
+    }
+    '/member/updates': {
+      id: '/member/updates'
+      path: '/updates'
+      fullPath: '/member/updates'
+      preLoaderRoute: typeof MemberUpdatesRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/member/profile': {
+      id: '/member/profile'
+      path: '/profile'
+      fullPath: '/member/profile'
+      preLoaderRoute: typeof MemberProfileRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/member/elections': {
+      id: '/member/elections'
+      path: '/elections'
+      fullPath: '/member/elections'
+      preLoaderRoute: typeof MemberElectionsRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/member/dues': {
+      id: '/member/dues'
+      path: '/dues'
+      fullPath: '/member/dues'
+      preLoaderRoute: typeof MemberDuesRouteImport
+      parentRoute: typeof MemberRoute
     }
     '/admin/subscription': {
       id: '/admin/subscription'
@@ -351,10 +464,30 @@ const AdminRouteChildren: AdminRouteChildren = {
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
+interface MemberRouteChildren {
+  MemberDuesRoute: typeof MemberDuesRoute
+  MemberElectionsRoute: typeof MemberElectionsRoute
+  MemberProfileRoute: typeof MemberProfileRoute
+  MemberUpdatesRoute: typeof MemberUpdatesRoute
+  MemberIndexRoute: typeof MemberIndexRoute
+}
+
+const MemberRouteChildren: MemberRouteChildren = {
+  MemberDuesRoute: MemberDuesRoute,
+  MemberElectionsRoute: MemberElectionsRoute,
+  MemberProfileRoute: MemberProfileRoute,
+  MemberUpdatesRoute: MemberUpdatesRoute,
+  MemberIndexRoute: MemberIndexRoute,
+}
+
+const MemberRouteWithChildren =
+  MemberRoute._addFileChildren(MemberRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
   LoginRoute: LoginRoute,
+  MemberRoute: MemberRouteWithChildren,
   PricingRoute: PricingRoute,
   SignupRoute: SignupRoute,
 }
