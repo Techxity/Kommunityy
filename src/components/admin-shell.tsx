@@ -16,7 +16,8 @@ import {
 } from "lucide-react";
 import { community } from "@/lib/mock-data";
 
-const nav = [
+type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean };
+const nav: NavItem[] = [
   { to: "/admin", label: "Overview", icon: LayoutDashboard, exact: true },
   { to: "/admin/members", label: "Members", icon: Users },
   { to: "/admin/onboarding", label: "Onboarding Form", icon: Settings2 },
@@ -27,7 +28,7 @@ const nav = [
   { to: "/admin/donations", label: "Donations", icon: HeartHandshake },
   { to: "/admin/elections", label: "Elections", icon: Vote },
   { to: "/admin/subscription", label: "Subscription", icon: CreditCard },
-] as const;
+];
 
 export function AdminShell() {
   const location = useLocation();
