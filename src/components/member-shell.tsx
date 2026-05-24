@@ -1,13 +1,14 @@
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import { Home, User, Banknote, Vote, Megaphone, Users2, LogOut } from "lucide-react";
 
-const nav = [
+type NavItem = { to: string; label: string; icon: typeof Home; exact?: boolean };
+const nav: NavItem[] = [
   { to: "/member", label: "Home", icon: Home, exact: true },
   { to: "/member/profile", label: "My Profile", icon: User },
   { to: "/member/dues", label: "My Dues", icon: Banknote },
   { to: "/member/elections", label: "Elections", icon: Vote },
   { to: "/member/updates", label: "Updates", icon: Megaphone },
-] as const;
+];
 
 export function MemberShell() {
   const location = useLocation();
