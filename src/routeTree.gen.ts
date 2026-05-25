@@ -23,6 +23,7 @@ import { Route as SuperAdminSupportRouteImport } from './routes/super-admin.supp
 import { Route as SuperAdminPlansRouteImport } from './routes/super-admin.plans'
 import { Route as SuperAdminCommunitiesRouteImport } from './routes/super-admin.communities'
 import { Route as SuperAdminBillingRouteImport } from './routes/super-admin.billing'
+import { Route as SuperAdminAuditRouteImport } from './routes/super-admin.audit'
 import { Route as SuperAdminAdminsRouteImport } from './routes/super-admin.admins'
 import { Route as MemberUpdatesRouteImport } from './routes/member.updates'
 import { Route as MemberProfileRouteImport } from './routes/member.profile'
@@ -106,6 +107,11 @@ const SuperAdminCommunitiesRoute = SuperAdminCommunitiesRouteImport.update({
 const SuperAdminBillingRoute = SuperAdminBillingRouteImport.update({
   id: '/billing',
   path: '/billing',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
+const SuperAdminAuditRoute = SuperAdminAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
   getParentRoute: () => SuperAdminRoute,
 } as any)
 const SuperAdminAdminsRoute = SuperAdminAdminsRouteImport.update({
@@ -201,6 +207,7 @@ export interface FileRoutesByFullPath {
   '/member/profile': typeof MemberProfileRoute
   '/member/updates': typeof MemberUpdatesRoute
   '/super-admin/admins': typeof SuperAdminAdminsRoute
+  '/super-admin/audit': typeof SuperAdminAuditRoute
   '/super-admin/billing': typeof SuperAdminBillingRoute
   '/super-admin/communities': typeof SuperAdminCommunitiesRoute
   '/super-admin/plans': typeof SuperAdminPlansRoute
@@ -228,6 +235,7 @@ export interface FileRoutesByTo {
   '/member/profile': typeof MemberProfileRoute
   '/member/updates': typeof MemberUpdatesRoute
   '/super-admin/admins': typeof SuperAdminAdminsRoute
+  '/super-admin/audit': typeof SuperAdminAuditRoute
   '/super-admin/billing': typeof SuperAdminBillingRoute
   '/super-admin/communities': typeof SuperAdminCommunitiesRoute
   '/super-admin/plans': typeof SuperAdminPlansRoute
@@ -259,6 +267,7 @@ export interface FileRoutesById {
   '/member/profile': typeof MemberProfileRoute
   '/member/updates': typeof MemberUpdatesRoute
   '/super-admin/admins': typeof SuperAdminAdminsRoute
+  '/super-admin/audit': typeof SuperAdminAuditRoute
   '/super-admin/billing': typeof SuperAdminBillingRoute
   '/super-admin/communities': typeof SuperAdminCommunitiesRoute
   '/super-admin/plans': typeof SuperAdminPlansRoute
@@ -291,6 +300,7 @@ export interface FileRouteTypes {
     | '/member/profile'
     | '/member/updates'
     | '/super-admin/admins'
+    | '/super-admin/audit'
     | '/super-admin/billing'
     | '/super-admin/communities'
     | '/super-admin/plans'
@@ -318,6 +328,7 @@ export interface FileRouteTypes {
     | '/member/profile'
     | '/member/updates'
     | '/super-admin/admins'
+    | '/super-admin/audit'
     | '/super-admin/billing'
     | '/super-admin/communities'
     | '/super-admin/plans'
@@ -348,6 +359,7 @@ export interface FileRouteTypes {
     | '/member/profile'
     | '/member/updates'
     | '/super-admin/admins'
+    | '/super-admin/audit'
     | '/super-admin/billing'
     | '/super-admin/communities'
     | '/super-admin/plans'
@@ -465,6 +477,13 @@ declare module '@tanstack/react-router' {
       path: '/billing'
       fullPath: '/super-admin/billing'
       preLoaderRoute: typeof SuperAdminBillingRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
+    '/super-admin/audit': {
+      id: '/super-admin/audit'
+      path: '/audit'
+      fullPath: '/super-admin/audit'
+      preLoaderRoute: typeof SuperAdminAuditRouteImport
       parentRoute: typeof SuperAdminRoute
     }
     '/super-admin/admins': {
@@ -617,6 +636,7 @@ const MemberRouteWithChildren =
 
 interface SuperAdminRouteChildren {
   SuperAdminAdminsRoute: typeof SuperAdminAdminsRoute
+  SuperAdminAuditRoute: typeof SuperAdminAuditRoute
   SuperAdminBillingRoute: typeof SuperAdminBillingRoute
   SuperAdminCommunitiesRoute: typeof SuperAdminCommunitiesRoute
   SuperAdminPlansRoute: typeof SuperAdminPlansRoute
@@ -626,6 +646,7 @@ interface SuperAdminRouteChildren {
 
 const SuperAdminRouteChildren: SuperAdminRouteChildren = {
   SuperAdminAdminsRoute: SuperAdminAdminsRoute,
+  SuperAdminAuditRoute: SuperAdminAuditRoute,
   SuperAdminBillingRoute: SuperAdminBillingRoute,
   SuperAdminCommunitiesRoute: SuperAdminCommunitiesRoute,
   SuperAdminPlansRoute: SuperAdminPlansRoute,
