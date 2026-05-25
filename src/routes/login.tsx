@@ -10,12 +10,16 @@ export const Route = createFileRoute("/login")({
 
 function Login() {
   const navigate = useNavigate();
-  const [role, setRole] = useState<"admin" | "member">("admin");
+  const [role, setRole] = useState<"super" | "admin" | "member">("admin");
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    navigate({ to: role === "admin" ? "/admin" : "/member" });
+    if (role === "super") navigate({ to: "/super-admin" });
+    else if (role === "admin") navigate({ to: "/admin" });
+    else navigate({ to: "/member" });
   }
+
+  const roleLabels = { super: "Super Admin", admin: "Community Admin", member: "Member" } as const;
 
   return (
     <div className="min-h-screen bg-background">
@@ -27,20 +31,24 @@ function Login() {
         <h1 className="mt-6 font-display text-3xl font-bold">Welcome back</h1>
         <p className="mt-2 text-sm text-muted-foreground">Sign in to your Kinfolk workspace.</p>
 
-        <div className="mt-8 inline-flex rounded-full border border-border bg-card p-1 text-sm">
-          {(["admin", "member"] as const).map((r) => (
+        <div className="mt-8 inline-flex rounded-full border border-border bg-card p-1 text-xs">
+          {(["super", "admin", "member"] as const).map((r) => (
             <button
               key={r}
               type="button"
               onClick={() => setRole(r)}
-              className={`flex-1 rounded-full px-4 py-1.5 capitalize transition ${
+              className={`flex-1 whitespace-nowrap rounded-full px-3 py-1.5 transition ${
                 role === r ? "bg-primary text-primary-foreground" : "text-muted-foreground"
               }`}
             >
-              {r}
+              {roleLabels[r]}
             </button>
           ))}
         </div>
+
+        <p className="mt-3 text-center text-[11px] text-muted-foreground">
+          Demo: any credentials work — pick a role above to enter that portal.
+        </p>
 
         <form onSubmit={submit} className="mt-6 space-y-4 rounded-2xl border border-border bg-card p-6 shadow-soft">
           <div>

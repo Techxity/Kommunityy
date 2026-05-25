@@ -9,14 +9,22 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SuperAdminRouteImport } from './routes/super-admin'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as MemberRouteImport } from './routes/member'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SuperAdminIndexRouteImport } from './routes/super-admin.index'
 import { Route as MemberIndexRouteImport } from './routes/member.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as SuperAdminSupportRouteImport } from './routes/super-admin.support'
+import { Route as SuperAdminPlansRouteImport } from './routes/super-admin.plans'
+import { Route as SuperAdminCommunitiesRouteImport } from './routes/super-admin.communities'
+import { Route as SuperAdminBillingRouteImport } from './routes/super-admin.billing'
+import { Route as SuperAdminAuditRouteImport } from './routes/super-admin.audit'
+import { Route as SuperAdminAdminsRouteImport } from './routes/super-admin.admins'
 import { Route as MemberUpdatesRouteImport } from './routes/member.updates'
 import { Route as MemberProfileRouteImport } from './routes/member.profile'
 import { Route as MemberElectionsRouteImport } from './routes/member.elections'
@@ -31,6 +39,11 @@ import { Route as AdminCalltreeRouteImport } from './routes/admin.calltree'
 import { Route as AdminBroadcastRouteImport } from './routes/admin.broadcast'
 import { Route as AdminBirthdaysRouteImport } from './routes/admin.birthdays'
 
+const SuperAdminRoute = SuperAdminRouteImport.update({
+  id: '/super-admin',
+  path: '/super-admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -61,6 +74,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SuperAdminIndexRoute = SuperAdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
 const MemberIndexRoute = MemberIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -70,6 +88,36 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminRoute,
+} as any)
+const SuperAdminSupportRoute = SuperAdminSupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
+const SuperAdminPlansRoute = SuperAdminPlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
+const SuperAdminCommunitiesRoute = SuperAdminCommunitiesRouteImport.update({
+  id: '/communities',
+  path: '/communities',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
+const SuperAdminBillingRoute = SuperAdminBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
+const SuperAdminAuditRoute = SuperAdminAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
+const SuperAdminAdminsRoute = SuperAdminAdminsRouteImport.update({
+  id: '/admins',
+  path: '/admins',
+  getParentRoute: () => SuperAdminRoute,
 } as any)
 const MemberUpdatesRoute = MemberUpdatesRouteImport.update({
   id: '/updates',
@@ -144,6 +192,7 @@ export interface FileRoutesByFullPath {
   '/member': typeof MemberRouteWithChildren
   '/pricing': typeof PricingRoute
   '/signup': typeof SignupRoute
+  '/super-admin': typeof SuperAdminRouteWithChildren
   '/admin/birthdays': typeof AdminBirthdaysRoute
   '/admin/broadcast': typeof AdminBroadcastRoute
   '/admin/calltree': typeof AdminCalltreeRoute
@@ -157,8 +206,15 @@ export interface FileRoutesByFullPath {
   '/member/elections': typeof MemberElectionsRoute
   '/member/profile': typeof MemberProfileRoute
   '/member/updates': typeof MemberUpdatesRoute
+  '/super-admin/admins': typeof SuperAdminAdminsRoute
+  '/super-admin/audit': typeof SuperAdminAuditRoute
+  '/super-admin/billing': typeof SuperAdminBillingRoute
+  '/super-admin/communities': typeof SuperAdminCommunitiesRoute
+  '/super-admin/plans': typeof SuperAdminPlansRoute
+  '/super-admin/support': typeof SuperAdminSupportRoute
   '/admin/': typeof AdminIndexRoute
   '/member/': typeof MemberIndexRoute
+  '/super-admin/': typeof SuperAdminIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -178,8 +234,15 @@ export interface FileRoutesByTo {
   '/member/elections': typeof MemberElectionsRoute
   '/member/profile': typeof MemberProfileRoute
   '/member/updates': typeof MemberUpdatesRoute
+  '/super-admin/admins': typeof SuperAdminAdminsRoute
+  '/super-admin/audit': typeof SuperAdminAuditRoute
+  '/super-admin/billing': typeof SuperAdminBillingRoute
+  '/super-admin/communities': typeof SuperAdminCommunitiesRoute
+  '/super-admin/plans': typeof SuperAdminPlansRoute
+  '/super-admin/support': typeof SuperAdminSupportRoute
   '/admin': typeof AdminIndexRoute
   '/member': typeof MemberIndexRoute
+  '/super-admin': typeof SuperAdminIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -189,6 +252,7 @@ export interface FileRoutesById {
   '/member': typeof MemberRouteWithChildren
   '/pricing': typeof PricingRoute
   '/signup': typeof SignupRoute
+  '/super-admin': typeof SuperAdminRouteWithChildren
   '/admin/birthdays': typeof AdminBirthdaysRoute
   '/admin/broadcast': typeof AdminBroadcastRoute
   '/admin/calltree': typeof AdminCalltreeRoute
@@ -202,8 +266,15 @@ export interface FileRoutesById {
   '/member/elections': typeof MemberElectionsRoute
   '/member/profile': typeof MemberProfileRoute
   '/member/updates': typeof MemberUpdatesRoute
+  '/super-admin/admins': typeof SuperAdminAdminsRoute
+  '/super-admin/audit': typeof SuperAdminAuditRoute
+  '/super-admin/billing': typeof SuperAdminBillingRoute
+  '/super-admin/communities': typeof SuperAdminCommunitiesRoute
+  '/super-admin/plans': typeof SuperAdminPlansRoute
+  '/super-admin/support': typeof SuperAdminSupportRoute
   '/admin/': typeof AdminIndexRoute
   '/member/': typeof MemberIndexRoute
+  '/super-admin/': typeof SuperAdminIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -214,6 +285,7 @@ export interface FileRouteTypes {
     | '/member'
     | '/pricing'
     | '/signup'
+    | '/super-admin'
     | '/admin/birthdays'
     | '/admin/broadcast'
     | '/admin/calltree'
@@ -227,8 +299,15 @@ export interface FileRouteTypes {
     | '/member/elections'
     | '/member/profile'
     | '/member/updates'
+    | '/super-admin/admins'
+    | '/super-admin/audit'
+    | '/super-admin/billing'
+    | '/super-admin/communities'
+    | '/super-admin/plans'
+    | '/super-admin/support'
     | '/admin/'
     | '/member/'
+    | '/super-admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -248,8 +327,15 @@ export interface FileRouteTypes {
     | '/member/elections'
     | '/member/profile'
     | '/member/updates'
+    | '/super-admin/admins'
+    | '/super-admin/audit'
+    | '/super-admin/billing'
+    | '/super-admin/communities'
+    | '/super-admin/plans'
+    | '/super-admin/support'
     | '/admin'
     | '/member'
+    | '/super-admin'
   id:
     | '__root__'
     | '/'
@@ -258,6 +344,7 @@ export interface FileRouteTypes {
     | '/member'
     | '/pricing'
     | '/signup'
+    | '/super-admin'
     | '/admin/birthdays'
     | '/admin/broadcast'
     | '/admin/calltree'
@@ -271,8 +358,15 @@ export interface FileRouteTypes {
     | '/member/elections'
     | '/member/profile'
     | '/member/updates'
+    | '/super-admin/admins'
+    | '/super-admin/audit'
+    | '/super-admin/billing'
+    | '/super-admin/communities'
+    | '/super-admin/plans'
+    | '/super-admin/support'
     | '/admin/'
     | '/member/'
+    | '/super-admin/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -282,10 +376,18 @@ export interface RootRouteChildren {
   MemberRoute: typeof MemberRouteWithChildren
   PricingRoute: typeof PricingRoute
   SignupRoute: typeof SignupRoute
+  SuperAdminRoute: typeof SuperAdminRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/super-admin': {
+      id: '/super-admin'
+      path: '/super-admin'
+      fullPath: '/super-admin'
+      preLoaderRoute: typeof SuperAdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/signup': {
       id: '/signup'
       path: '/signup'
@@ -328,6 +430,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/super-admin/': {
+      id: '/super-admin/'
+      path: '/'
+      fullPath: '/super-admin/'
+      preLoaderRoute: typeof SuperAdminIndexRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
     '/member/': {
       id: '/member/'
       path: '/'
@@ -341,6 +450,48 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
+    }
+    '/super-admin/support': {
+      id: '/super-admin/support'
+      path: '/support'
+      fullPath: '/super-admin/support'
+      preLoaderRoute: typeof SuperAdminSupportRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
+    '/super-admin/plans': {
+      id: '/super-admin/plans'
+      path: '/plans'
+      fullPath: '/super-admin/plans'
+      preLoaderRoute: typeof SuperAdminPlansRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
+    '/super-admin/communities': {
+      id: '/super-admin/communities'
+      path: '/communities'
+      fullPath: '/super-admin/communities'
+      preLoaderRoute: typeof SuperAdminCommunitiesRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
+    '/super-admin/billing': {
+      id: '/super-admin/billing'
+      path: '/billing'
+      fullPath: '/super-admin/billing'
+      preLoaderRoute: typeof SuperAdminBillingRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
+    '/super-admin/audit': {
+      id: '/super-admin/audit'
+      path: '/audit'
+      fullPath: '/super-admin/audit'
+      preLoaderRoute: typeof SuperAdminAuditRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
+    '/super-admin/admins': {
+      id: '/super-admin/admins'
+      path: '/admins'
+      fullPath: '/super-admin/admins'
+      preLoaderRoute: typeof SuperAdminAdminsRouteImport
+      parentRoute: typeof SuperAdminRoute
     }
     '/member/updates': {
       id: '/member/updates'
@@ -483,6 +634,30 @@ const MemberRouteChildren: MemberRouteChildren = {
 const MemberRouteWithChildren =
   MemberRoute._addFileChildren(MemberRouteChildren)
 
+interface SuperAdminRouteChildren {
+  SuperAdminAdminsRoute: typeof SuperAdminAdminsRoute
+  SuperAdminAuditRoute: typeof SuperAdminAuditRoute
+  SuperAdminBillingRoute: typeof SuperAdminBillingRoute
+  SuperAdminCommunitiesRoute: typeof SuperAdminCommunitiesRoute
+  SuperAdminPlansRoute: typeof SuperAdminPlansRoute
+  SuperAdminSupportRoute: typeof SuperAdminSupportRoute
+  SuperAdminIndexRoute: typeof SuperAdminIndexRoute
+}
+
+const SuperAdminRouteChildren: SuperAdminRouteChildren = {
+  SuperAdminAdminsRoute: SuperAdminAdminsRoute,
+  SuperAdminAuditRoute: SuperAdminAuditRoute,
+  SuperAdminBillingRoute: SuperAdminBillingRoute,
+  SuperAdminCommunitiesRoute: SuperAdminCommunitiesRoute,
+  SuperAdminPlansRoute: SuperAdminPlansRoute,
+  SuperAdminSupportRoute: SuperAdminSupportRoute,
+  SuperAdminIndexRoute: SuperAdminIndexRoute,
+}
+
+const SuperAdminRouteWithChildren = SuperAdminRoute._addFileChildren(
+  SuperAdminRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
@@ -490,6 +665,7 @@ const rootRouteChildren: RootRouteChildren = {
   MemberRoute: MemberRouteWithChildren,
   PricingRoute: PricingRoute,
   SignupRoute: SignupRoute,
+  SuperAdminRoute: SuperAdminRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
