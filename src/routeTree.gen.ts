@@ -19,6 +19,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SuperAdminIndexRouteImport } from './routes/super-admin.index'
 import { Route as MemberIndexRouteImport } from './routes/member.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as SuperAdminPlansRouteImport } from './routes/super-admin.plans'
 import { Route as SuperAdminCommunitiesRouteImport } from './routes/super-admin.communities'
 import { Route as MemberUpdatesRouteImport } from './routes/member.updates'
 import { Route as MemberProfileRouteImport } from './routes/member.profile'
@@ -83,6 +84,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminRoute,
+} as any)
+const SuperAdminPlansRoute = SuperAdminPlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
+  getParentRoute: () => SuperAdminRoute,
 } as any)
 const SuperAdminCommunitiesRoute = SuperAdminCommunitiesRouteImport.update({
   id: '/communities',
@@ -177,6 +183,7 @@ export interface FileRoutesByFullPath {
   '/member/profile': typeof MemberProfileRoute
   '/member/updates': typeof MemberUpdatesRoute
   '/super-admin/communities': typeof SuperAdminCommunitiesRoute
+  '/super-admin/plans': typeof SuperAdminPlansRoute
   '/admin/': typeof AdminIndexRoute
   '/member/': typeof MemberIndexRoute
   '/super-admin/': typeof SuperAdminIndexRoute
@@ -200,6 +207,7 @@ export interface FileRoutesByTo {
   '/member/profile': typeof MemberProfileRoute
   '/member/updates': typeof MemberUpdatesRoute
   '/super-admin/communities': typeof SuperAdminCommunitiesRoute
+  '/super-admin/plans': typeof SuperAdminPlansRoute
   '/admin': typeof AdminIndexRoute
   '/member': typeof MemberIndexRoute
   '/super-admin': typeof SuperAdminIndexRoute
@@ -227,6 +235,7 @@ export interface FileRoutesById {
   '/member/profile': typeof MemberProfileRoute
   '/member/updates': typeof MemberUpdatesRoute
   '/super-admin/communities': typeof SuperAdminCommunitiesRoute
+  '/super-admin/plans': typeof SuperAdminPlansRoute
   '/admin/': typeof AdminIndexRoute
   '/member/': typeof MemberIndexRoute
   '/super-admin/': typeof SuperAdminIndexRoute
@@ -255,6 +264,7 @@ export interface FileRouteTypes {
     | '/member/profile'
     | '/member/updates'
     | '/super-admin/communities'
+    | '/super-admin/plans'
     | '/admin/'
     | '/member/'
     | '/super-admin/'
@@ -278,6 +288,7 @@ export interface FileRouteTypes {
     | '/member/profile'
     | '/member/updates'
     | '/super-admin/communities'
+    | '/super-admin/plans'
     | '/admin'
     | '/member'
     | '/super-admin'
@@ -304,6 +315,7 @@ export interface FileRouteTypes {
     | '/member/profile'
     | '/member/updates'
     | '/super-admin/communities'
+    | '/super-admin/plans'
     | '/admin/'
     | '/member/'
     | '/super-admin/'
@@ -390,6 +402,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
+    }
+    '/super-admin/plans': {
+      id: '/super-admin/plans'
+      path: '/plans'
+      fullPath: '/super-admin/plans'
+      preLoaderRoute: typeof SuperAdminPlansRouteImport
+      parentRoute: typeof SuperAdminRoute
     }
     '/super-admin/communities': {
       id: '/super-admin/communities'
@@ -541,11 +560,13 @@ const MemberRouteWithChildren =
 
 interface SuperAdminRouteChildren {
   SuperAdminCommunitiesRoute: typeof SuperAdminCommunitiesRoute
+  SuperAdminPlansRoute: typeof SuperAdminPlansRoute
   SuperAdminIndexRoute: typeof SuperAdminIndexRoute
 }
 
 const SuperAdminRouteChildren: SuperAdminRouteChildren = {
   SuperAdminCommunitiesRoute: SuperAdminCommunitiesRoute,
+  SuperAdminPlansRoute: SuperAdminPlansRoute,
   SuperAdminIndexRoute: SuperAdminIndexRoute,
 }
 
