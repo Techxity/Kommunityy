@@ -19,6 +19,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SuperAdminIndexRouteImport } from './routes/super-admin.index'
 import { Route as MemberIndexRouteImport } from './routes/member.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as SuperAdminSupportRouteImport } from './routes/super-admin.support'
 import { Route as SuperAdminPlansRouteImport } from './routes/super-admin.plans'
 import { Route as SuperAdminCommunitiesRouteImport } from './routes/super-admin.communities'
 import { Route as SuperAdminBillingRouteImport } from './routes/super-admin.billing'
@@ -86,6 +87,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminRoute,
+} as any)
+const SuperAdminSupportRoute = SuperAdminSupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => SuperAdminRoute,
 } as any)
 const SuperAdminPlansRoute = SuperAdminPlansRouteImport.update({
   id: '/plans',
@@ -198,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/super-admin/billing': typeof SuperAdminBillingRoute
   '/super-admin/communities': typeof SuperAdminCommunitiesRoute
   '/super-admin/plans': typeof SuperAdminPlansRoute
+  '/super-admin/support': typeof SuperAdminSupportRoute
   '/admin/': typeof AdminIndexRoute
   '/member/': typeof MemberIndexRoute
   '/super-admin/': typeof SuperAdminIndexRoute
@@ -224,6 +231,7 @@ export interface FileRoutesByTo {
   '/super-admin/billing': typeof SuperAdminBillingRoute
   '/super-admin/communities': typeof SuperAdminCommunitiesRoute
   '/super-admin/plans': typeof SuperAdminPlansRoute
+  '/super-admin/support': typeof SuperAdminSupportRoute
   '/admin': typeof AdminIndexRoute
   '/member': typeof MemberIndexRoute
   '/super-admin': typeof SuperAdminIndexRoute
@@ -254,6 +262,7 @@ export interface FileRoutesById {
   '/super-admin/billing': typeof SuperAdminBillingRoute
   '/super-admin/communities': typeof SuperAdminCommunitiesRoute
   '/super-admin/plans': typeof SuperAdminPlansRoute
+  '/super-admin/support': typeof SuperAdminSupportRoute
   '/admin/': typeof AdminIndexRoute
   '/member/': typeof MemberIndexRoute
   '/super-admin/': typeof SuperAdminIndexRoute
@@ -285,6 +294,7 @@ export interface FileRouteTypes {
     | '/super-admin/billing'
     | '/super-admin/communities'
     | '/super-admin/plans'
+    | '/super-admin/support'
     | '/admin/'
     | '/member/'
     | '/super-admin/'
@@ -311,6 +321,7 @@ export interface FileRouteTypes {
     | '/super-admin/billing'
     | '/super-admin/communities'
     | '/super-admin/plans'
+    | '/super-admin/support'
     | '/admin'
     | '/member'
     | '/super-admin'
@@ -340,6 +351,7 @@ export interface FileRouteTypes {
     | '/super-admin/billing'
     | '/super-admin/communities'
     | '/super-admin/plans'
+    | '/super-admin/support'
     | '/admin/'
     | '/member/'
     | '/super-admin/'
@@ -426,6 +438,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
+    }
+    '/super-admin/support': {
+      id: '/super-admin/support'
+      path: '/support'
+      fullPath: '/super-admin/support'
+      preLoaderRoute: typeof SuperAdminSupportRouteImport
+      parentRoute: typeof SuperAdminRoute
     }
     '/super-admin/plans': {
       id: '/super-admin/plans'
@@ -601,6 +620,7 @@ interface SuperAdminRouteChildren {
   SuperAdminBillingRoute: typeof SuperAdminBillingRoute
   SuperAdminCommunitiesRoute: typeof SuperAdminCommunitiesRoute
   SuperAdminPlansRoute: typeof SuperAdminPlansRoute
+  SuperAdminSupportRoute: typeof SuperAdminSupportRoute
   SuperAdminIndexRoute: typeof SuperAdminIndexRoute
 }
 
@@ -609,6 +629,7 @@ const SuperAdminRouteChildren: SuperAdminRouteChildren = {
   SuperAdminBillingRoute: SuperAdminBillingRoute,
   SuperAdminCommunitiesRoute: SuperAdminCommunitiesRoute,
   SuperAdminPlansRoute: SuperAdminPlansRoute,
+  SuperAdminSupportRoute: SuperAdminSupportRoute,
   SuperAdminIndexRoute: SuperAdminIndexRoute,
 }
 
