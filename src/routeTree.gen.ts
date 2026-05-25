@@ -21,6 +21,8 @@ import { Route as MemberIndexRouteImport } from './routes/member.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as SuperAdminPlansRouteImport } from './routes/super-admin.plans'
 import { Route as SuperAdminCommunitiesRouteImport } from './routes/super-admin.communities'
+import { Route as SuperAdminBillingRouteImport } from './routes/super-admin.billing'
+import { Route as SuperAdminAdminsRouteImport } from './routes/super-admin.admins'
 import { Route as MemberUpdatesRouteImport } from './routes/member.updates'
 import { Route as MemberProfileRouteImport } from './routes/member.profile'
 import { Route as MemberElectionsRouteImport } from './routes/member.elections'
@@ -93,6 +95,16 @@ const SuperAdminPlansRoute = SuperAdminPlansRouteImport.update({
 const SuperAdminCommunitiesRoute = SuperAdminCommunitiesRouteImport.update({
   id: '/communities',
   path: '/communities',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
+const SuperAdminBillingRoute = SuperAdminBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
+const SuperAdminAdminsRoute = SuperAdminAdminsRouteImport.update({
+  id: '/admins',
+  path: '/admins',
   getParentRoute: () => SuperAdminRoute,
 } as any)
 const MemberUpdatesRoute = MemberUpdatesRouteImport.update({
@@ -182,6 +194,8 @@ export interface FileRoutesByFullPath {
   '/member/elections': typeof MemberElectionsRoute
   '/member/profile': typeof MemberProfileRoute
   '/member/updates': typeof MemberUpdatesRoute
+  '/super-admin/admins': typeof SuperAdminAdminsRoute
+  '/super-admin/billing': typeof SuperAdminBillingRoute
   '/super-admin/communities': typeof SuperAdminCommunitiesRoute
   '/super-admin/plans': typeof SuperAdminPlansRoute
   '/admin/': typeof AdminIndexRoute
@@ -206,6 +220,8 @@ export interface FileRoutesByTo {
   '/member/elections': typeof MemberElectionsRoute
   '/member/profile': typeof MemberProfileRoute
   '/member/updates': typeof MemberUpdatesRoute
+  '/super-admin/admins': typeof SuperAdminAdminsRoute
+  '/super-admin/billing': typeof SuperAdminBillingRoute
   '/super-admin/communities': typeof SuperAdminCommunitiesRoute
   '/super-admin/plans': typeof SuperAdminPlansRoute
   '/admin': typeof AdminIndexRoute
@@ -234,6 +250,8 @@ export interface FileRoutesById {
   '/member/elections': typeof MemberElectionsRoute
   '/member/profile': typeof MemberProfileRoute
   '/member/updates': typeof MemberUpdatesRoute
+  '/super-admin/admins': typeof SuperAdminAdminsRoute
+  '/super-admin/billing': typeof SuperAdminBillingRoute
   '/super-admin/communities': typeof SuperAdminCommunitiesRoute
   '/super-admin/plans': typeof SuperAdminPlansRoute
   '/admin/': typeof AdminIndexRoute
@@ -263,6 +281,8 @@ export interface FileRouteTypes {
     | '/member/elections'
     | '/member/profile'
     | '/member/updates'
+    | '/super-admin/admins'
+    | '/super-admin/billing'
     | '/super-admin/communities'
     | '/super-admin/plans'
     | '/admin/'
@@ -287,6 +307,8 @@ export interface FileRouteTypes {
     | '/member/elections'
     | '/member/profile'
     | '/member/updates'
+    | '/super-admin/admins'
+    | '/super-admin/billing'
     | '/super-admin/communities'
     | '/super-admin/plans'
     | '/admin'
@@ -314,6 +336,8 @@ export interface FileRouteTypes {
     | '/member/elections'
     | '/member/profile'
     | '/member/updates'
+    | '/super-admin/admins'
+    | '/super-admin/billing'
     | '/super-admin/communities'
     | '/super-admin/plans'
     | '/admin/'
@@ -415,6 +439,20 @@ declare module '@tanstack/react-router' {
       path: '/communities'
       fullPath: '/super-admin/communities'
       preLoaderRoute: typeof SuperAdminCommunitiesRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
+    '/super-admin/billing': {
+      id: '/super-admin/billing'
+      path: '/billing'
+      fullPath: '/super-admin/billing'
+      preLoaderRoute: typeof SuperAdminBillingRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
+    '/super-admin/admins': {
+      id: '/super-admin/admins'
+      path: '/admins'
+      fullPath: '/super-admin/admins'
+      preLoaderRoute: typeof SuperAdminAdminsRouteImport
       parentRoute: typeof SuperAdminRoute
     }
     '/member/updates': {
@@ -559,12 +597,16 @@ const MemberRouteWithChildren =
   MemberRoute._addFileChildren(MemberRouteChildren)
 
 interface SuperAdminRouteChildren {
+  SuperAdminAdminsRoute: typeof SuperAdminAdminsRoute
+  SuperAdminBillingRoute: typeof SuperAdminBillingRoute
   SuperAdminCommunitiesRoute: typeof SuperAdminCommunitiesRoute
   SuperAdminPlansRoute: typeof SuperAdminPlansRoute
   SuperAdminIndexRoute: typeof SuperAdminIndexRoute
 }
 
 const SuperAdminRouteChildren: SuperAdminRouteChildren = {
+  SuperAdminAdminsRoute: SuperAdminAdminsRoute,
+  SuperAdminBillingRoute: SuperAdminBillingRoute,
   SuperAdminCommunitiesRoute: SuperAdminCommunitiesRoute,
   SuperAdminPlansRoute: SuperAdminPlansRoute,
   SuperAdminIndexRoute: SuperAdminIndexRoute,
@@ -586,3 +628,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
