@@ -16,8 +16,10 @@ import { Route as MemberRouteImport } from './routes/member'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SuperAdminIndexRouteImport } from './routes/super-admin.index'
 import { Route as MemberIndexRouteImport } from './routes/member.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as SuperAdminCommunitiesRouteImport } from './routes/super-admin.communities'
 import { Route as MemberUpdatesRouteImport } from './routes/member.updates'
 import { Route as MemberProfileRouteImport } from './routes/member.profile'
 import { Route as MemberElectionsRouteImport } from './routes/member.elections'
@@ -67,6 +69,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SuperAdminIndexRoute = SuperAdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
 const MemberIndexRoute = MemberIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -76,6 +83,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminRoute,
+} as any)
+const SuperAdminCommunitiesRoute = SuperAdminCommunitiesRouteImport.update({
+  id: '/communities',
+  path: '/communities',
+  getParentRoute: () => SuperAdminRoute,
 } as any)
 const MemberUpdatesRoute = MemberUpdatesRouteImport.update({
   id: '/updates',
@@ -150,7 +162,7 @@ export interface FileRoutesByFullPath {
   '/member': typeof MemberRouteWithChildren
   '/pricing': typeof PricingRoute
   '/signup': typeof SignupRoute
-  '/super-admin': typeof SuperAdminRoute
+  '/super-admin': typeof SuperAdminRouteWithChildren
   '/admin/birthdays': typeof AdminBirthdaysRoute
   '/admin/broadcast': typeof AdminBroadcastRoute
   '/admin/calltree': typeof AdminCalltreeRoute
@@ -164,15 +176,16 @@ export interface FileRoutesByFullPath {
   '/member/elections': typeof MemberElectionsRoute
   '/member/profile': typeof MemberProfileRoute
   '/member/updates': typeof MemberUpdatesRoute
+  '/super-admin/communities': typeof SuperAdminCommunitiesRoute
   '/admin/': typeof AdminIndexRoute
   '/member/': typeof MemberIndexRoute
+  '/super-admin/': typeof SuperAdminIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/pricing': typeof PricingRoute
   '/signup': typeof SignupRoute
-  '/super-admin': typeof SuperAdminRoute
   '/admin/birthdays': typeof AdminBirthdaysRoute
   '/admin/broadcast': typeof AdminBroadcastRoute
   '/admin/calltree': typeof AdminCalltreeRoute
@@ -186,8 +199,10 @@ export interface FileRoutesByTo {
   '/member/elections': typeof MemberElectionsRoute
   '/member/profile': typeof MemberProfileRoute
   '/member/updates': typeof MemberUpdatesRoute
+  '/super-admin/communities': typeof SuperAdminCommunitiesRoute
   '/admin': typeof AdminIndexRoute
   '/member': typeof MemberIndexRoute
+  '/super-admin': typeof SuperAdminIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -197,7 +212,7 @@ export interface FileRoutesById {
   '/member': typeof MemberRouteWithChildren
   '/pricing': typeof PricingRoute
   '/signup': typeof SignupRoute
-  '/super-admin': typeof SuperAdminRoute
+  '/super-admin': typeof SuperAdminRouteWithChildren
   '/admin/birthdays': typeof AdminBirthdaysRoute
   '/admin/broadcast': typeof AdminBroadcastRoute
   '/admin/calltree': typeof AdminCalltreeRoute
@@ -211,8 +226,10 @@ export interface FileRoutesById {
   '/member/elections': typeof MemberElectionsRoute
   '/member/profile': typeof MemberProfileRoute
   '/member/updates': typeof MemberUpdatesRoute
+  '/super-admin/communities': typeof SuperAdminCommunitiesRoute
   '/admin/': typeof AdminIndexRoute
   '/member/': typeof MemberIndexRoute
+  '/super-admin/': typeof SuperAdminIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -237,15 +254,16 @@ export interface FileRouteTypes {
     | '/member/elections'
     | '/member/profile'
     | '/member/updates'
+    | '/super-admin/communities'
     | '/admin/'
     | '/member/'
+    | '/super-admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
     | '/pricing'
     | '/signup'
-    | '/super-admin'
     | '/admin/birthdays'
     | '/admin/broadcast'
     | '/admin/calltree'
@@ -259,8 +277,10 @@ export interface FileRouteTypes {
     | '/member/elections'
     | '/member/profile'
     | '/member/updates'
+    | '/super-admin/communities'
     | '/admin'
     | '/member'
+    | '/super-admin'
   id:
     | '__root__'
     | '/'
@@ -283,8 +303,10 @@ export interface FileRouteTypes {
     | '/member/elections'
     | '/member/profile'
     | '/member/updates'
+    | '/super-admin/communities'
     | '/admin/'
     | '/member/'
+    | '/super-admin/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -294,7 +316,7 @@ export interface RootRouteChildren {
   MemberRoute: typeof MemberRouteWithChildren
   PricingRoute: typeof PricingRoute
   SignupRoute: typeof SignupRoute
-  SuperAdminRoute: typeof SuperAdminRoute
+  SuperAdminRoute: typeof SuperAdminRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -348,6 +370,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/super-admin/': {
+      id: '/super-admin/'
+      path: '/'
+      fullPath: '/super-admin/'
+      preLoaderRoute: typeof SuperAdminIndexRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
     '/member/': {
       id: '/member/'
       path: '/'
@@ -361,6 +390,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
+    }
+    '/super-admin/communities': {
+      id: '/super-admin/communities'
+      path: '/communities'
+      fullPath: '/super-admin/communities'
+      preLoaderRoute: typeof SuperAdminCommunitiesRouteImport
+      parentRoute: typeof SuperAdminRoute
     }
     '/member/updates': {
       id: '/member/updates'
@@ -503,6 +539,20 @@ const MemberRouteChildren: MemberRouteChildren = {
 const MemberRouteWithChildren =
   MemberRoute._addFileChildren(MemberRouteChildren)
 
+interface SuperAdminRouteChildren {
+  SuperAdminCommunitiesRoute: typeof SuperAdminCommunitiesRoute
+  SuperAdminIndexRoute: typeof SuperAdminIndexRoute
+}
+
+const SuperAdminRouteChildren: SuperAdminRouteChildren = {
+  SuperAdminCommunitiesRoute: SuperAdminCommunitiesRoute,
+  SuperAdminIndexRoute: SuperAdminIndexRoute,
+}
+
+const SuperAdminRouteWithChildren = SuperAdminRoute._addFileChildren(
+  SuperAdminRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
@@ -510,8 +560,18 @@ const rootRouteChildren: RootRouteChildren = {
   MemberRoute: MemberRouteWithChildren,
   PricingRoute: PricingRoute,
   SignupRoute: SignupRoute,
-  SuperAdminRoute: SuperAdminRoute,
+  SuperAdminRoute: SuperAdminRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
