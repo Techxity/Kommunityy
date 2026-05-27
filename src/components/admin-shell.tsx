@@ -1,4 +1,5 @@
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
+import { useState } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -13,25 +14,129 @@ import {
   Bell,
   LogOut,
   Users2,
+  ChevronDown,
 } from "lucide-react";
 import { community } from "@/lib/mock-data";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
-type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean };
-const nav: NavItem[] = [
+type SubItem = { to: string; label: string };
+type NavGroup = {
+  label: string;
+  icon: typeof LayoutDashboard;
+  exact?: boolean;
+  to?: string;
+  children?: SubItem[];
+};
+
+const nav: NavGroup[] = [
   { to: "/admin", label: "Overview", icon: LayoutDashboard, exact: true },
-  { to: "/admin/members", label: "Members", icon: Users },
-  { to: "/admin/onboarding", label: "Onboarding Form", icon: Settings2 },
-  { to: "/admin/birthdays", label: "Birthdays", icon: Cake },
+  {
+    label: "Member Management",
+    icon: Users,
+    children: [
+      { to: "/admin/members", label: "Members" },
+      { to: "/admin/calltree", label: "Call Tree" },
+      { to: "/admin/birthdays", label: "Birthdays" },
+      { to: "/admin/onboarding", label: "Onboarding Form" },
+    ],
+  },
   { to: "/admin/broadcast", label: "Broadcasts", icon: Megaphone },
-  { to: "/admin/calltree", label: "Call Tree", icon: PhoneCall },
-  { to: "/admin/dues", label: "Dues", icon: Banknote },
-  { to: "/admin/donations", label: "Donations", icon: HeartHandshake },
+  {
+    label: "Funds Management",
+    icon: Banknote,
+    children: [
+      { to: "/admin/dues", label: "Dues" },
+      { to: "/admin/donations", label: "Donations" },
+    ],
+  },
   { to: "/admin/elections", label: "Elections", icon: Vote },
   { to: "/admin/subscription", label: "Subscription", icon: CreditCard },
 ];
 
+function isActive(path: string, exact?: boolean, locationPathname?: string) {
+  if (!locationPathname) return false;
+  return exact ? locationPathname === path : locationPathname === path || locationPathname.startsWith(path + "/");
+}
+
+function GroupItem({
+  group,
+  pathname,
+}: {
+  group: NavGroup;
+  pathname: string;
+}) {
+  const [open, setOpen] = useState(() =>
+    group.children ? group.children.some((c) => isActive(c.to, false, pathname)) : false
+  );
+
+  if (group.to) {
+    const Icon = group.icon;
+    const active = isActive(group.to, group.exact, pathname);
+    return (
+      <Link
+        to={group.to}
+        className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
+          active
+            ? "bg-sidebar-accent text-sidebar-accent-foreground"
+            : "text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+        }`}
+      >
+        <Icon className="h-4 w-4" />
+        {group.label}
+      </Link>
+    );
+  }
+
+  const Icon = group.icon;
+  const anyChildActive = group.children?.some((c) => isActive(c.to, false, pathname)) ?? false;
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger asChild>
+        <button
+          className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition ${
+            anyChildActive
+              ? "bg-sidebar-accent/40 text-sidebar-accent-foreground"
+              : "text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+          }`}
+        >
+          <span className="flex items-center gap-3">
+            <Icon className="h-4 w-4" />
+            {group.label}
+          </span>
+          <ChevronDown
+            className={`h-3.5 w-3.5 text-sidebar-foreground/50 transition-transform ${open ? "rotate-180" : ""}`}
+          />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
+          {group.children?.map((child) => {
+            const childActive = isActive(child.to, false, pathname);
+            return (
+              <Link
+                key={child.to}
+                to={child.to}
+                className={`block rounded-md px-3 py-1.5 text-sm transition ${
+                  childActive
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/40 hover:text-sidebar-accent-foreground"
+                }`}
+              >
+                {child.label}
+              </Link>
+            );
+          })}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 export function AdminShell() {
   const location = useLocation();
+  const pathname = location.pathname;
+
   return (
     <div className="flex min-h-screen bg-muted/40">
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground md:flex">
@@ -57,26 +162,9 @@ export function AdminShell() {
           </div>
         </div>
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-3">
-          {nav.map((item) => {
-            const Icon = item.icon;
-            const isActive = item.exact
-              ? location.pathname === item.to
-              : location.pathname === item.to || location.pathname.startsWith(item.to + "/");
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                  isActive
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            );
-          })}
+          {nav.map((group) => (
+            <GroupItem key={group.label} group={group} pathname={pathname} />
+          ))}
         </nav>
         <div className="border-t border-sidebar-border p-4">
           <Link
@@ -113,3 +201,4 @@ export function AdminShell() {
     </div>
   );
 }
+
