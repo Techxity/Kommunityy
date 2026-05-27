@@ -35,6 +35,7 @@ import { Route as AdminMembersRouteImport } from './routes/admin.members'
 import { Route as AdminElectionsRouteImport } from './routes/admin.elections'
 import { Route as AdminDuesRouteImport } from './routes/admin.dues'
 import { Route as AdminDonationsRouteImport } from './routes/admin.donations'
+import { Route as AdminChaptersRouteImport } from './routes/admin.chapters'
 import { Route as AdminCalltreeRouteImport } from './routes/admin.calltree'
 import { Route as AdminBroadcastRouteImport } from './routes/admin.broadcast'
 import { Route as AdminBirthdaysRouteImport } from './routes/admin.birthdays'
@@ -169,6 +170,11 @@ const AdminDonationsRoute = AdminDonationsRouteImport.update({
   path: '/donations',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminChaptersRoute = AdminChaptersRouteImport.update({
+  id: '/chapters',
+  path: '/chapters',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminCalltreeRoute = AdminCalltreeRouteImport.update({
   id: '/calltree',
   path: '/calltree',
@@ -196,6 +202,7 @@ export interface FileRoutesByFullPath {
   '/admin/birthdays': typeof AdminBirthdaysRoute
   '/admin/broadcast': typeof AdminBroadcastRoute
   '/admin/calltree': typeof AdminCalltreeRoute
+  '/admin/chapters': typeof AdminChaptersRoute
   '/admin/donations': typeof AdminDonationsRoute
   '/admin/dues': typeof AdminDuesRoute
   '/admin/elections': typeof AdminElectionsRoute
@@ -224,6 +231,7 @@ export interface FileRoutesByTo {
   '/admin/birthdays': typeof AdminBirthdaysRoute
   '/admin/broadcast': typeof AdminBroadcastRoute
   '/admin/calltree': typeof AdminCalltreeRoute
+  '/admin/chapters': typeof AdminChaptersRoute
   '/admin/donations': typeof AdminDonationsRoute
   '/admin/dues': typeof AdminDuesRoute
   '/admin/elections': typeof AdminElectionsRoute
@@ -256,6 +264,7 @@ export interface FileRoutesById {
   '/admin/birthdays': typeof AdminBirthdaysRoute
   '/admin/broadcast': typeof AdminBroadcastRoute
   '/admin/calltree': typeof AdminCalltreeRoute
+  '/admin/chapters': typeof AdminChaptersRoute
   '/admin/donations': typeof AdminDonationsRoute
   '/admin/dues': typeof AdminDuesRoute
   '/admin/elections': typeof AdminElectionsRoute
@@ -289,6 +298,7 @@ export interface FileRouteTypes {
     | '/admin/birthdays'
     | '/admin/broadcast'
     | '/admin/calltree'
+    | '/admin/chapters'
     | '/admin/donations'
     | '/admin/dues'
     | '/admin/elections'
@@ -317,6 +327,7 @@ export interface FileRouteTypes {
     | '/admin/birthdays'
     | '/admin/broadcast'
     | '/admin/calltree'
+    | '/admin/chapters'
     | '/admin/donations'
     | '/admin/dues'
     | '/admin/elections'
@@ -348,6 +359,7 @@ export interface FileRouteTypes {
     | '/admin/birthdays'
     | '/admin/broadcast'
     | '/admin/calltree'
+    | '/admin/chapters'
     | '/admin/donations'
     | '/admin/dues'
     | '/admin/elections'
@@ -563,6 +575,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminDonationsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/chapters': {
+      id: '/admin/chapters'
+      path: '/chapters'
+      fullPath: '/admin/chapters'
+      preLoaderRoute: typeof AdminChaptersRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/calltree': {
       id: '/admin/calltree'
       path: '/calltree'
@@ -591,6 +610,7 @@ interface AdminRouteChildren {
   AdminBirthdaysRoute: typeof AdminBirthdaysRoute
   AdminBroadcastRoute: typeof AdminBroadcastRoute
   AdminCalltreeRoute: typeof AdminCalltreeRoute
+  AdminChaptersRoute: typeof AdminChaptersRoute
   AdminDonationsRoute: typeof AdminDonationsRoute
   AdminDuesRoute: typeof AdminDuesRoute
   AdminElectionsRoute: typeof AdminElectionsRoute
@@ -604,6 +624,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminBirthdaysRoute: AdminBirthdaysRoute,
   AdminBroadcastRoute: AdminBroadcastRoute,
   AdminCalltreeRoute: AdminCalltreeRoute,
+  AdminChaptersRoute: AdminChaptersRoute,
   AdminDonationsRoute: AdminDonationsRoute,
   AdminDuesRoute: AdminDuesRoute,
   AdminElectionsRoute: AdminElectionsRoute,

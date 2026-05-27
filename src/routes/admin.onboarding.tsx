@@ -1,6 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { GripVertical, Plus, Trash2, Link2, Copy } from "lucide-react";
+import { GripVertical, Plus, Trash2, Link2, Copy, Settings2 } from "lucide-react";
+import { useChapters } from "@/lib/chapters-store";
 
 export const Route = createFileRoute("/admin/onboarding")({
   component: OnboardingForm,
@@ -8,7 +9,7 @@ export const Route = createFileRoute("/admin/onboarding")({
 
 const FIELD_LIBRARY = [
   "Name", "Phone number", "Email", "Address", "WhatsApp Number",
-  "Date of Birth", "Year of Graduation", "Year of joining group",
+  "Date of Birth", "Chapter", "Year of Graduation", "Year of joining group",
   "Matriculation number", "Who invited you?", "Occupation",
 ];
 
