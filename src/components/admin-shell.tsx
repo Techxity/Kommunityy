@@ -40,7 +40,6 @@ const nav: NavGroup[] = [
       { to: "/admin/onboarding", label: "Onboarding Form" },
     ],
   },
-  { to: "/admin/broadcast", label: "Broadcasts", icon: Megaphone },
   {
     label: "Funds Management",
     icon: Banknote,
@@ -50,6 +49,7 @@ const nav: NavGroup[] = [
     ],
   },
   { to: "/admin/elections", label: "Elections", icon: Vote },
+  { to: "/admin/broadcast", label: "Broadcasts", icon: Megaphone },
   { to: "/admin/subscription", label: "Subscription", icon: CreditCard },
 ];
 
