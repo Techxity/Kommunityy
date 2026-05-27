@@ -36,7 +36,7 @@ function PublicJoinPage() {
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const required = useMemo(() => fields.filter((f) => f === "Name" || f === "Email" || f === "Phone number"), [fields]);
+  const required = useMemo<string[]>(() => fields.filter((f) => f === "Name" || f === "Email" || f === "Phone number"), [fields]);
 
   function set(f: string, v: string) {
     setValues((prev) => ({ ...prev, [f]: v }));
