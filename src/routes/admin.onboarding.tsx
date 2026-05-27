@@ -1,32 +1,44 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { GripVertical, Plus, Trash2, Link2, Copy, Settings2 } from "lucide-react";
+import { GripVertical, Plus, Trash2, Link2, Copy, Settings2, ExternalLink, Check } from "lucide-react";
 import { useChapters } from "@/lib/chapters-store";
+import { FIELD_LIBRARY, onboardingStore, useOnboardingFields, type FieldName } from "@/lib/onboarding-store";
+import { community } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/admin/onboarding")({
   component: OnboardingForm,
 });
 
-const FIELD_LIBRARY = [
-  "Name", "Phone number", "Email", "Address", "WhatsApp Number",
-  "Date of Birth", "Chapter", "Year of Graduation", "Year of joining group",
-  "Matriculation number", "Who invited you?", "Occupation",
-];
-
 function OnboardingForm() {
-  const [active, setActive] = useState<string[]>(["Name", "Email", "Phone number", "WhatsApp Number", "Chapter", "Date of Birth"]);
+  const active = useOnboardingFields();
   const chapters = useChapters();
-  const formUrl = "https://kinfolk.app/c/CRE-2024-001/join";
+  const [copied, setCopied] = useState(false);
 
-  function toggle(f: string) {
-    setActive((cur) => cur.includes(f) ? cur.filter(x => x !== f) : [...cur, f]);
+  const formUrl =
+    (typeof window !== "undefined" ? window.location.origin : "https://kinfolk.app") +
+    `/join/${community.id}`;
+
+  function toggle(f: FieldName) {
+    onboardingStore.toggle(f);
+  }
+
+  function copyLink() {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(formUrl).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1800);
+      });
+    }
   }
 
   return (
     <div className="space-y-6">
       <header>
         <h1 className="font-display text-3xl font-bold">Member onboarding form</h1>
-        <p className="text-sm text-muted-foreground">Pick the fields new members fill out when joining your community.</p>
+        <p className="text-sm text-muted-foreground">
+          Pick the fields new members fill out when joining your community. Share the link — submissions land in{" "}
+          <Link to="/admin/members/pending" className="font-semibold text-primary hover:underline">Pending approvals</Link>.
+        </p>
       </header>
 
       <div className="grid gap-6 md:grid-cols-3">
@@ -52,7 +64,11 @@ function OnboardingForm() {
                   </button>
                 </li>
               ))}
-              {active.length === 0 && <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">No fields yet — add some from the library →</p>}
+              {active.length === 0 && (
+                <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                  No fields yet — add some from the library →
+                </p>
+              )}
             </ul>
           </div>
 
@@ -77,13 +93,27 @@ function OnboardingForm() {
             <Link2 className="h-5 w-5 opacity-80" />
             <p className="mt-3 text-xs uppercase tracking-wider text-primary-foreground/70">Shareable form link</p>
             <p className="mt-2 break-all rounded-lg bg-primary-foreground/10 p-3 text-xs">{formUrl}</p>
-            <button className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground">
-              <Copy className="h-3 w-3" /> Copy link
-            </button>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                onClick={copyLink}
+                className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground"
+              >
+                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                {copied ? "Copied!" : "Copy link"}
+              </button>
+              <Link
+                to="/join/$communityId"
+                params={{ communityId: community.id }}
+                target="_blank"
+                className="inline-flex items-center gap-1.5 rounded-full bg-primary-foreground/10 px-3 py-1.5 text-xs font-semibold text-primary-foreground ring-1 ring-primary-foreground/20"
+              >
+                <ExternalLink className="h-3 w-3" /> Open public page
+              </Link>
+            </div>
           </div>
           <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
             <p className="text-xs uppercase tracking-wider text-muted-foreground">Preview</p>
-            <h3 className="mt-1 font-display text-lg font-bold">Join Crestwood Estate Residents</h3>
+            <h3 className="mt-1 font-display text-lg font-bold">Join {community.name}</h3>
             <div className="mt-4 space-y-3">
               {active.map((f) => (
                 <div key={f}>
@@ -102,7 +132,9 @@ function OnboardingForm() {
                   )}
                 </div>
               ))}
-              <button className="mt-2 w-full rounded-full bg-primary py-2 text-sm font-semibold text-primary-foreground">Join community</button>
+              <button type="button" className="mt-2 w-full rounded-full bg-primary py-2 text-sm font-semibold text-primary-foreground">
+                Submit application
+              </button>
             </div>
           </div>
         </aside>

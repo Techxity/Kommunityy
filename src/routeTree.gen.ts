@@ -29,6 +29,7 @@ import { Route as MemberUpdatesRouteImport } from './routes/member.updates'
 import { Route as MemberProfileRouteImport } from './routes/member.profile'
 import { Route as MemberElectionsRouteImport } from './routes/member.elections'
 import { Route as MemberDuesRouteImport } from './routes/member.dues'
+import { Route as JoinCommunityIdRouteImport } from './routes/join.$communityId'
 import { Route as AdminSubscriptionRouteImport } from './routes/admin.subscription'
 import { Route as AdminOnboardingRouteImport } from './routes/admin.onboarding'
 import { Route as AdminMembersRouteImport } from './routes/admin.members'
@@ -39,6 +40,7 @@ import { Route as AdminChaptersRouteImport } from './routes/admin.chapters'
 import { Route as AdminCalltreeRouteImport } from './routes/admin.calltree'
 import { Route as AdminBroadcastRouteImport } from './routes/admin.broadcast'
 import { Route as AdminBirthdaysRouteImport } from './routes/admin.birthdays'
+import { Route as AdminMembersPendingRouteImport } from './routes/admin.members.pending'
 
 const SuperAdminRoute = SuperAdminRouteImport.update({
   id: '/super-admin',
@@ -140,6 +142,11 @@ const MemberDuesRoute = MemberDuesRouteImport.update({
   path: '/dues',
   getParentRoute: () => MemberRoute,
 } as any)
+const JoinCommunityIdRoute = JoinCommunityIdRouteImport.update({
+  id: '/join/$communityId',
+  path: '/join/$communityId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminSubscriptionRoute = AdminSubscriptionRouteImport.update({
   id: '/subscription',
   path: '/subscription',
@@ -190,6 +197,11 @@ const AdminBirthdaysRoute = AdminBirthdaysRouteImport.update({
   path: '/birthdays',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminMembersPendingRoute = AdminMembersPendingRouteImport.update({
+  id: '/pending',
+  path: '/pending',
+  getParentRoute: () => AdminMembersRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -206,9 +218,10 @@ export interface FileRoutesByFullPath {
   '/admin/donations': typeof AdminDonationsRoute
   '/admin/dues': typeof AdminDuesRoute
   '/admin/elections': typeof AdminElectionsRoute
-  '/admin/members': typeof AdminMembersRoute
+  '/admin/members': typeof AdminMembersRouteWithChildren
   '/admin/onboarding': typeof AdminOnboardingRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
+  '/join/$communityId': typeof JoinCommunityIdRoute
   '/member/dues': typeof MemberDuesRoute
   '/member/elections': typeof MemberElectionsRoute
   '/member/profile': typeof MemberProfileRoute
@@ -222,6 +235,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/member/': typeof MemberIndexRoute
   '/super-admin/': typeof SuperAdminIndexRoute
+  '/admin/members/pending': typeof AdminMembersPendingRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -235,9 +249,10 @@ export interface FileRoutesByTo {
   '/admin/donations': typeof AdminDonationsRoute
   '/admin/dues': typeof AdminDuesRoute
   '/admin/elections': typeof AdminElectionsRoute
-  '/admin/members': typeof AdminMembersRoute
+  '/admin/members': typeof AdminMembersRouteWithChildren
   '/admin/onboarding': typeof AdminOnboardingRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
+  '/join/$communityId': typeof JoinCommunityIdRoute
   '/member/dues': typeof MemberDuesRoute
   '/member/elections': typeof MemberElectionsRoute
   '/member/profile': typeof MemberProfileRoute
@@ -251,6 +266,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/member': typeof MemberIndexRoute
   '/super-admin': typeof SuperAdminIndexRoute
+  '/admin/members/pending': typeof AdminMembersPendingRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -268,9 +284,10 @@ export interface FileRoutesById {
   '/admin/donations': typeof AdminDonationsRoute
   '/admin/dues': typeof AdminDuesRoute
   '/admin/elections': typeof AdminElectionsRoute
-  '/admin/members': typeof AdminMembersRoute
+  '/admin/members': typeof AdminMembersRouteWithChildren
   '/admin/onboarding': typeof AdminOnboardingRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
+  '/join/$communityId': typeof JoinCommunityIdRoute
   '/member/dues': typeof MemberDuesRoute
   '/member/elections': typeof MemberElectionsRoute
   '/member/profile': typeof MemberProfileRoute
@@ -284,6 +301,7 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/member/': typeof MemberIndexRoute
   '/super-admin/': typeof SuperAdminIndexRoute
+  '/admin/members/pending': typeof AdminMembersPendingRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -305,6 +323,7 @@ export interface FileRouteTypes {
     | '/admin/members'
     | '/admin/onboarding'
     | '/admin/subscription'
+    | '/join/$communityId'
     | '/member/dues'
     | '/member/elections'
     | '/member/profile'
@@ -318,6 +337,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/member/'
     | '/super-admin/'
+    | '/admin/members/pending'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -334,6 +354,7 @@ export interface FileRouteTypes {
     | '/admin/members'
     | '/admin/onboarding'
     | '/admin/subscription'
+    | '/join/$communityId'
     | '/member/dues'
     | '/member/elections'
     | '/member/profile'
@@ -347,6 +368,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/member'
     | '/super-admin'
+    | '/admin/members/pending'
   id:
     | '__root__'
     | '/'
@@ -366,6 +388,7 @@ export interface FileRouteTypes {
     | '/admin/members'
     | '/admin/onboarding'
     | '/admin/subscription'
+    | '/join/$communityId'
     | '/member/dues'
     | '/member/elections'
     | '/member/profile'
@@ -379,6 +402,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/member/'
     | '/super-admin/'
+    | '/admin/members/pending'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -389,6 +413,7 @@ export interface RootRouteChildren {
   PricingRoute: typeof PricingRoute
   SignupRoute: typeof SignupRoute
   SuperAdminRoute: typeof SuperAdminRouteWithChildren
+  JoinCommunityIdRoute: typeof JoinCommunityIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -533,6 +558,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberDuesRouteImport
       parentRoute: typeof MemberRoute
     }
+    '/join/$communityId': {
+      id: '/join/$communityId'
+      path: '/join/$communityId'
+      fullPath: '/join/$communityId'
+      preLoaderRoute: typeof JoinCommunityIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/subscription': {
       id: '/admin/subscription'
       path: '/subscription'
@@ -603,8 +635,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminBirthdaysRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/members/pending': {
+      id: '/admin/members/pending'
+      path: '/pending'
+      fullPath: '/admin/members/pending'
+      preLoaderRoute: typeof AdminMembersPendingRouteImport
+      parentRoute: typeof AdminMembersRoute
+    }
   }
 }
+
+interface AdminMembersRouteChildren {
+  AdminMembersPendingRoute: typeof AdminMembersPendingRoute
+}
+
+const AdminMembersRouteChildren: AdminMembersRouteChildren = {
+  AdminMembersPendingRoute: AdminMembersPendingRoute,
+}
+
+const AdminMembersRouteWithChildren = AdminMembersRoute._addFileChildren(
+  AdminMembersRouteChildren,
+)
 
 interface AdminRouteChildren {
   AdminBirthdaysRoute: typeof AdminBirthdaysRoute
@@ -614,7 +665,7 @@ interface AdminRouteChildren {
   AdminDonationsRoute: typeof AdminDonationsRoute
   AdminDuesRoute: typeof AdminDuesRoute
   AdminElectionsRoute: typeof AdminElectionsRoute
-  AdminMembersRoute: typeof AdminMembersRoute
+  AdminMembersRoute: typeof AdminMembersRouteWithChildren
   AdminOnboardingRoute: typeof AdminOnboardingRoute
   AdminSubscriptionRoute: typeof AdminSubscriptionRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -628,7 +679,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminDonationsRoute: AdminDonationsRoute,
   AdminDuesRoute: AdminDuesRoute,
   AdminElectionsRoute: AdminElectionsRoute,
-  AdminMembersRoute: AdminMembersRoute,
+  AdminMembersRoute: AdminMembersRouteWithChildren,
   AdminOnboardingRoute: AdminOnboardingRoute,
   AdminSubscriptionRoute: AdminSubscriptionRoute,
   AdminIndexRoute: AdminIndexRoute,
@@ -687,6 +738,7 @@ const rootRouteChildren: RootRouteChildren = {
   PricingRoute: PricingRoute,
   SignupRoute: SignupRoute,
   SuperAdminRoute: SuperAdminRouteWithChildren,
+  JoinCommunityIdRoute: JoinCommunityIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
