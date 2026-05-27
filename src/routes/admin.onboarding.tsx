@@ -88,7 +88,18 @@ function OnboardingForm() {
               {active.map((f) => (
                 <div key={f}>
                   <label className="text-xs font-medium">{f}</label>
-                  <div className="mt-1 h-9 rounded-md border border-border bg-muted/40" />
+                  {f === "Chapter" ? (
+                    <select className="mt-1 h-9 w-full rounded-md border border-border bg-muted/40 px-2 text-sm">
+                      <option value="">Select a chapter…</option>
+                      {chapters.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="mt-1 h-9 rounded-md border border-border bg-muted/40" />
+                  )}
                 </div>
               ))}
               <button className="mt-2 w-full rounded-full bg-primary py-2 text-sm font-semibold text-primary-foreground">Join community</button>
