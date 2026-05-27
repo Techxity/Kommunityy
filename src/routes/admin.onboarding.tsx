@@ -1,6 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { GripVertical, Plus, Trash2, Link2, Copy } from "lucide-react";
+import { GripVertical, Plus, Trash2, Link2, Copy, Settings2 } from "lucide-react";
+import { useChapters } from "@/lib/chapters-store";
 
 export const Route = createFileRoute("/admin/onboarding")({
   component: OnboardingForm,
@@ -8,12 +9,13 @@ export const Route = createFileRoute("/admin/onboarding")({
 
 const FIELD_LIBRARY = [
   "Name", "Phone number", "Email", "Address", "WhatsApp Number",
-  "Date of Birth", "Year of Graduation", "Year of joining group",
+  "Date of Birth", "Chapter", "Year of Graduation", "Year of joining group",
   "Matriculation number", "Who invited you?", "Occupation",
 ];
 
 function OnboardingForm() {
-  const [active, setActive] = useState<string[]>(["Name", "Email", "Phone number", "WhatsApp Number", "Date of Birth"]);
+  const [active, setActive] = useState<string[]>(["Name", "Email", "Phone number", "WhatsApp Number", "Chapter", "Date of Birth"]);
+  const chapters = useChapters();
   const formUrl = "https://kinfolk.app/c/CRE-2024-001/join";
 
   function toggle(f: string) {
@@ -37,6 +39,14 @@ function OnboardingForm() {
                 <li key={f} className="flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2.5">
                   <GripVertical className="h-4 w-4 text-muted-foreground" />
                   <span className="flex-1 text-sm font-medium">{f}</span>
+                  {f === "Chapter" && (
+                    <Link
+                      to="/admin/chapters"
+                      className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary hover:bg-primary/15"
+                    >
+                      <Settings2 className="h-2.5 w-2.5" /> Manage list
+                    </Link>
+                  )}
                   <button onClick={() => toggle(f)} className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -78,7 +88,18 @@ function OnboardingForm() {
               {active.map((f) => (
                 <div key={f}>
                   <label className="text-xs font-medium">{f}</label>
-                  <div className="mt-1 h-9 rounded-md border border-border bg-muted/40" />
+                  {f === "Chapter" ? (
+                    <select className="mt-1 h-9 w-full rounded-md border border-border bg-muted/40 px-2 text-sm">
+                      <option value="">Select a chapter…</option>
+                      {chapters.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="mt-1 h-9 rounded-md border border-border bg-muted/40" />
+                  )}
                 </div>
               ))}
               <button className="mt-2 w-full rounded-full bg-primary py-2 text-sm font-semibold text-primary-foreground">Join community</button>
