@@ -35,6 +35,7 @@ const nav: NavGroup[] = [
     icon: Users,
     children: [
       { to: "/admin/members", label: "Members" },
+      { to: "/admin/chapters", label: "Chapters" },
       { to: "/admin/calltree", label: "Call Tree" },
       { to: "/admin/birthdays", label: "Birthdays" },
       { to: "/admin/onboarding", label: "Onboarding Form" },
