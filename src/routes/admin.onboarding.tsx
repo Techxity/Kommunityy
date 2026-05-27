@@ -14,7 +14,8 @@ const FIELD_LIBRARY = [
 ];
 
 function OnboardingForm() {
-  const [active, setActive] = useState<string[]>(["Name", "Email", "Phone number", "WhatsApp Number", "Date of Birth"]);
+  const [active, setActive] = useState<string[]>(["Name", "Email", "Phone number", "WhatsApp Number", "Chapter", "Date of Birth"]);
+  const chapters = useChapters();
   const formUrl = "https://kinfolk.app/c/CRE-2024-001/join";
 
   function toggle(f: string) {
