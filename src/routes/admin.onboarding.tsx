@@ -39,6 +39,14 @@ function OnboardingForm() {
                 <li key={f} className="flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2.5">
                   <GripVertical className="h-4 w-4 text-muted-foreground" />
                   <span className="flex-1 text-sm font-medium">{f}</span>
+                  {f === "Chapter" && (
+                    <Link
+                      to="/admin/chapters"
+                      className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary hover:bg-primary/15"
+                    >
+                      <Settings2 className="h-2.5 w-2.5" /> Manage list
+                    </Link>
+                  )}
                   <button onClick={() => toggle(f)} className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
