@@ -33,6 +33,7 @@ import { Route as MemberProfileRouteImport } from './routes/member.profile'
 import { Route as MemberElectionsRouteImport } from './routes/member.elections'
 import { Route as MemberDuesRouteImport } from './routes/member.dues'
 import { Route as JoinCommunityIdRouteImport } from './routes/join.$communityId'
+import { Route as FeedbackTokenRouteImport } from './routes/feedback.$token'
 import { Route as DonateSlugRouteImport } from './routes/donate.$slug'
 import { Route as AdminSubscriptionRouteImport } from './routes/admin.subscription'
 import { Route as AdminPayoutsRouteImport } from './routes/admin.payouts'
@@ -168,6 +169,11 @@ const JoinCommunityIdRoute = JoinCommunityIdRouteImport.update({
   path: '/join/$communityId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FeedbackTokenRoute = FeedbackTokenRouteImport.update({
+  id: '/feedback/$token',
+  path: '/feedback/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DonateSlugRoute = DonateSlugRouteImport.update({
   id: '/donate/$slug',
   path: '/donate/$slug',
@@ -260,6 +266,7 @@ export interface FileRoutesByFullPath {
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
   '/donate/$slug': typeof DonateSlugRoute
+  '/feedback/$token': typeof FeedbackTokenRoute
   '/join/$communityId': typeof JoinCommunityIdRoute
   '/member/dues': typeof MemberDuesRoute
   '/member/elections': typeof MemberElectionsRoute
@@ -297,6 +304,7 @@ export interface FileRoutesByTo {
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
   '/donate/$slug': typeof DonateSlugRoute
+  '/feedback/$token': typeof FeedbackTokenRoute
   '/join/$communityId': typeof JoinCommunityIdRoute
   '/member/dues': typeof MemberDuesRoute
   '/member/elections': typeof MemberElectionsRoute
@@ -338,6 +346,7 @@ export interface FileRoutesById {
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
   '/donate/$slug': typeof DonateSlugRoute
+  '/feedback/$token': typeof FeedbackTokenRoute
   '/join/$communityId': typeof JoinCommunityIdRoute
   '/member/dues': typeof MemberDuesRoute
   '/member/elections': typeof MemberElectionsRoute
@@ -380,6 +389,7 @@ export interface FileRouteTypes {
     | '/admin/payouts'
     | '/admin/subscription'
     | '/donate/$slug'
+    | '/feedback/$token'
     | '/join/$communityId'
     | '/member/dues'
     | '/member/elections'
@@ -417,6 +427,7 @@ export interface FileRouteTypes {
     | '/admin/payouts'
     | '/admin/subscription'
     | '/donate/$slug'
+    | '/feedback/$token'
     | '/join/$communityId'
     | '/member/dues'
     | '/member/elections'
@@ -457,6 +468,7 @@ export interface FileRouteTypes {
     | '/admin/payouts'
     | '/admin/subscription'
     | '/donate/$slug'
+    | '/feedback/$token'
     | '/join/$communityId'
     | '/member/dues'
     | '/member/elections'
@@ -487,6 +499,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   SuperAdminRoute: typeof SuperAdminRouteWithChildren
   DonateSlugRoute: typeof DonateSlugRoute
+  FeedbackTokenRoute: typeof FeedbackTokenRoute
   JoinCommunityIdRoute: typeof JoinCommunityIdRoute
   PayDuesPlanIdRoute: typeof PayDuesPlanIdRoute
   ApiPublicPaystackWebhookRoute: typeof ApiPublicPaystackWebhookRoute
@@ -660,6 +673,13 @@ declare module '@tanstack/react-router' {
       path: '/join/$communityId'
       fullPath: '/join/$communityId'
       preLoaderRoute: typeof JoinCommunityIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/feedback/$token': {
+      id: '/feedback/$token'
+      path: '/feedback/$token'
+      fullPath: '/feedback/$token'
+      preLoaderRoute: typeof FeedbackTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/donate/$slug': {
@@ -863,6 +883,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   SuperAdminRoute: SuperAdminRouteWithChildren,
   DonateSlugRoute: DonateSlugRoute,
+  FeedbackTokenRoute: FeedbackTokenRoute,
   JoinCommunityIdRoute: JoinCommunityIdRoute,
   PayDuesPlanIdRoute: PayDuesPlanIdRoute,
   ApiPublicPaystackWebhookRoute: ApiPublicPaystackWebhookRoute,
