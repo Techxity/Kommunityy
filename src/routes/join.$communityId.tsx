@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { CheckCircle2, Users2, ShieldCheck, Sparkles } from "lucide-react";
+import { CheckCircle2, Users2, ShieldCheck, Sparkles, Ban } from "lucide-react";
 import { community } from "@/lib/mock-data";
 import { useOnboardingFields } from "@/lib/onboarding-store";
 import { useChapters } from "@/lib/chapters-store";
 import { pendingMembersStore } from "@/lib/pending-members-store";
+import { isCommunityDisabled, useCommunities } from "@/lib/communities-store";
 
 export const Route = createFileRoute("/join/$communityId")({
   component: PublicJoinPage,
@@ -30,6 +31,9 @@ const INPUT_TYPES: Record<string, string> = {
 };
 
 function PublicJoinPage() {
+  const { communityId } = Route.useParams();
+  useCommunities(); // subscribe so toggling updates this page
+  const disabled = isCommunityDisabled(communityId);
   const fields = useOnboardingFields();
   const chapters = useChapters();
   const [values, setValues] = useState<Record<string, string>>({});
@@ -45,6 +49,7 @@ function PublicJoinPage() {
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (disabled) return;
     const errs: Record<string, string> = {};
     for (const f of required) if (!values[f]?.trim()) errs[f] = "Required";
     if (values["Email"] && !/^\S+@\S+\.\S+$/.test(values["Email"])) errs["Email"] = "Enter a valid email";
@@ -110,6 +115,17 @@ function PublicJoinPage() {
 
       {/* Form */}
       <div className="mx-auto -mt-8 max-w-3xl px-6 pb-16">
+        {disabled && (
+          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-5 text-destructive">
+            <Ban className="mt-0.5 h-5 w-5 shrink-0" />
+            <div>
+              <p className="font-display text-base font-bold">This community is currently disabled</p>
+              <p className="mt-1 text-sm">
+                New applications and member sign-ins are paused. Please contact your community admin for more information.
+              </p>
+            </div>
+          </div>
+        )}
         <form
           onSubmit={submit}
           className="rounded-3xl border border-border bg-card p-6 shadow-elegant md:p-10"
@@ -179,7 +195,7 @@ function PublicJoinPage() {
             </p>
             <button
               type="submit"
-              disabled={fields.length === 0}
+              disabled={fields.length === 0 || disabled}
               className="inline-flex items-center justify-center rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-soft hover:opacity-95 disabled:opacity-50"
             >
               Submit application

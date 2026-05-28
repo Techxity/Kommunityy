@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { MarketingNav } from "@/components/marketing-nav";
 import { useState } from "react";
 import { Users2, Copy, Check } from "lucide-react";
+import { communityIdForEmail, isCommunityDisabled } from "@/lib/communities-store";
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Sign in — Kinfolk" }] }),
@@ -48,6 +49,11 @@ function Login() {
     );
     if (!match) {
       setError("No account found for that email. Try one of the sample logins below.");
+      return;
+    }
+    const cid = communityIdForEmail(email);
+    if (isCommunityDisabled(cid)) {
+      setError("This community has been disabled by the platform. Please contact your community admin.");
       return;
     }
     setError("");

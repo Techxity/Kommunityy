@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Search, MoreHorizontal, Plus, Filter } from "lucide-react";
-import { communities } from "@/lib/platform-data";
+import { Search, MoreHorizontal, Plus, Filter, Eye, Power, X } from "lucide-react";
+import { useCommunities, communitiesStore, type Community } from "@/lib/communities-store";
 
 export const Route = createFileRoute("/super-admin/communities")({
   head: () => ({ meta: [{ title: "Communities — Super Admin" }] }),
@@ -16,8 +16,12 @@ const statusStyles: Record<string, string> = {
 };
 
 function Communities() {
+  const communities = useCommunities();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<string>("All");
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<Community | null>(null);
+
   const filtered = communities.filter((c) => {
     const matchQ = !q || c.name.toLowerCase().includes(q.toLowerCase()) || c.id.toLowerCase().includes(q.toLowerCase());
     const matchS = status === "All" || c.status === status;
@@ -25,7 +29,7 @@ function Communities() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" onClick={() => setMenuFor(null)}>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl font-bold tracking-tight">Communities</h1>
@@ -62,7 +66,7 @@ function Communities() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+      <div className="overflow-visible rounded-2xl border border-border bg-card shadow-soft">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-xs uppercase tracking-wider text-muted-foreground">
             <tr>
@@ -78,9 +82,16 @@ function Communities() {
           </thead>
           <tbody>
             {filtered.map((c) => (
-              <tr key={c.id} className="border-t border-border hover:bg-muted/30">
+              <tr key={c.id} className={`border-t border-border hover:bg-muted/30 ${c.disabled ? "opacity-60" : ""}`}>
                 <td className="px-5 py-3">
-                  <p className="font-semibold">{c.name}</p>
+                  <p className="font-semibold">
+                    {c.name}
+                    {c.disabled && (
+                      <span className="ml-2 rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-rose-700">
+                        Disabled
+                      </span>
+                    )}
+                  </p>
                   <p className="text-xs text-muted-foreground">{c.id} · {c.owner}</p>
                 </td>
                 <td className="px-5 py-3 text-muted-foreground">{c.type}</td>
@@ -92,13 +103,94 @@ function Communities() {
                   <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusStyles[c.status] ?? "bg-muted"}`}>{c.status}</span>
                 </td>
                 <td className="px-5 py-3 text-right">
-                  <button className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><MoreHorizontal className="h-4 w-4" /></button>
+                  <div className="relative inline-block">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuFor((m) => (m === c.id ? null : c.id));
+                      }}
+                      className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </button>
+                    {menuFor === c.id && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute right-0 z-20 mt-1 w-48 overflow-hidden rounded-lg border border-border bg-card shadow-lg"
+                      >
+                        <button
+                          onClick={() => {
+                            setViewing(c);
+                            setMenuFor(null);
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
+                        >
+                          <Eye className="h-4 w-4" /> View details
+                        </button>
+                        <button
+                          onClick={() => {
+                            communitiesStore.setDisabled(c.id, !c.disabled);
+                            setMenuFor(null);
+                          }}
+                          className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted ${
+                            c.disabled ? "text-emerald-700" : "text-rose-700"
+                          }`}
+                        >
+                          <Power className="h-4 w-4" /> {c.disabled ? "Enable community" : "Disable community"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {viewing && <CommunityDetails community={viewing} onClose={() => setViewing(null)} />}
+    </div>
+  );
+}
+
+function CommunityDetails({ community, onClose }: { community: Community; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-soft" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">{community.id}</p>
+            <p className="font-display text-xl font-bold">{community.name}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{community.type} · {community.country}</p>
+          </div>
+          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
+          <Detail label="Owner" value={community.owner} />
+          <Detail label="Plan" value={community.plan} />
+          <Detail label="Members" value={community.members.toLocaleString()} />
+          <Detail label="MRR" value={`$${community.mrr}`} />
+          <Detail label="Status" value={community.status} />
+          <Detail label="Joined" value={community.joined} />
+          <Detail label="Access" value={community.disabled ? "Disabled" : "Active"} />
+        </div>
+        {community.disabled && (
+          <p className="mt-5 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-700">
+            Members of this community can't sign in or submit join applications until you re-enable it.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-background p-3">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="mt-1 font-semibold">{value}</p>
     </div>
   );
 }
