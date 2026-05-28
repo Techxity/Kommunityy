@@ -172,19 +172,19 @@ function PendingApprovalsPage() {
       )}
 
       {filteredPending.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border bg-card px-4 py-2.5 shadow-soft">
-          <button
-            onClick={toggleAll}
-            className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
-          >
-            {allSelected ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4" />}
-            {allSelected ? "Deselect all" : "Select all"}
-            {selected.size > 0 && (
-              <span className="ml-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-                {selected.size}
-              </span>
-            )}
-          </button>
+        <div className="sticky top-2 z-10 flex flex-wrap items-center justify-between gap-2 rounded-2xl border-2 border-primary/30 bg-card px-4 py-3 shadow-soft">
+          <label className="inline-flex cursor-pointer items-center gap-2.5 text-sm font-semibold">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={toggleAll}
+              className="h-4 w-4 cursor-pointer accent-primary"
+            />
+            <span>{allSelected ? "Deselect all" : "Select all"}</span>
+            <span className="text-xs font-normal text-muted-foreground">
+              ({selected.size} of {filteredPending.length} selected)
+            </span>
+          </label>
           <div className="flex gap-2">
             <button
               disabled={selected.size === 0}
