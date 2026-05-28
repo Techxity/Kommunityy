@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { MarketingNav } from "@/components/marketing-nav";
 import { useState } from "react";
 import { Users2, Copy, Check } from "lucide-react";
+import { communityIdForEmail, isCommunityDisabled } from "@/lib/communities-store";
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Sign in — Kinfolk" }] }),
