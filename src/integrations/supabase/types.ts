@@ -18,62 +18,97 @@ export type Database = {
         Row: {
           accept_ngn: boolean
           accept_usd: boolean
+          account_name: string | null
+          account_number: string | null
+          bank_code: string | null
+          bank_name: string | null
           created_at: string
           id: string
           name: string
+          paystack_recipient_code: string | null
+          tier_id: string | null
           updated_at: string
         }
         Insert: {
           accept_ngn?: boolean
           accept_usd?: boolean
+          account_name?: string | null
+          account_number?: string | null
+          bank_code?: string | null
+          bank_name?: string | null
           created_at?: string
           id?: string
           name: string
+          paystack_recipient_code?: string | null
+          tier_id?: string | null
           updated_at?: string
         }
         Update: {
           accept_ngn?: boolean
           accept_usd?: boolean
+          account_name?: string | null
+          account_number?: string | null
+          bank_code?: string | null
+          bank_name?: string | null
           created_at?: string
           id?: string
           name?: string
+          paystack_recipient_code?: string | null
+          tier_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "communities_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_tiers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       donation_payments: {
         Row: {
           amount: number
+          community_net: number
           currency: Database["public"]["Enums"]["payment_currency"]
           donation_id: string
           id: string
           paid_at: string
           payer_email: string | null
           payer_name: string
+          paystack_fee: number
+          platform_fee: number
           provider: Database["public"]["Enums"]["payment_provider"]
           provider_ref: string
           status: Database["public"]["Enums"]["payment_status"]
         }
         Insert: {
           amount: number
+          community_net?: number
           currency: Database["public"]["Enums"]["payment_currency"]
           donation_id: string
           id?: string
           paid_at?: string
           payer_email?: string | null
           payer_name: string
+          paystack_fee?: number
+          platform_fee?: number
           provider: Database["public"]["Enums"]["payment_provider"]
           provider_ref: string
           status?: Database["public"]["Enums"]["payment_status"]
         }
         Update: {
           amount?: number
+          community_net?: number
           currency?: Database["public"]["Enums"]["payment_currency"]
           donation_id?: string
           id?: string
           paid_at?: string
           payer_email?: string | null
           payer_name?: string
+          paystack_fee?: number
+          platform_fee?: number
           provider?: Database["public"]["Enums"]["payment_provider"]
           provider_ref?: string
           status?: Database["public"]["Enums"]["payment_status"]
@@ -146,41 +181,57 @@ export type Database = {
             referencedRelation: "communities"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "donations_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "community_balances"
+            referencedColumns: ["community_id"]
+          },
         ]
       }
       dues_payments: {
         Row: {
           amount: number
+          community_net: number
           currency: Database["public"]["Enums"]["payment_currency"]
           id: string
           member_email: string | null
           member_name: string
           paid_at: string
+          paystack_fee: number
           plan_id: string
+          platform_fee: number
           provider: Database["public"]["Enums"]["payment_provider"]
           provider_ref: string
           status: Database["public"]["Enums"]["payment_status"]
         }
         Insert: {
           amount: number
+          community_net?: number
           currency: Database["public"]["Enums"]["payment_currency"]
           id?: string
           member_email?: string | null
           member_name: string
           paid_at?: string
+          paystack_fee?: number
           plan_id: string
+          platform_fee?: number
           provider: Database["public"]["Enums"]["payment_provider"]
           provider_ref: string
           status?: Database["public"]["Enums"]["payment_status"]
         }
         Update: {
           amount?: number
+          community_net?: number
           currency?: Database["public"]["Enums"]["payment_currency"]
           id?: string
           member_email?: string | null
           member_name?: string
           paid_at?: string
+          paystack_fee?: number
           plan_id?: string
+          platform_fee?: number
           provider?: Database["public"]["Enums"]["payment_provider"]
           provider_ref?: string
           status?: Database["public"]["Enums"]["payment_status"]
@@ -240,10 +291,136 @@ export type Database = {
             referencedRelation: "communities"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "dues_plans_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "community_balances"
+            referencedColumns: ["community_id"]
+          },
         ]
+      }
+      payouts: {
+        Row: {
+          amount: number
+          approved_at: string | null
+          approved_by: string | null
+          community_id: string
+          created_at: string
+          currency: Database["public"]["Enums"]["payment_currency"]
+          failed_reason: string | null
+          id: string
+          method: Database["public"]["Enums"]["payout_method"] | null
+          notes: string | null
+          paid_at: string | null
+          paystack_transfer_code: string | null
+          paystack_transfer_ref: string | null
+          requested_at: string
+          requested_by: string | null
+          status: Database["public"]["Enums"]["payout_status"]
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          approved_at?: string | null
+          approved_by?: string | null
+          community_id: string
+          created_at?: string
+          currency: Database["public"]["Enums"]["payment_currency"]
+          failed_reason?: string | null
+          id?: string
+          method?: Database["public"]["Enums"]["payout_method"] | null
+          notes?: string | null
+          paid_at?: string | null
+          paystack_transfer_code?: string | null
+          paystack_transfer_ref?: string | null
+          requested_at?: string
+          requested_by?: string | null
+          status?: Database["public"]["Enums"]["payout_status"]
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          approved_at?: string | null
+          approved_by?: string | null
+          community_id?: string
+          created_at?: string
+          currency?: Database["public"]["Enums"]["payment_currency"]
+          failed_reason?: string | null
+          id?: string
+          method?: Database["public"]["Enums"]["payout_method"] | null
+          notes?: string | null
+          paid_at?: string | null
+          paystack_transfer_code?: string | null
+          paystack_transfer_ref?: string | null
+          requested_at?: string
+          requested_by?: string | null
+          status?: Database["public"]["Enums"]["payout_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payouts_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payouts_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "community_balances"
+            referencedColumns: ["community_id"]
+          },
+        ]
+      }
+      subscription_tiers: {
+        Row: {
+          created_at: string
+          id: string
+          monthly_price_ngn: number | null
+          monthly_price_usd: number | null
+          name: string
+          platform_fee_pct: number
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          monthly_price_ngn?: number | null
+          monthly_price_usd?: number | null
+          name: string
+          platform_fee_pct?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          monthly_price_ngn?: number | null
+          monthly_price_usd?: number | null
+          name?: string
+          platform_fee_pct?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {
+      community_balances: {
+        Row: {
+          available: number | null
+          collected: number | null
+          community_id: string | null
+          currency: Database["public"]["Enums"]["payment_currency"] | null
+          paid_out: number | null
+          pending_out: number | null
+        }
+        Relationships: []
+      }
       donation_totals: {
         Row: {
           collected_ngn: number | null
@@ -263,6 +440,8 @@ export type Database = {
       payment_currency: "NGN" | "USD"
       payment_provider: "paystack" | "stripe"
       payment_status: "paid" | "failed" | "refunded" | "pending"
+      payout_method: "paystack_transfer" | "manual"
+      payout_status: "requested" | "approved" | "paid" | "failed" | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -395,6 +574,8 @@ export const Constants = {
       payment_currency: ["NGN", "USD"],
       payment_provider: ["paystack", "stripe"],
       payment_status: ["paid", "failed", "refunded", "pending"],
+      payout_method: ["paystack_transfer", "manual"],
+      payout_status: ["requested", "approved", "paid", "failed", "rejected"],
     },
   },
 } as const
