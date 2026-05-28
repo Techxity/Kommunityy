@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { election as initialElection, members } from "@/lib/mock-data";
-import { Vote, Plus, Trophy, RotateCcw, History, Crown, Pencil, X, Check, Users } from "lucide-react";
+import { Vote, Plus, Trophy, RotateCcw, History, Crown, Pencil, X, Check, Users, Search } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/elections")({
@@ -411,24 +411,11 @@ function NewCycleModal({
                     {role}
                   </label>
                   {open && (
-                    <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                      {memberOptions.map((name) => {
-                        const picked = selected[role]?.includes(name);
-                        return (
-                          <button
-                            key={name}
-                            type="button"
-                            onClick={() => toggleCandidate(role, name)}
-                            className={`flex items-center justify-between gap-1 rounded-full border px-3 py-1 text-xs transition ${
-                              picked ? "border-primary bg-primary/10 text-foreground" : "border-border bg-card text-muted-foreground hover:border-primary/40"
-                            }`}
-                          >
-                            <span className="truncate">{name}</span>
-                            {picked && <Check className="h-3 w-3 text-primary" />}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <CandidatePicker
+                      memberOptions={memberOptions}
+                      selected={selected[role] ?? []}
+                      onToggle={(name) => toggleCandidate(role, name)}
+                    />
                   )}
                 </div>
               );
@@ -492,24 +479,11 @@ function EditCandidatesModal({
           {positions.map((p) => (
             <div key={p.role} className="rounded-xl border border-border bg-background p-3">
               <p className="mb-2 text-sm font-semibold">{p.role}</p>
-              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                {memberOptions.map((name) => {
-                  const picked = p.candidates.some((c) => c.name === name);
-                  return (
-                    <button
-                      key={name}
-                      type="button"
-                      onClick={() => toggle(p.role, name)}
-                      className={`flex items-center justify-between gap-1 rounded-full border px-3 py-1 text-xs transition ${
-                        picked ? "border-primary bg-primary/10 text-foreground" : "border-border bg-card text-muted-foreground hover:border-primary/40"
-                      }`}
-                    >
-                      <span className="truncate">{name}</span>
-                      {picked && <Check className="h-3 w-3 text-primary" />}
-                    </button>
-                  );
-                })}
-              </div>
+              <CandidatePicker
+                memberOptions={memberOptions}
+                selected={p.candidates.map((c) => c.name)}
+                onToggle={(name) => toggle(p.role, name)}
+              />
             </div>
           ))}
         </div>
@@ -519,6 +493,74 @@ function EditCandidatesModal({
             Save changes
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function CandidatePicker({
+  memberOptions,
+  selected,
+  onToggle,
+}: {
+  memberOptions: string[];
+  selected: string[];
+  onToggle: (name: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [focused, setFocused] = useState(false);
+  const q = query.trim().toLowerCase();
+  const matches = q
+    ? memberOptions.filter((n) => n.toLowerCase().includes(q) && !selected.includes(n)).slice(0, 6)
+    : [];
+
+  return (
+    <div className="mt-3 space-y-2">
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selected.map((name) => (
+            <span key={name} className="inline-flex items-center gap-1 rounded-full border border-primary bg-primary/10 px-2.5 py-1 text-xs font-medium">
+              {name}
+              <button type="button" onClick={() => onToggle(name)} className="text-muted-foreground hover:text-destructive">
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setTimeout(() => setFocused(false), 150)}
+          placeholder="Search member by name…"
+          className="w-full rounded-lg border border-border bg-card px-3 py-1.5 pl-8 text-xs outline-none focus:border-primary"
+        />
+        {focused && q && (
+          <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-card shadow-elegant">
+            {matches.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-muted-foreground">No matches</p>
+            ) : (
+              matches.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    onToggle(name);
+                    setQuery("");
+                  }}
+                  className="flex w-full items-center justify-between px-3 py-2 text-left text-xs hover:bg-muted"
+                >
+                  <span>{name}</span>
+                  <Check className="h-3 w-3 text-primary opacity-0" />
+                </button>
+              ))
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
