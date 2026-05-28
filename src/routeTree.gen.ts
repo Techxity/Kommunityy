@@ -40,6 +40,7 @@ import { Route as AdminChaptersRouteImport } from './routes/admin.chapters'
 import { Route as AdminCalltreeRouteImport } from './routes/admin.calltree'
 import { Route as AdminBroadcastRouteImport } from './routes/admin.broadcast'
 import { Route as AdminBirthdaysRouteImport } from './routes/admin.birthdays'
+import { Route as ApiPublicPaystackWebhookRouteImport } from './routes/api/public/paystack-webhook'
 import { Route as AdminMembersPendingRouteImport } from './routes/admin.members.pending'
 
 const SuperAdminRoute = SuperAdminRouteImport.update({
@@ -197,6 +198,12 @@ const AdminBirthdaysRoute = AdminBirthdaysRouteImport.update({
   path: '/birthdays',
   getParentRoute: () => AdminRoute,
 } as any)
+const ApiPublicPaystackWebhookRoute =
+  ApiPublicPaystackWebhookRouteImport.update({
+    id: '/api/public/paystack-webhook',
+    path: '/api/public/paystack-webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AdminMembersPendingRoute = AdminMembersPendingRouteImport.update({
   id: '/pending',
   path: '/pending',
@@ -236,6 +243,7 @@ export interface FileRoutesByFullPath {
   '/member/': typeof MemberIndexRoute
   '/super-admin/': typeof SuperAdminIndexRoute
   '/admin/members/pending': typeof AdminMembersPendingRoute
+  '/api/public/paystack-webhook': typeof ApiPublicPaystackWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -267,6 +275,7 @@ export interface FileRoutesByTo {
   '/member': typeof MemberIndexRoute
   '/super-admin': typeof SuperAdminIndexRoute
   '/admin/members/pending': typeof AdminMembersPendingRoute
+  '/api/public/paystack-webhook': typeof ApiPublicPaystackWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -302,6 +311,7 @@ export interface FileRoutesById {
   '/member/': typeof MemberIndexRoute
   '/super-admin/': typeof SuperAdminIndexRoute
   '/admin/members/pending': typeof AdminMembersPendingRoute
+  '/api/public/paystack-webhook': typeof ApiPublicPaystackWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -338,6 +348,7 @@ export interface FileRouteTypes {
     | '/member/'
     | '/super-admin/'
     | '/admin/members/pending'
+    | '/api/public/paystack-webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -369,6 +380,7 @@ export interface FileRouteTypes {
     | '/member'
     | '/super-admin'
     | '/admin/members/pending'
+    | '/api/public/paystack-webhook'
   id:
     | '__root__'
     | '/'
@@ -403,6 +415,7 @@ export interface FileRouteTypes {
     | '/member/'
     | '/super-admin/'
     | '/admin/members/pending'
+    | '/api/public/paystack-webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -414,6 +427,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   SuperAdminRoute: typeof SuperAdminRouteWithChildren
   JoinCommunityIdRoute: typeof JoinCommunityIdRoute
+  ApiPublicPaystackWebhookRoute: typeof ApiPublicPaystackWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -635,6 +649,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminBirthdaysRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/api/public/paystack-webhook': {
+      id: '/api/public/paystack-webhook'
+      path: '/api/public/paystack-webhook'
+      fullPath: '/api/public/paystack-webhook'
+      preLoaderRoute: typeof ApiPublicPaystackWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/members/pending': {
       id: '/admin/members/pending'
       path: '/pending'
@@ -739,6 +760,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   SuperAdminRoute: SuperAdminRouteWithChildren,
   JoinCommunityIdRoute: JoinCommunityIdRoute,
+  ApiPublicPaystackWebhookRoute: ApiPublicPaystackWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
