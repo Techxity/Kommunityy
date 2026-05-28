@@ -479,24 +479,11 @@ function EditCandidatesModal({
           {positions.map((p) => (
             <div key={p.role} className="rounded-xl border border-border bg-background p-3">
               <p className="mb-2 text-sm font-semibold">{p.role}</p>
-              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                {memberOptions.map((name) => {
-                  const picked = p.candidates.some((c) => c.name === name);
-                  return (
-                    <button
-                      key={name}
-                      type="button"
-                      onClick={() => toggle(p.role, name)}
-                      className={`flex items-center justify-between gap-1 rounded-full border px-3 py-1 text-xs transition ${
-                        picked ? "border-primary bg-primary/10 text-foreground" : "border-border bg-card text-muted-foreground hover:border-primary/40"
-                      }`}
-                    >
-                      <span className="truncate">{name}</span>
-                      {picked && <Check className="h-3 w-3 text-primary" />}
-                    </button>
-                  );
-                })}
-              </div>
+              <CandidatePicker
+                memberOptions={memberOptions}
+                selected={p.candidates.map((c) => c.name)}
+                onToggle={(name) => toggle(p.role, name)}
+              />
             </div>
           ))}
         </div>
