@@ -195,7 +195,7 @@ function PublicJoinPage() {
             </p>
             <button
               type="submit"
-              disabled={fields.length === 0}
+              disabled={fields.length === 0 || disabled}
               className="inline-flex items-center justify-center rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-soft hover:opacity-95 disabled:opacity-50"
             >
               Submit application
