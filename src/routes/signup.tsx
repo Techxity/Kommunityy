@@ -30,11 +30,13 @@ function Signup() {
   const [name, setName] = useState("");
   const [type, setType] = useState("Estate");
   const [payments, setPayments] = useState("Not sure");
+  const [pricingPlan, setPricingPlan] = useState("");
   const [generatedId, setGeneratedId] = useState("");
   const [communityId, setCommunityId] = useState("");
 
   const nameValid = /^[A-Za-z0-9\-&' ]+$/.test(name) && name.trim().length >= 5;
   const showNameError = name.length > 0 && !nameValid;
+  const pricingValid = pricingPlan !== "";
 
   function generateId() {
     const slug = name
@@ -49,7 +51,7 @@ function Signup() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!nameValid) return;
+    if (!nameValid || !pricingValid) return;
     setSubmitted(true);
   }
 
@@ -204,11 +206,42 @@ function Signup() {
             </div>
           </Field>
 
+          <Field label="Select Pricing Plan *" hint="You'll only be charged after your 14-day trial ends">
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                { key: "free", name: "Free", price: "$0/mo", desc: "Up to 50 members" },
+                { key: "basic", name: "Basic", price: "$29/mo", desc: "Up to 500 members" },
+                { key: "enterprise", name: "Enterprise", price: "$99/mo", desc: "Unlimited members" },
+              ].map((plan) => (
+                <label
+                  key={plan.key}
+                  className={`cursor-pointer rounded-xl border p-4 transition ${
+                    pricingPlan === plan.key
+                      ? "border-primary bg-primary/5 ring-1 ring-primary"
+                      : "border-border bg-background hover:bg-muted"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="pricing"
+                    value={plan.key}
+                    checked={pricingPlan === plan.key}
+                    onChange={() => setPricingPlan(plan.key)}
+                    className="sr-only"
+                  />
+                  <p className="text-sm font-semibold text-foreground">{plan.name}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{plan.desc}</p>
+                  <p className="mt-2 text-sm font-bold text-primary">{plan.price}</p>
+                </label>
+              ))}
+            </div>
+          </Field>
+
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
             <p className="text-xs text-muted-foreground">By submitting you agree to our terms and privacy.</p>
             <button
               type="submit"
-              disabled={!nameValid}
+              disabled={!nameValid || !pricingValid}
               className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-soft transition hover:opacity-90 disabled:opacity-40"
             >
               Create community & start trial
