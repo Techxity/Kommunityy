@@ -18,6 +18,7 @@ type Row = {
   id: string;
   amount: number;
   currency: "NGN" | "USD";
+  source: "dues" | "donations";
   status: string;
   method: string | null;
   requested_at: string;
