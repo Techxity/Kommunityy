@@ -15,7 +15,8 @@ export const Route = createFileRoute("/admin/payouts")({
   component: PayoutsPage,
 });
 
-type Balance = { currency: "NGN" | "USD"; collected: number; paid_out: number; pending_out: number; available: number };
+type Source = "dues" | "donations";
+type Balance = { currency: "NGN" | "USD"; source: Source; collected: number; paid_out: number; pending_out: number; available: number };
 type Community = {
   id: string;
   name: string;
@@ -29,6 +30,7 @@ type Payout = {
   id: string;
   amount: number;
   currency: "NGN" | "USD";
+  source: Source;
   status: string;
   method: string | null;
   requested_at: string;
