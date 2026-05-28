@@ -3,12 +3,17 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { initiateTransfer } from "./paystack.server";
 
-async function getAvailable(community_id: string, currency: "NGN" | "USD") {
+async function getAvailable(
+  community_id: string,
+  currency: "NGN" | "USD",
+  source: "dues" | "donations",
+) {
   const { data, error } = await supabaseAdmin
-    .from("community_balances")
+    .from("community_balances_by_source")
     .select("available")
     .eq("community_id", community_id)
     .eq("currency", currency)
+    .eq("source", source)
     .maybeSingle();
   if (error) throw new Error(error.message);
   return Number(data?.available ?? 0);
@@ -20,6 +25,7 @@ export const requestPayout = createServerFn({ method: "POST" })
       .object({
         community_id: z.string().uuid(),
         currency: z.enum(["NGN", "USD"]),
+        source: z.enum(["dues", "donations"]),
         amount: z.number().positive(),
         notes: z.string().max(500).optional(),
       })
@@ -36,9 +42,11 @@ export const requestPayout = createServerFn({ method: "POST" })
       throw new Error("Add bank details in Settings before requesting a payout");
     }
 
-    const available = await getAvailable(data.community_id, data.currency);
+    const available = await getAvailable(data.community_id, data.currency, data.source);
     if (data.amount > available) {
-      throw new Error(`Only ${data.currency} ${available.toLocaleString()} available`);
+      throw new Error(
+        `Only ${data.currency} ${available.toLocaleString()} available in ${data.source}`,
+      );
     }
 
     const { data: row, error } = await supabaseAdmin
@@ -46,6 +54,7 @@ export const requestPayout = createServerFn({ method: "POST" })
       .insert({
         community_id: data.community_id,
         currency: data.currency,
+        source: data.source,
         amount: data.amount,
         notes: data.notes ?? null,
         status: "requested",
