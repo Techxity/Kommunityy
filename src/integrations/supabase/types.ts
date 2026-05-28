@@ -188,6 +188,13 @@ export type Database = {
             referencedRelation: "community_balances"
             referencedColumns: ["community_id"]
           },
+          {
+            foreignKeyName: "donations_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "community_balances_by_source"
+            referencedColumns: ["community_id"]
+          },
         ]
       }
       dues_payments: {
@@ -298,6 +305,13 @@ export type Database = {
             referencedRelation: "community_balances"
             referencedColumns: ["community_id"]
           },
+          {
+            foreignKeyName: "dues_plans_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "community_balances_by_source"
+            referencedColumns: ["community_id"]
+          },
         ]
       }
       payouts: {
@@ -317,6 +331,7 @@ export type Database = {
           paystack_transfer_ref: string | null
           requested_at: string
           requested_by: string | null
+          source: Database["public"]["Enums"]["payout_source"]
           status: Database["public"]["Enums"]["payout_status"]
           updated_at: string
         }
@@ -336,6 +351,7 @@ export type Database = {
           paystack_transfer_ref?: string | null
           requested_at?: string
           requested_by?: string | null
+          source: Database["public"]["Enums"]["payout_source"]
           status?: Database["public"]["Enums"]["payout_status"]
           updated_at?: string
         }
@@ -355,6 +371,7 @@ export type Database = {
           paystack_transfer_ref?: string | null
           requested_at?: string
           requested_by?: string | null
+          source?: Database["public"]["Enums"]["payout_source"]
           status?: Database["public"]["Enums"]["payout_status"]
           updated_at?: string
         }
@@ -371,6 +388,13 @@ export type Database = {
             columns: ["community_id"]
             isOneToOne: false
             referencedRelation: "community_balances"
+            referencedColumns: ["community_id"]
+          },
+          {
+            foreignKeyName: "payouts_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "community_balances_by_source"
             referencedColumns: ["community_id"]
           },
         ]
@@ -421,6 +445,18 @@ export type Database = {
         }
         Relationships: []
       }
+      community_balances_by_source: {
+        Row: {
+          available: number | null
+          collected: number | null
+          community_id: string | null
+          currency: Database["public"]["Enums"]["payment_currency"] | null
+          paid_out: number | null
+          pending_out: number | null
+          source: Database["public"]["Enums"]["payout_source"] | null
+        }
+        Relationships: []
+      }
       donation_totals: {
         Row: {
           collected_ngn: number | null
@@ -441,6 +477,7 @@ export type Database = {
       payment_provider: "paystack" | "stripe"
       payment_status: "paid" | "failed" | "refunded" | "pending"
       payout_method: "paystack_transfer" | "manual"
+      payout_source: "dues" | "donations"
       payout_status: "requested" | "approved" | "paid" | "failed" | "rejected"
     }
     CompositeTypes: {
@@ -575,6 +612,7 @@ export const Constants = {
       payment_provider: ["paystack", "stripe"],
       payment_status: ["paid", "failed", "refunded", "pending"],
       payout_method: ["paystack_transfer", "manual"],
+      payout_source: ["dues", "donations"],
       payout_status: ["requested", "approved", "paid", "failed", "rejected"],
     },
   },
