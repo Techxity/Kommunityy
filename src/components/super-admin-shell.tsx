@@ -17,6 +17,8 @@ const nav: NavItem[] = [
   { to: "/super-admin", label: "Overview", icon: LayoutDashboard, exact: true },
   { to: "/super-admin/communities", label: "Communities", icon: Building2 },
   { to: "/super-admin/plans", label: "Plans & Modules", icon: CreditCard },
+  { to: "/super-admin/fees", label: "Platform Fees", icon: Receipt },
+  { to: "/super-admin/payouts", label: "Payouts", icon: Receipt },
   { to: "/super-admin/billing", label: "Billing & Revenue", icon: Receipt },
   { to: "/super-admin/admins", label: "Platform Admins", icon: ShieldCheck },
   { to: "/super-admin/support", label: "Support", icon: LifeBuoy },

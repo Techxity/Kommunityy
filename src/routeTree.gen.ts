@@ -21,6 +21,8 @@ import { Route as MemberIndexRouteImport } from './routes/member.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as SuperAdminSupportRouteImport } from './routes/super-admin.support'
 import { Route as SuperAdminPlansRouteImport } from './routes/super-admin.plans'
+import { Route as SuperAdminPayoutsRouteImport } from './routes/super-admin.payouts'
+import { Route as SuperAdminFeesRouteImport } from './routes/super-admin.fees'
 import { Route as SuperAdminCommunitiesRouteImport } from './routes/super-admin.communities'
 import { Route as SuperAdminBillingRouteImport } from './routes/super-admin.billing'
 import { Route as SuperAdminAuditRouteImport } from './routes/super-admin.audit'
@@ -33,6 +35,7 @@ import { Route as MemberDuesRouteImport } from './routes/member.dues'
 import { Route as JoinCommunityIdRouteImport } from './routes/join.$communityId'
 import { Route as DonateSlugRouteImport } from './routes/donate.$slug'
 import { Route as AdminSubscriptionRouteImport } from './routes/admin.subscription'
+import { Route as AdminPayoutsRouteImport } from './routes/admin.payouts'
 import { Route as AdminOnboardingRouteImport } from './routes/admin.onboarding'
 import { Route as AdminMembersRouteImport } from './routes/admin.members'
 import { Route as AdminElectionsRouteImport } from './routes/admin.elections'
@@ -105,6 +108,16 @@ const SuperAdminPlansRoute = SuperAdminPlansRouteImport.update({
   path: '/plans',
   getParentRoute: () => SuperAdminRoute,
 } as any)
+const SuperAdminPayoutsRoute = SuperAdminPayoutsRouteImport.update({
+  id: '/payouts',
+  path: '/payouts',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
+const SuperAdminFeesRoute = SuperAdminFeesRouteImport.update({
+  id: '/fees',
+  path: '/fees',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
 const SuperAdminCommunitiesRoute = SuperAdminCommunitiesRouteImport.update({
   id: '/communities',
   path: '/communities',
@@ -163,6 +176,11 @@ const DonateSlugRoute = DonateSlugRouteImport.update({
 const AdminSubscriptionRoute = AdminSubscriptionRouteImport.update({
   id: '/subscription',
   path: '/subscription',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPayoutsRoute = AdminPayoutsRouteImport.update({
+  id: '/payouts',
+  path: '/payouts',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminOnboardingRoute = AdminOnboardingRouteImport.update({
@@ -239,6 +257,7 @@ export interface FileRoutesByFullPath {
   '/admin/elections': typeof AdminElectionsRoute
   '/admin/members': typeof AdminMembersRouteWithChildren
   '/admin/onboarding': typeof AdminOnboardingRoute
+  '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
   '/donate/$slug': typeof DonateSlugRoute
   '/join/$communityId': typeof JoinCommunityIdRoute
@@ -251,6 +270,8 @@ export interface FileRoutesByFullPath {
   '/super-admin/audit': typeof SuperAdminAuditRoute
   '/super-admin/billing': typeof SuperAdminBillingRoute
   '/super-admin/communities': typeof SuperAdminCommunitiesRoute
+  '/super-admin/fees': typeof SuperAdminFeesRoute
+  '/super-admin/payouts': typeof SuperAdminPayoutsRoute
   '/super-admin/plans': typeof SuperAdminPlansRoute
   '/super-admin/support': typeof SuperAdminSupportRoute
   '/admin/': typeof AdminIndexRoute
@@ -273,6 +294,7 @@ export interface FileRoutesByTo {
   '/admin/elections': typeof AdminElectionsRoute
   '/admin/members': typeof AdminMembersRouteWithChildren
   '/admin/onboarding': typeof AdminOnboardingRoute
+  '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
   '/donate/$slug': typeof DonateSlugRoute
   '/join/$communityId': typeof JoinCommunityIdRoute
@@ -285,6 +307,8 @@ export interface FileRoutesByTo {
   '/super-admin/audit': typeof SuperAdminAuditRoute
   '/super-admin/billing': typeof SuperAdminBillingRoute
   '/super-admin/communities': typeof SuperAdminCommunitiesRoute
+  '/super-admin/fees': typeof SuperAdminFeesRoute
+  '/super-admin/payouts': typeof SuperAdminPayoutsRoute
   '/super-admin/plans': typeof SuperAdminPlansRoute
   '/super-admin/support': typeof SuperAdminSupportRoute
   '/admin': typeof AdminIndexRoute
@@ -311,6 +335,7 @@ export interface FileRoutesById {
   '/admin/elections': typeof AdminElectionsRoute
   '/admin/members': typeof AdminMembersRouteWithChildren
   '/admin/onboarding': typeof AdminOnboardingRoute
+  '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
   '/donate/$slug': typeof DonateSlugRoute
   '/join/$communityId': typeof JoinCommunityIdRoute
@@ -323,6 +348,8 @@ export interface FileRoutesById {
   '/super-admin/audit': typeof SuperAdminAuditRoute
   '/super-admin/billing': typeof SuperAdminBillingRoute
   '/super-admin/communities': typeof SuperAdminCommunitiesRoute
+  '/super-admin/fees': typeof SuperAdminFeesRoute
+  '/super-admin/payouts': typeof SuperAdminPayoutsRoute
   '/super-admin/plans': typeof SuperAdminPlansRoute
   '/super-admin/support': typeof SuperAdminSupportRoute
   '/admin/': typeof AdminIndexRoute
@@ -350,6 +377,7 @@ export interface FileRouteTypes {
     | '/admin/elections'
     | '/admin/members'
     | '/admin/onboarding'
+    | '/admin/payouts'
     | '/admin/subscription'
     | '/donate/$slug'
     | '/join/$communityId'
@@ -362,6 +390,8 @@ export interface FileRouteTypes {
     | '/super-admin/audit'
     | '/super-admin/billing'
     | '/super-admin/communities'
+    | '/super-admin/fees'
+    | '/super-admin/payouts'
     | '/super-admin/plans'
     | '/super-admin/support'
     | '/admin/'
@@ -384,6 +414,7 @@ export interface FileRouteTypes {
     | '/admin/elections'
     | '/admin/members'
     | '/admin/onboarding'
+    | '/admin/payouts'
     | '/admin/subscription'
     | '/donate/$slug'
     | '/join/$communityId'
@@ -396,6 +427,8 @@ export interface FileRouteTypes {
     | '/super-admin/audit'
     | '/super-admin/billing'
     | '/super-admin/communities'
+    | '/super-admin/fees'
+    | '/super-admin/payouts'
     | '/super-admin/plans'
     | '/super-admin/support'
     | '/admin'
@@ -421,6 +454,7 @@ export interface FileRouteTypes {
     | '/admin/elections'
     | '/admin/members'
     | '/admin/onboarding'
+    | '/admin/payouts'
     | '/admin/subscription'
     | '/donate/$slug'
     | '/join/$communityId'
@@ -433,6 +467,8 @@ export interface FileRouteTypes {
     | '/super-admin/audit'
     | '/super-admin/billing'
     | '/super-admin/communities'
+    | '/super-admin/fees'
+    | '/super-admin/payouts'
     | '/super-admin/plans'
     | '/super-admin/support'
     | '/admin/'
@@ -542,6 +578,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SuperAdminPlansRouteImport
       parentRoute: typeof SuperAdminRoute
     }
+    '/super-admin/payouts': {
+      id: '/super-admin/payouts'
+      path: '/payouts'
+      fullPath: '/super-admin/payouts'
+      preLoaderRoute: typeof SuperAdminPayoutsRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
+    '/super-admin/fees': {
+      id: '/super-admin/fees'
+      path: '/fees'
+      fullPath: '/super-admin/fees'
+      preLoaderRoute: typeof SuperAdminFeesRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
     '/super-admin/communities': {
       id: '/super-admin/communities'
       path: '/communities'
@@ -624,6 +674,13 @@ declare module '@tanstack/react-router' {
       path: '/subscription'
       fullPath: '/admin/subscription'
       preLoaderRoute: typeof AdminSubscriptionRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/payouts': {
+      id: '/admin/payouts'
+      path: '/payouts'
+      fullPath: '/admin/payouts'
+      preLoaderRoute: typeof AdminPayoutsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/onboarding': {
@@ -728,6 +785,7 @@ interface AdminRouteChildren {
   AdminElectionsRoute: typeof AdminElectionsRoute
   AdminMembersRoute: typeof AdminMembersRouteWithChildren
   AdminOnboardingRoute: typeof AdminOnboardingRoute
+  AdminPayoutsRoute: typeof AdminPayoutsRoute
   AdminSubscriptionRoute: typeof AdminSubscriptionRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
@@ -742,6 +800,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminElectionsRoute: AdminElectionsRoute,
   AdminMembersRoute: AdminMembersRouteWithChildren,
   AdminOnboardingRoute: AdminOnboardingRoute,
+  AdminPayoutsRoute: AdminPayoutsRoute,
   AdminSubscriptionRoute: AdminSubscriptionRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
@@ -772,6 +831,8 @@ interface SuperAdminRouteChildren {
   SuperAdminAuditRoute: typeof SuperAdminAuditRoute
   SuperAdminBillingRoute: typeof SuperAdminBillingRoute
   SuperAdminCommunitiesRoute: typeof SuperAdminCommunitiesRoute
+  SuperAdminFeesRoute: typeof SuperAdminFeesRoute
+  SuperAdminPayoutsRoute: typeof SuperAdminPayoutsRoute
   SuperAdminPlansRoute: typeof SuperAdminPlansRoute
   SuperAdminSupportRoute: typeof SuperAdminSupportRoute
   SuperAdminIndexRoute: typeof SuperAdminIndexRoute
@@ -782,6 +843,8 @@ const SuperAdminRouteChildren: SuperAdminRouteChildren = {
   SuperAdminAuditRoute: SuperAdminAuditRoute,
   SuperAdminBillingRoute: SuperAdminBillingRoute,
   SuperAdminCommunitiesRoute: SuperAdminCommunitiesRoute,
+  SuperAdminFeesRoute: SuperAdminFeesRoute,
+  SuperAdminPayoutsRoute: SuperAdminPayoutsRoute,
   SuperAdminPlansRoute: SuperAdminPlansRoute,
   SuperAdminSupportRoute: SuperAdminSupportRoute,
   SuperAdminIndexRoute: SuperAdminIndexRoute,

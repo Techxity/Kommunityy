@@ -9,48 +9,107 @@ function key() {
   return k;
 }
 
+async function paystackFetch<T = any>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${key()}`,
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  });
+  const json = (await res.json()) as { status: boolean; message: string; data?: T };
+  if (!res.ok || !json.status) {
+    throw new Error(`Paystack ${path} failed: ${json.message ?? res.statusText}`);
+  }
+  return json.data as T;
+}
+
+// ───── Checkout (charges) ────────────────────────────────────────────────────
+
 export async function initializeTransaction(args: {
   email: string;
-  amount: number; // major units (e.g. 5000 NGN, 30 USD)
+  amount: number; // major units
   currency: "NGN" | "USD";
   callback_url: string;
   metadata?: Record<string, unknown>;
   reference?: string;
 }): Promise<{ authorization_url: string; reference: string; access_code: string }> {
-  const res = await fetch(`${BASE}/transaction/initialize`, {
+  return paystackFetch("/transaction/initialize", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${key()}`,
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify({
       email: args.email,
-      amount: Math.round(args.amount * 100), // kobo / cents
+      amount: Math.round(args.amount * 100),
       currency: args.currency,
       callback_url: args.callback_url,
       metadata: args.metadata ?? {},
       reference: args.reference,
     }),
   });
-  const json = (await res.json()) as { status: boolean; message: string; data?: any };
-  if (!res.ok || !json.status || !json.data) {
-    throw new Error(`Paystack init failed: ${json.message ?? res.statusText}`);
-  }
-  return json.data;
 }
 
 export async function verifyTransaction(reference: string) {
-  const res = await fetch(`${BASE}/transaction/verify/${encodeURIComponent(reference)}`, {
-    headers: { Authorization: `Bearer ${key()}` },
-  });
-  const json = (await res.json()) as { status: boolean; message: string; data?: any };
-  if (!res.ok || !json.status) {
-    throw new Error(`Paystack verify failed: ${json.message ?? res.statusText}`);
-  }
-  return json.data;
+  return paystackFetch<any>(`/transaction/verify/${encodeURIComponent(reference)}`);
 }
 
-// Paystack signs webhooks with HMAC SHA512 of the raw body using the secret key.
+// ───── Banks / recipients / transfers ────────────────────────────────────────
+
+export async function listBanks(currency: "NGN" | "USD" = "NGN") {
+  const country = currency === "USD" ? "ghana" : "nigeria"; // Paystack USD via Ghana rails varies; NGN default
+  return paystackFetch<Array<{ name: string; code: string; currency: string }>>(
+    `/bank?country=${country}&currency=${currency}`,
+  );
+}
+
+export async function resolveAccount(account_number: string, bank_code: string) {
+  return paystackFetch<{ account_number: string; account_name: string }>(
+    `/bank/resolve?account_number=${account_number}&bank_code=${bank_code}`,
+  );
+}
+
+export async function createTransferRecipient(args: {
+  name: string;
+  account_number: string;
+  bank_code: string;
+  currency: "NGN" | "USD";
+}) {
+  return paystackFetch<{ recipient_code: string }>("/transferrecipient", {
+    method: "POST",
+    body: JSON.stringify({
+      type: "nuban",
+      name: args.name,
+      account_number: args.account_number,
+      bank_code: args.bank_code,
+      currency: args.currency,
+    }),
+  });
+}
+
+export async function initiateTransfer(args: {
+  amount: number; // major units
+  recipient_code: string;
+  reason: string;
+  reference?: string;
+  currency?: "NGN" | "USD";
+}) {
+  return paystackFetch<{ transfer_code: string; reference: string; status: string }>(
+    "/transfer",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        source: "balance",
+        amount: Math.round(args.amount * 100),
+        recipient: args.recipient_code,
+        reason: args.reason,
+        reference: args.reference,
+        currency: args.currency,
+      }),
+    },
+  );
+}
+
+// ───── Webhook signature ─────────────────────────────────────────────────────
+
 export function verifyWebhookSignature(rawBody: string, signature: string | null): boolean {
   if (!signature) return false;
   const expected = createHmac("sha512", key()).update(rawBody).digest("hex");
