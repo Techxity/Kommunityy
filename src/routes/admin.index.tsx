@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { stats, community, election, donations, members } from "@/lib/mock-data";
+import { stats, community, donations, members } from "@/lib/mock-data";
 import {
   Users,
   Cake,
