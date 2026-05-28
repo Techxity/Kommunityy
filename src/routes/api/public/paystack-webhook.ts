@@ -115,7 +115,11 @@ export const Route = createFileRoute("/api/public/paystack-webhook")({
               : event.event === "transfer.failed"
               ? "failed"
               : "failed";
-          const patch: Record<string, unknown> = { status };
+          const patch: {
+            status: "paid" | "failed";
+            paid_at?: string;
+            failed_reason?: string;
+          } = { status };
           if (status === "paid") patch.paid_at = new Date().toISOString();
           if (status === "failed") patch.failed_reason = event.data?.reason ?? "Reversed";
           await supabaseAdmin.from("payouts").update(patch).eq("paystack_transfer_code", code);
