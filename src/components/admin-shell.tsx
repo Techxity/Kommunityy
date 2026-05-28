@@ -48,6 +48,7 @@ const nav: NavGroup[] = [
     children: [
       { to: "/admin/dues", label: "Dues" },
       { to: "/admin/donations", label: "Donations" },
+      { to: "/admin/payouts", label: "Payouts" },
     ],
   },
   { to: "/admin/elections", label: "Elections", icon: Vote },
