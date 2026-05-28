@@ -49,6 +49,9 @@ function PublicJoinPage() {
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (disabled) return;
     const errs: Record<string, string> = {};
     for (const f of required) if (!values[f]?.trim()) errs[f] = "Required";
     if (values["Email"] && !/^\S+@\S+\.\S+$/.test(values["Email"])) errs["Email"] = "Enter a valid email";
