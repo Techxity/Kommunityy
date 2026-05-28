@@ -1,9 +1,6 @@
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import {
   LayoutDashboard,
-  Building2,
-  CreditCard,
-  Receipt,
   ShieldCheck,
   LifeBuoy,
   ScrollText,
@@ -57,8 +54,93 @@ const nav: NavEntry[] = [
   { to: "/super-admin/audit", label: "Audit Log", icon: ScrollText },
 ];
 
-export function SuperAdminShell() {
+function NavList() {
   const location = useLocation();
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    "Community Management": true,
+    "Payment Management": true,
+  });
+
+  const toggleGroup = (label: string) => {
+    setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
+  };
+
+  const isItemActive = (to: string, exact?: boolean) => {
+    if (exact) return location.pathname === to;
+    return location.pathname === to || location.pathname.startsWith(to + "/");
+  };
+
+  return (
+    <>
+      {nav.map((entry) => {
+        if (isGroup(entry)) {
+          const GroupIcon = entry.icon;
+          const isOpen = openGroups[entry.label] ?? false;
+          const hasActiveChild = entry.items.some((sub) => isItemActive(sub.to));
+          return (
+            <div key={entry.label} className="mb-1">
+              <button
+                onClick={() => toggleGroup(entry.label)}
+                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                  hasActiveChild
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+                }`}
+              >
+                <GroupIcon className="h-4 w-4" />
+                <span className="flex-1 text-left">{entry.label}</span>
+                {isOpen ? (
+                  <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+                ) : (
+                  <ChevronRight className="h-3.5 w-3.5 opacity-70" />
+                )}
+              </button>
+              {isOpen && (
+                <div className="ml-6 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
+                  {entry.items.map((sub) => {
+                    const active = isItemActive(sub.to);
+                    return (
+                      <Link
+                        key={sub.to}
+                        to={sub.to}
+                        className={`block rounded-lg px-3 py-1.5 text-sm transition ${
+                          active
+                            ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                            : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+                        }`}
+                      >
+                        {sub.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        const Icon = entry.icon;
+        const active = isItemActive(entry.to, entry.exact);
+        return (
+          <Link
+            key={entry.to}
+            to={entry.to}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
+              active
+                ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                : "text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+            }`}
+          >
+            <Icon className="h-4 w-4" />
+            {entry.label}
+          </Link>
+        );
+      })}
+    </>
+  );
+}
+
+export function SuperAdminShell() {
   return (
     <div className="flex min-h-screen bg-muted/40">
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
