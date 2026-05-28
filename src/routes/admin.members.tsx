@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { members } from "@/lib/mock-data";
 import { useState } from "react";
-import { Search, Upload, Send, Edit2, UserX, Plus, X } from "lucide-react";
+import { Search, Upload, Send, Edit2, UserX, Plus, X, ClipboardList } from "lucide-react";
 
 export const Route = createFileRoute("/admin/members")({
   component: MembersPage,
