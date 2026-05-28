@@ -10,16 +10,48 @@ import {
   Bell,
   LogOut,
   Sparkles,
+  ChevronDown,
+  ChevronRight,
+  Wallet,
+  Users,
 } from "lucide-react";
+import { useState } from "react";
+
+type SubItem = { to: string; label: string };
+
+type NavGroup = {
+  label: string;
+  icon: typeof LayoutDashboard;
+  items: SubItem[];
+};
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean };
-const nav: NavItem[] = [
+
+type NavEntry = NavItem | NavGroup;
+
+function isGroup(entry: NavEntry): entry is NavGroup {
+  return "items" in entry;
+}
+
+const nav: NavEntry[] = [
   { to: "/super-admin", label: "Overview", icon: LayoutDashboard, exact: true },
-  { to: "/super-admin/communities", label: "Communities", icon: Building2 },
-  { to: "/super-admin/plans", label: "Plans & Modules", icon: CreditCard },
-  { to: "/super-admin/fees", label: "Platform Fees", icon: Receipt },
-  { to: "/super-admin/payouts", label: "Payouts", icon: Receipt },
-  { to: "/super-admin/billing", label: "Billing & Revenue", icon: Receipt },
+  {
+    label: "Community Management",
+    icon: Users,
+    items: [
+      { to: "/super-admin/communities", label: "Communities" },
+      { to: "/super-admin/plans", label: "Plans & Modules" },
+    ],
+  },
+  {
+    label: "Payment Management",
+    icon: Wallet,
+    items: [
+      { to: "/super-admin/fees", label: "Platform Fees" },
+      { to: "/super-admin/payouts", label: "Payouts" },
+      { to: "/super-admin/billing", label: "Billing & Revenue" },
+    ],
+  },
   { to: "/super-admin/admins", label: "Platform Admins", icon: ShieldCheck },
   { to: "/super-admin/support", label: "Support", icon: LifeBuoy },
   { to: "/super-admin/audit", label: "Audit Log", icon: ScrollText },
