@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Check, Plus, Pencil, Power, X } from "lucide-react";
+import { Check, Plus, Pencil, Power, X, Clock, Save } from "lucide-react";
 import { plans as seedPlans, allModules as seedModules } from "@/lib/platform-data";
 
 export const Route = createFileRoute("/super-admin/plans")({
@@ -24,6 +24,18 @@ function PlansPage() {
   const [newModule, setNewModule] = useState("");
   const [editing, setEditing] = useState<Plan | null>(null);
   const [creatingPlan, setCreatingPlan] = useState(false);
+
+  // Trial defaults applied to every newly provisioned community.
+  const [trialEnabled, setTrialEnabled] = useState(true);
+  const [trialDays, setTrialDays] = useState(14);
+  const [trialPlan, setTrialPlan] = useState<string>("Enterprise");
+  const [requireCard, setRequireCard] = useState(false);
+  const [trialSaved, setTrialSaved] = useState(false);
+
+  function saveTrial() {
+    setTrialSaved(true);
+    setTimeout(() => setTrialSaved(false), 1500);
+  }
 
   const plan = plans.find((p) => p.tier === selectedTier) ?? plans[0];
 
@@ -133,6 +145,97 @@ function PlansPage() {
           </div>
         ))}
       </div>
+
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary">
+              <Clock className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="font-display text-lg font-bold">Trial settings</p>
+              <p className="text-xs text-muted-foreground">
+                Applied to every newly provisioned community.
+              </p>
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={trialEnabled}
+              onChange={(e) => setTrialEnabled(e.target.checked)}
+              className="h-4 w-4 accent-primary"
+            />
+            Free trials enabled
+          </label>
+        </div>
+
+        <div className={`mt-5 grid gap-4 sm:grid-cols-3 ${!trialEnabled ? "opacity-50" : ""}`}>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Trial duration (days)
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={180}
+              disabled={!trialEnabled}
+              value={trialDays}
+              onChange={(e) => setTrialDays(Math.max(1, Number(e.target.value) || 1))}
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">Common: 7, 14, 30.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Trial plan tier
+            </label>
+            <select
+              disabled={!trialEnabled}
+              value={trialPlan}
+              onChange={(e) => setTrialPlan(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed"
+            >
+              {plans.map((p) => (
+                <option key={p.tier} value={p.tier}>{p.tier}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-muted-foreground">Trials get every module on this tier.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Card on file
+            </label>
+            <label className="mt-1 flex h-[42px] cursor-pointer items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm">
+              <input
+                type="checkbox"
+                disabled={!trialEnabled}
+                checked={requireCard}
+                onChange={(e) => setRequireCard(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              Require card to start trial
+            </label>
+            <p className="mt-1 text-[11px] text-muted-foreground">When off, no payment method is needed.</p>
+          </div>
+        </div>
+
+        <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
+          <p className="text-xs text-muted-foreground">
+            {trialEnabled
+              ? `New communities get a ${trialDays}-day ${trialPlan} trial${requireCard ? ", card required" : ", no card required"}.`
+              : "Trials are off — new communities must pick a paid plan at signup."}
+          </p>
+          <button
+            onClick={saveTrial}
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+          >
+            {trialSaved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+            {trialSaved ? "Saved" : "Save trial settings"}
+          </button>
+        </div>
+      </div>
+
 
       <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
         <div className="flex items-center justify-between">
