@@ -411,24 +411,11 @@ function NewCycleModal({
                     {role}
                   </label>
                   {open && (
-                    <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                      {memberOptions.map((name) => {
-                        const picked = selected[role]?.includes(name);
-                        return (
-                          <button
-                            key={name}
-                            type="button"
-                            onClick={() => toggleCandidate(role, name)}
-                            className={`flex items-center justify-between gap-1 rounded-full border px-3 py-1 text-xs transition ${
-                              picked ? "border-primary bg-primary/10 text-foreground" : "border-border bg-card text-muted-foreground hover:border-primary/40"
-                            }`}
-                          >
-                            <span className="truncate">{name}</span>
-                            {picked && <Check className="h-3 w-3 text-primary" />}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <CandidatePicker
+                      memberOptions={memberOptions}
+                      selected={selected[role] ?? []}
+                      onToggle={(name) => toggleCandidate(role, name)}
+                    />
                   )}
                 </div>
               );
