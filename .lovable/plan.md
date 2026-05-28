@@ -1,6 +1,8 @@
-## Multi-currency Payments — Member Picks Currency at Checkout
+## Multi-currency Payments — Paystack for both ₦ and $
 
-Community admin enables one or both currencies. Each member picks ₦ or $ when they pay. Stripe handles every $ charge; Paystack handles every ₦ charge. Two processors, one unified app.
+Community admin enables one or both currencies. Each member picks ₦ or $ at checkout. **Paystack handles both rails** (it supports USD charges on USD-enabled Paystack accounts), so we ship one provider, one webhook, one secret pair.
+
+**Status:** Paystack adapter, dues + donation server functions, `/api/public/paystack-webhook`, and public `/donate/$slug` + `/pay-dues/$planId` pages are implemented. Admin UI still uses local state — wiring it to the live DB is the next step.
 
 ---
 

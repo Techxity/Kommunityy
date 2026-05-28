@@ -25,6 +25,7 @@ import { Route as SuperAdminCommunitiesRouteImport } from './routes/super-admin.
 import { Route as SuperAdminBillingRouteImport } from './routes/super-admin.billing'
 import { Route as SuperAdminAuditRouteImport } from './routes/super-admin.audit'
 import { Route as SuperAdminAdminsRouteImport } from './routes/super-admin.admins'
+import { Route as PayDuesPlanIdRouteImport } from './routes/pay-dues.$planId'
 import { Route as MemberUpdatesRouteImport } from './routes/member.updates'
 import { Route as MemberProfileRouteImport } from './routes/member.profile'
 import { Route as MemberElectionsRouteImport } from './routes/member.elections'
@@ -123,6 +124,11 @@ const SuperAdminAdminsRoute = SuperAdminAdminsRouteImport.update({
   id: '/admins',
   path: '/admins',
   getParentRoute: () => SuperAdminRoute,
+} as any)
+const PayDuesPlanIdRoute = PayDuesPlanIdRouteImport.update({
+  id: '/pay-dues/$planId',
+  path: '/pay-dues/$planId',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const MemberUpdatesRoute = MemberUpdatesRouteImport.update({
   id: '/updates',
@@ -240,6 +246,7 @@ export interface FileRoutesByFullPath {
   '/member/elections': typeof MemberElectionsRoute
   '/member/profile': typeof MemberProfileRoute
   '/member/updates': typeof MemberUpdatesRoute
+  '/pay-dues/$planId': typeof PayDuesPlanIdRoute
   '/super-admin/admins': typeof SuperAdminAdminsRoute
   '/super-admin/audit': typeof SuperAdminAuditRoute
   '/super-admin/billing': typeof SuperAdminBillingRoute
@@ -273,6 +280,7 @@ export interface FileRoutesByTo {
   '/member/elections': typeof MemberElectionsRoute
   '/member/profile': typeof MemberProfileRoute
   '/member/updates': typeof MemberUpdatesRoute
+  '/pay-dues/$planId': typeof PayDuesPlanIdRoute
   '/super-admin/admins': typeof SuperAdminAdminsRoute
   '/super-admin/audit': typeof SuperAdminAuditRoute
   '/super-admin/billing': typeof SuperAdminBillingRoute
@@ -310,6 +318,7 @@ export interface FileRoutesById {
   '/member/elections': typeof MemberElectionsRoute
   '/member/profile': typeof MemberProfileRoute
   '/member/updates': typeof MemberUpdatesRoute
+  '/pay-dues/$planId': typeof PayDuesPlanIdRoute
   '/super-admin/admins': typeof SuperAdminAdminsRoute
   '/super-admin/audit': typeof SuperAdminAuditRoute
   '/super-admin/billing': typeof SuperAdminBillingRoute
@@ -348,6 +357,7 @@ export interface FileRouteTypes {
     | '/member/elections'
     | '/member/profile'
     | '/member/updates'
+    | '/pay-dues/$planId'
     | '/super-admin/admins'
     | '/super-admin/audit'
     | '/super-admin/billing'
@@ -381,6 +391,7 @@ export interface FileRouteTypes {
     | '/member/elections'
     | '/member/profile'
     | '/member/updates'
+    | '/pay-dues/$planId'
     | '/super-admin/admins'
     | '/super-admin/audit'
     | '/super-admin/billing'
@@ -417,6 +428,7 @@ export interface FileRouteTypes {
     | '/member/elections'
     | '/member/profile'
     | '/member/updates'
+    | '/pay-dues/$planId'
     | '/super-admin/admins'
     | '/super-admin/audit'
     | '/super-admin/billing'
@@ -440,6 +452,7 @@ export interface RootRouteChildren {
   SuperAdminRoute: typeof SuperAdminRouteWithChildren
   DonateSlugRoute: typeof DonateSlugRoute
   JoinCommunityIdRoute: typeof JoinCommunityIdRoute
+  PayDuesPlanIdRoute: typeof PayDuesPlanIdRoute
   ApiPublicPaystackWebhookRoute: typeof ApiPublicPaystackWebhookRoute
 }
 
@@ -556,6 +569,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/super-admin/admins'
       preLoaderRoute: typeof SuperAdminAdminsRouteImport
       parentRoute: typeof SuperAdminRoute
+    }
+    '/pay-dues/$planId': {
+      id: '/pay-dues/$planId'
+      path: '/pay-dues/$planId'
+      fullPath: '/pay-dues/$planId'
+      preLoaderRoute: typeof PayDuesPlanIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/member/updates': {
       id: '/member/updates'
@@ -781,6 +801,7 @@ const rootRouteChildren: RootRouteChildren = {
   SuperAdminRoute: SuperAdminRouteWithChildren,
   DonateSlugRoute: DonateSlugRoute,
   JoinCommunityIdRoute: JoinCommunityIdRoute,
+  PayDuesPlanIdRoute: PayDuesPlanIdRoute,
   ApiPublicPaystackWebhookRoute: ApiPublicPaystackWebhookRoute,
 }
 export const routeTree = rootRouteImport
