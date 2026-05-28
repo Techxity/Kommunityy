@@ -172,24 +172,26 @@ function PendingApprovalsPage() {
       )}
 
       {filteredPending.length > 0 && (
-        <div className="sticky top-2 z-10 flex flex-wrap items-center justify-between gap-2 rounded-2xl border-2 border-primary/30 bg-card px-4 py-3 shadow-soft">
-          <label className="inline-flex cursor-pointer items-center gap-2.5 text-sm font-semibold">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-primary bg-primary/5 px-5 py-4 shadow-soft">
+          <label className="inline-flex cursor-pointer items-center gap-3 text-base font-bold text-foreground">
             <input
               type="checkbox"
               checked={allSelected}
               onChange={toggleAll}
-              className="h-4 w-4 cursor-pointer accent-primary"
+              className="h-5 w-5 cursor-pointer accent-primary"
             />
-            <span>{allSelected ? "Deselect all" : "Select all"}</span>
-            <span className="text-xs font-normal text-muted-foreground">
-              ({selected.size} of {filteredPending.length} selected)
-            </span>
+            <span>{allSelected ? "Deselect all" : `Select all ${filteredPending.length}`}</span>
+            {selected.size > 0 && (
+              <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
+                {selected.size} selected
+              </span>
+            )}
           </label>
           <div className="flex gap-2">
             <button
               disabled={selected.size === 0}
               onClick={() => bulkSet("rejected")}
-              className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-40 disabled:hover:bg-card disabled:hover:text-muted-foreground"
             >
               <X className="h-3 w-3" /> Reject selected
             </button>
