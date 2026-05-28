@@ -157,8 +157,8 @@ function Signup() {
           </div>
 
           <Field label="Contact Phone *">
-            <div className="flex gap-2">
-              <select className="input w-20 shrink-0" defaultValue="+234">
+            <div className="flex gap-2 w-full">
+              <select className="input shrink-0" style={{ width: "6rem" }} defaultValue="+234">
                 {DIAL.map((d) => (
                   <option key={d.c} value={d.code}>{d.c} {d.code}</option>
                 ))}
@@ -168,7 +168,8 @@ function Signup() {
                 type="tel"
                 inputMode="tel"
                 pattern="[0-9 ()+\-]{6,}"
-                className="input min-w-0 flex-1"
+                className="input"
+                style={{ flex: "1 1 0%", minWidth: 0 }}
                 placeholder="803 000 0000"
               />
             </div>
