@@ -48,7 +48,7 @@ function SuperPayoutsPage() {
       let q = supabase
         .from("payouts")
         .select(
-          "id, amount, currency, status, method, requested_at, paid_at, notes, failed_reason, community_id, community:communities!inner(name, bank_name, account_number, account_name, paystack_recipient_code)",
+          "id, amount, currency, source, status, method, requested_at, paid_at, notes, failed_reason, community_id, community:communities!inner(name, bank_name, account_number, account_name, paystack_recipient_code)",
         )
         .order("requested_at", { ascending: false });
       if (tab === "pending") q = q.in("status", ["requested", "approved"]);
