@@ -1,125 +1,178 @@
-## Multi-currency Payments — Paystack for both ₦ and $
+## Payments Architecture — Centralized Treasury + Payouts
 
-Community admin enables one or both currencies. Each member picks ₦ or $ at checkout. **Paystack handles both rails** (it supports USD charges on USD-enabled Paystack accounts), so we ship one provider, one webhook, one secret pair.
-
-**Status:** Paystack adapter, dues + donation server functions, `/api/public/paystack-webhook`, and public `/donate/$slug` + `/pay-dues/$planId` pages are implemented. Admin UI still uses local state — wiring it to the live DB is the next step.
+Every payment lands in the platform's single Paystack account. We compute fees on each transaction, hold community balances in our DB, and the super admin pays communities out on request. Paystack Subaccounts/Splits are **not** used.
 
 ---
 
-### What changes vs the previous plan
+### Money flow
 
-Currency is no longer locked to the community. It's chosen **per payment** by the payer (member or donor). The community admin only decides *which currencies are accepted*.
-
----
-
-### Roles
-
-**Super admin (platform owner, one-time)**
-1. Enable Lovable Cloud (already done).
-2. Run `enable_stripe_payments` for the USD rail.
-3. Create a Paystack business account, add `PAYSTACK_SECRET_KEY` + `PAYSTACK_WEBHOOK_SECRET` to Lovable secrets (we'll request these when needed — no values to enter yet).
-4. Point Stripe webhook → `/api/public/stripe-webhook`, Paystack webhook → `/api/public/paystack-webhook`.
-
-**Community admin (per community)**
-1. **Settings → Accepted currencies**: toggle ₦ NGN, $ USD, or both (default: both on).
-2. **Dues plan**: enter the amount in ₦ AND/OR the amount in $ (only for currencies that are enabled). Each is a separate plan under the hood (one Paystack plan + one Stripe price), but the admin sees a single "dues" entry.
-3. **Donations**: enter target in ₦ AND/OR $ (admin picks which currencies this campaign accepts). Target shows in both if both are enabled. Optional: a single "primary" currency for the progress bar — or convert at a fixed admin-set FX rate so both fund a unified total.
-4. **View payers**: list shows each payer with the currency they paid in (`₦25,000` / `$30`). Totals are shown per currency (no auto-FX in the dashboard).
-
-**Members / donors**
-- On the "Pay dues" or "Donate" screen, see a currency selector: ₦ NGN or $ USD (only the currencies the admin enabled).
-- Pick one → land on Paystack or Stripe checkout → return to the app, payment recorded against the chosen currency.
-
----
-
-### Data model adjustments
-
-```
-communities
-  accept_ngn         boolean   default true
-  accept_usd         boolean   default true
-  -- (drop the single `currency`/`provider` columns from the old plan)
-
-dues_plans
-  community_id
-  amount_ngn         numeric?  -- nullable; null means "not offered in NGN"
-  amount_usd         numeric?  -- nullable; null means "not offered in USD"
-  interval           'monthly' | 'quarterly' | 'yearly'
-  paystack_plan_code text?     -- created lazily when amount_ngn is set
-  stripe_price_id    text?     -- created lazily when amount_usd is set
-
-dues_payments
-  plan_id, member_name, member_email
-  amount, currency ('NGN'|'USD'), provider ('paystack'|'stripe')
-  provider_ref, status, paid_at
-
-donations
-  community_id, purpose
-  target_ngn         numeric?
-  target_usd         numeric?
-  deadline, status, shareable_slug
-  paystack_page_slug text?
-  stripe_product_id  text?
-
-donation_payments
-  donation_id, payer_name, payer_email
-  amount, currency, provider, provider_ref, status, paid_at
+```text
+Member/donor pays
+      │
+      ▼
+Paystack checkout (NGN or USD)
+      │  T+1 settlement
+      ▼
+Platform's Paystack bank account ── ALL funds
+      │
+      │  Per-payment we record:
+      │    gross         = what payer paid
+      │    paystack_fee  = from webhook payload
+      │    platform_fee  = gross × tier_pct (community's plan)
+      │    community_net = gross − platform_fee     ← owed to community
+      │    platform_net  = platform_fee − paystack_fee  ← our cut
+      ▼
+Community balance grows
+      │
+      │  Community admin: "Request payout"
+      ▼
+Super admin "Payouts" inbox
+      │
+      ├─ Approve + Paystack Transfer → automated, recipient code, transfer API
+      └─ Approve + Manual → super admin sends in their own bank, marks "paid"
+      │
+      ▼
+Community balance decreases by payout amount
 ```
 
-I'll **migrate the existing tables** (added in the previous turn) to this shape — drop `communities.currency` / `communities.provider`, add the accept flags, swap `dues_plans.amount/currency` for `amount_ngn`/`amount_usd`, swap `donations.target/currency` for `target_ngn`/`target_usd`. Payment-record tables stay as-is (each row already has its own `currency` + `provider`).
+### Fee rules (locked from your answers)
+
+- **Platform fee**: percentage of gross, **set per subscription tier** (Free, Pro, etc.) by super admin. Each community inherits its tier's %.
+- **Paystack fee**: platform absorbs it (community gets `gross − platform_fee` regardless).
+- **Currencies**: NGN + USD both flow through the same platform account. USD payouts default to manual (Paystack Transfers don't reliably support USD); NGN payouts default to Paystack Transfers API.
+
+### Onboarding
+
+Community admin enters bank details in **Settings → Payouts** at any time. Until they do, they can still accept payments — balance accrues — but cannot request a payout.
 
 ---
 
-### Code layout
+### Data model additions
 
+**`communities`** — bank + Paystack recipient
 ```
-src/lib/payments/
-  provider.ts          getProvider(currency) → paystack | stripe
-  stripe.server.ts     createPrice, createCheckoutSession, createSubscription
-  paystack.server.ts   createPlan, initializeTransaction, createSubscription
-  dues.functions.ts    createOrUpdateDuesPlan, startDuesCheckout(planId, currency)
-  donations.functions.ts createDonation, endDonation, startDonationCheckout(donationId, currency, amount)
-
-src/routes/api/public/
-  stripe-webhook.ts    verifies sig, inserts dues_payments / donation_payments
-  paystack-webhook.ts  verifies sig, inserts the same
-
-src/routes/
-  donate.$slug.tsx     public donation page with currency selector
-  pay-dues.$planId.tsx public "pay your dues" page with currency selector
+bank_name              text
+bank_code              text         -- Paystack's bank code list
+account_number         text
+account_name           text         -- returned by Paystack resolve
+paystack_recipient_code text        -- created lazily on first save
 ```
 
-### Provider router (unchanged seam)
+**Subscription tiers** (existing `super-admin.plans` page — likely needs a new column or new table if it's still mock):
+```
+platform_fee_pct       numeric      -- e.g. 5.00 means 5%
+```
+Each community references its current tier (existing field or new `community_subscriptions.tier_id`).
 
-```ts
-export function getProvider(currency: 'NGN' | 'USD') {
-  return currency === 'NGN' ? paystack : stripe;
-}
+**`dues_payments`** and **`donation_payments`** — add fee breakdown
+```
+gross_amount           numeric       -- rename existing `amount`
+paystack_fee           numeric       -- from webhook
+platform_fee           numeric       -- snapshot at payment time
+community_net          numeric       -- gross − platform_fee
 ```
 
-The seam is now invoked at **checkout time** with the payer's choice, not at community-setup time.
+**`payouts`** — new table
+```
+id                     uuid
+community_id           uuid
+amount                 numeric
+currency               'NGN' | 'USD'
+status                 'requested' | 'approved' | 'paid' | 'failed' | 'rejected'
+method                 'paystack_transfer' | 'manual' | null
+paystack_transfer_code text
+notes                  text
+requested_by           uuid
+requested_at           timestamptz
+approved_by            uuid
+approved_at            timestamptz
+paid_at                timestamptz
+```
+
+**View `community_balances`** (derived, per currency)
+```
+community_id, currency,
+  collected     = sum(community_net where status=paid)
+  paid_out      = sum(payouts.amount where status=paid)
+  pending_out   = sum(payouts.amount where status in (requested,approved))
+  available     = collected − paid_out − pending_out
+```
+
+RLS: payouts readable by anon for now (consistent with existing tables); writes via service_role only.
 
 ---
 
-### UI changes
+### Code work
 
-- **Community settings**: two checkboxes — "Accept ₦ NGN", "Accept $ USD".
-- **Dues setup modal**: two amount fields side-by-side, one per currency. Leave one blank to not offer it.
-- **Donation modal**: two target fields side-by-side (₦ target / $ target). Admin picks deadline + purpose as today.
-- **Donation tile**: shows `Collected: ₦120,000 + $300 / Target: ₦500,000 + $1,000`. Progress bar tracks the currency with the higher % completion, or shows two bars.
-- **Public donation page (`/donate/<slug>`)**: amount input + currency toggle. Submitting routes to Paystack (₦) or Stripe ($).
-- **Member dues page**: currency toggle if both are offered for the plan; single-currency view if only one.
+#### Paystack adapter additions (`src/lib/payments/paystack.server.ts`)
+- `resolveAccount(account_number, bank_code)` → name on account
+- `listBanks(currency)` → bank code dropdown source
+- `createTransferRecipient({ account_number, bank_code, name, currency })` → `recipient_code`
+- `initiateTransfer({ amount, recipient_code, reason, reference })` → transfer code
+- Webhook: also handle `transfer.success` / `transfer.failed` / `transfer.reversed` to mark payouts paid/failed.
+
+#### Server functions
+- `saveCommunityBank` — resolves account, creates recipient, stores on `communities`.
+- `requestPayout(currency)` — community admin; checks balance, inserts `payouts` row as `requested`.
+- `approvePayout(id, method, amount?)` — super admin; sets `approved`. If `method='paystack_transfer'`, calls Paystack and stores transfer code; final paid/failed flips on the transfer webhook.
+- `markPayoutPaid(id, note)` — super admin; for manual transfers, flips to `paid`.
+- `rejectPayout(id, reason)`.
+
+#### Webhook update (`/api/public/paystack-webhook`)
+On `charge.success`:
+1. Look up community via `donation_id`/`plan_id`.
+2. Read community's current tier → `platform_fee_pct`.
+3. Compute fees, insert payment row with the full breakdown.
+
+On `transfer.*`:
+1. Find payout by `paystack_transfer_code`.
+2. Update status (paid / failed / rejected).
+
+#### UI
+
+**Community admin → Settings → Payouts** (new view or section in existing settings)
+- Bank details form (bank dropdown + account number → auto-fills account name via resolve).
+- Balance card per currency: Available, Pending payout, Lifetime paid out.
+- "Request payout" button (disabled if no bank details or zero balance).
+- Payout history table.
+
+**Super admin → Payouts** (new route `/super-admin/payouts`)
+- Tabs: Pending / All.
+- Each row: community, amount, currency, requested date.
+- Actions: **Approve via Paystack** (NGN only, default) | **Mark as manually paid** (for USD or fallback) | **Reject**.
+- Optional notes field.
+
+**Super admin → Plans** (existing `super-admin.plans.tsx`)
+- Add a "Platform fee %" field per tier.
+
+**Admin donations list / dues list**
+- Show `community_net` next to gross so admins see what's actually theirs.
 
 ---
 
-### What this turn ships
+### Operational notes (super admin will need to know)
 
-1. Run the migration to reshape the tables (drop old columns, add new ones).
-2. Wait for super admin to enable Stripe (`enable_stripe_payments`) and add Paystack secrets — I'll prompt for those when needed.
-3. Build the provider abstraction + Stripe and Paystack adapters.
-4. Build the two webhook endpoints.
-5. Wire Dues and Donations server functions and update the admin modals.
-6. Build the public `/donate/<slug>` page with the currency selector.
-7. Test end-to-end in both providers' test modes.
+- **Paystack Transfers API requires "Transfers" enabled** on the Paystack dashboard (Settings → Preferences → Transfers). Without it, every payout falls back to manual.
+- **USD transfers via Paystack** aren't generally available — plan defaults USD payouts to manual.
+- **Paystack transfer fees** (₦10–₦50/txn) come out of the platform's account; folded into our cut.
+- **Paystack balance must be sufficient** to fund a transfer. If we approve a payout before T+1 settlement of the funding charge, the transfer will fail — surface the Paystack balance on the super-admin payouts page.
 
-Ready to build when you approve.
+---
+
+### Out of scope for this plan
+
+- Auto-reconciliation against Paystack settlement reports (manual spot-checking is fine for v1).
+- Multi-currency conversion (NGN balances pay out in NGN, USD in USD; no FX).
+- Stripe / non-Paystack rails.
+
+---
+
+### Order of work
+
+1. Migration: bank fields, fee columns, `payouts` table, `community_balances` view, tier `platform_fee_pct`.
+2. Paystack adapter additions (recipients + transfers + bank list).
+3. Webhook update: fee breakdown + transfer events.
+4. Server fns: bank save, request/approve/mark-paid/reject.
+5. Community Settings → Payouts UI.
+6. Super admin Payouts page + tier % field on Plans page.
+7. Surface `community_net` on existing dues/donations admin views.
