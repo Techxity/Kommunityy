@@ -158,7 +158,7 @@ function Signup() {
 
           <Field label="Contact Phone *">
             <div className="flex gap-2">
-              <select className="input w-32 shrink-0" defaultValue="+234">
+              <select className="input w-20 shrink-0" defaultValue="+234">
                 {DIAL.map((d) => (
                   <option key={d.c} value={d.code}>{d.c} {d.code}</option>
                 ))}
