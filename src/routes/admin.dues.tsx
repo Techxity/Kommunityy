@@ -38,9 +38,6 @@ function Dues() {
             <Field label="Start date">
               <input type="date" defaultValue={dues.startDate} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
             </Field>
-            <Field label="Next due">
-              <input type="date" defaultValue={dues.nextDue} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
-            </Field>
           </div>
           <div className="mt-6 flex items-center justify-between">
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Bell className="h-3 w-3" /> Auto reminders enabled (3, 2, 1 days before)</p>
