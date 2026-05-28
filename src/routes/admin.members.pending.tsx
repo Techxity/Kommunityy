@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Check, X, Clock, MapPin, Inbox } from "lucide-react";
+import { Check, X, Clock, MapPin, Inbox, CheckSquare, Square } from "lucide-react";
+import { useMemo, useState } from "react";
 import { pendingMembersStore, usePendingMembers } from "@/lib/pending-members-store";
 import { useChapters } from "@/lib/chapters-store";
 
@@ -22,8 +23,27 @@ function PendingApprovalsPage() {
   const chapters = useChapters();
   const chapterById = (id?: string) => chapters.find((c) => c.id === id);
 
-  const pending = submissions.filter((s) => s.status === "pending");
+  const pending = useMemo(() => submissions.filter((s) => s.status === "pending"), [submissions]);
   const decided = submissions.filter((s) => s.status !== "pending");
+
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const allSelected = pending.length > 0 && selected.size === pending.length;
+
+  const toggle = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleAll = () => {
+    setSelected(allSelected ? new Set() : new Set(pending.map((s) => s.id)));
+  };
+  const bulkSet = (status: "approved" | "rejected") => {
+    selected.forEach((id) => pendingMembersStore.setStatus(id, status));
+    setSelected(new Set());
+  };
 
   return (
     <div className="space-y-6">
@@ -42,6 +62,39 @@ function PendingApprovalsPage() {
         </span>
       </header>
 
+      {pending.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border bg-card px-4 py-2.5 shadow-soft">
+          <button
+            onClick={toggleAll}
+            className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+          >
+            {allSelected ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4" />}
+            {allSelected ? "Deselect all" : "Select all"}
+            {selected.size > 0 && (
+              <span className="ml-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                {selected.size}
+              </span>
+            )}
+          </button>
+          <div className="flex gap-2">
+            <button
+              disabled={selected.size === 0}
+              onClick={() => bulkSet("rejected")}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+            >
+              <X className="h-3 w-3" /> Reject selected
+            </button>
+            <button
+              disabled={selected.size === 0}
+              onClick={() => bulkSet("approved")}
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-95 disabled:opacity-40"
+            >
+              <Check className="h-3 w-3" /> Approve selected
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-3">
         {pending.length === 0 && (
           <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
@@ -57,10 +110,27 @@ function PendingApprovalsPage() {
           const name = s.data["Name"] ?? "(no name)";
           const email = s.data["Email"];
           const phone = s.data["Phone number"];
+          const checked = selected.has(s.id);
           return (
-            <article key={s.id} className="rounded-2xl border border-border bg-card p-5 shadow-soft">
+            <article
+              key={s.id}
+              className={`rounded-2xl border bg-card p-5 shadow-soft transition ${
+                checked ? "border-primary ring-1 ring-primary/30" : "border-border"
+              }`}
+            >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
+                  <button
+                    onClick={() => toggle(s.id)}
+                    className="mt-1 rounded p-0.5 hover:bg-muted"
+                    aria-label="Select application"
+                  >
+                    {checked ? (
+                      <CheckSquare className="h-4 w-4 text-primary" />
+                    ) : (
+                      <Square className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </button>
                   <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-accent text-sm font-bold text-primary-foreground">
                     {name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase()}
                   </div>
