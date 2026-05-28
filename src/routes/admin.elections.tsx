@@ -1,12 +1,29 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { election } from "@/lib/mock-data";
-import { Vote, Plus, Trophy } from "lucide-react";
+import { election as initialElection } from "@/lib/mock-data";
+import { Vote, Plus, Trophy, RotateCcw } from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/elections")({
   component: Elections,
 });
 
 function Elections() {
+  const [election, setElection] = useState(initialElection);
+  const isLive = election.status === "Live";
+
+  const handleEndElection = () => {
+    if (!window.confirm("Are you sure you want to end this election? This action cannot be undone.")) return;
+    setElection((prev) => ({ ...prev, status: "Ended" }));
+    toast.success("Election ended. Results are now final.");
+  };
+
+  const handleRestartElection = () => {
+    if (!window.confirm("Restart the election? Current results will be reset.")) return;
+    setElection((prev) => ({ ...prev, status: "Live" }));
+    toast.success("Election restarted.");
+  };
+
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
@@ -26,7 +43,15 @@ function Elections() {
             <h2 className="mt-1 font-display text-3xl font-bold">{election.year} Executive Council</h2>
             <p className="mt-1 text-sm text-primary-foreground/70">Ends {election.endsAt} · 231 eligible voters</p>
           </div>
-          <span className="rounded-full bg-success px-3 py-1 text-xs font-bold uppercase tracking-wider text-success-foreground">{election.status}</span>
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${
+              isLive
+                ? "bg-success text-success-foreground"
+                : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {election.status}
+          </span>
         </div>
       </div>
 
@@ -69,7 +94,22 @@ function Elections() {
 
       <div className="flex flex-wrap gap-2">
         <button className="rounded-full bg-secondary px-4 py-2 text-sm font-semibold">Edit candidates</button>
-        <button className="rounded-full border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm font-semibold text-destructive">End election</button>
+        {isLive ? (
+          <button
+            onClick={handleEndElection}
+            className="rounded-full border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm font-semibold text-destructive transition hover:bg-destructive/10"
+          >
+            End election
+          </button>
+        ) : (
+          <button
+            onClick={handleRestartElection}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary px-4 py-2 text-sm font-semibold transition hover:bg-secondary/80"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Restart election
+          </button>
+        )}
       </div>
     </div>
   );
