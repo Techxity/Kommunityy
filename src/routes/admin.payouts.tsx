@@ -104,24 +104,31 @@ function BalancesGrid({
   community: Community;
   onRefresh: () => void;
 }) {
-  const ngn = balances.find((b) => b.currency === "NGN") ?? {
-    currency: "NGN" as const,
-    collected: 0,
-    paid_out: 0,
-    pending_out: 0,
-    available: 0,
-  };
-  const usd = balances.find((b) => b.currency === "USD") ?? {
-    currency: "USD" as const,
-    collected: 0,
-    paid_out: 0,
-    pending_out: 0,
-    available: 0,
-  };
+  const combos: { currency: "NGN" | "USD"; source: Source }[] = [
+    { currency: "NGN", source: "dues" },
+    { currency: "NGN", source: "donations" },
+    { currency: "USD", source: "dues" },
+    { currency: "USD", source: "donations" },
+  ];
+  const get = (currency: "NGN" | "USD", source: Source): Balance =>
+    balances.find((b) => b.currency === currency && b.source === source) ?? {
+      currency,
+      source,
+      collected: 0,
+      paid_out: 0,
+      pending_out: 0,
+      available: 0,
+    };
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <BalanceCard b={ngn} community={community} onRefresh={onRefresh} />
-      <BalanceCard b={usd} community={community} onRefresh={onRefresh} />
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {combos.map((c) => (
+        <BalanceCard
+          key={`${c.currency}-${c.source}`}
+          b={get(c.currency, c.source)}
+          community={community}
+          onRefresh={onRefresh}
+        />
+      ))}
     </div>
   );
 }
