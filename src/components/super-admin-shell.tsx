@@ -81,26 +81,7 @@ export function SuperAdminShell() {
           </div>
         </div>
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-3">
-          {nav.map((item) => {
-            const Icon = item.icon;
-            const isActive = item.exact
-              ? location.pathname === item.to
-              : location.pathname === item.to || location.pathname.startsWith(item.to + "/");
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                  isActive
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            );
-          })}
+          <NavList />
         </nav>
         <div className="border-t border-sidebar-border p-4">
           <Link to="/login" className="flex items-center gap-2 text-xs text-sidebar-foreground/70 hover:text-sidebar-foreground">
