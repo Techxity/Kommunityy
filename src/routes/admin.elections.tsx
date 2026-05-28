@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { election as initialElection, members } from "@/lib/mock-data";
-import { Vote, Plus, Trophy, RotateCcw, History, Crown, Pencil, X, Check, Users } from "lucide-react";
+import { Vote, Plus, Trophy, RotateCcw, History, Crown, Pencil, X, Check, Users, Search } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/elections")({
