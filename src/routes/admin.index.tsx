@@ -37,41 +37,6 @@ function Dashboard() {
         <Tile className="col-span-6 md:col-span-3" label="Messages sent (30d)" value={stats.messagesSentThisMonth} sub="Broadcasts + birthdays" icon={Megaphone} link="/admin/broadcast" />
         <Tile className="col-span-12 md:col-span-3" tone="accent" label="Dues collected MTD" value={`₦${(stats.duesCollectedMTD / 1000).toFixed(0)}k`} sub="May 2026" icon={Banknote} link="/admin/dues" />
 
-        {/* Election panel */}
-        <div className="col-span-12 rounded-2xl border border-border bg-card p-6 shadow-soft md:col-span-7">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">Live election</p>
-              <h2 className="mt-1 font-display text-xl font-bold">{election.year} Executive Council</h2>
-            </div>
-            <Link to="/admin/elections" className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90">
-              Open <ArrowUpRight className="h-3 w-3" />
-            </Link>
-          </div>
-          <div className="mt-5 space-y-3">
-            {election.positions.map((p) => {
-              const total = p.candidates.reduce((s, c) => s + c.votes, 0);
-              const leader = [...p.candidates].sort((a, b) => b.votes - a.votes)[0];
-              return (
-                <div key={p.role} className="rounded-xl border border-border bg-background p-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{p.role}</span>
-                    <span className="text-muted-foreground">{total} votes</span>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between text-xs">
-                    <span className="font-semibold text-foreground">Leading: {leader.name}</span>
-                    <span className="text-success">{Math.round((leader.votes / total) * 100)}%</span>
-                  </div>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
-                    <div className="h-full bg-gradient-accent" style={{ width: `${(leader.votes / total) * 100}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Birthdays */}
         <div className="col-span-12 rounded-2xl border border-border bg-card p-6 shadow-soft md:col-span-5">
           <div className="flex items-center justify-between">
             <div>
