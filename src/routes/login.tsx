@@ -51,6 +51,11 @@ function Login() {
       setError("No account found for that email. Try one of the sample logins below.");
       return;
     }
+    const cid = communityIdForEmail(email);
+    if (isCommunityDisabled(cid)) {
+      setError("This community has been disabled by the platform. Please contact your community admin.");
+      return;
+    }
     setError("");
     navigate({ to: match.destination });
   }
