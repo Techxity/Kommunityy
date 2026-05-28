@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Check, X, Clock, MapPin, Inbox, CheckSquare, Square } from "lucide-react";
+import { Check, X, Clock, MapPin, Inbox, CheckSquare, Square, SlidersHorizontal } from "lucide-react";
 import { useMemo, useState } from "react";
 import { pendingMembersStore, usePendingMembers } from "@/lib/pending-members-store";
 import { useChapters } from "@/lib/chapters-store";
