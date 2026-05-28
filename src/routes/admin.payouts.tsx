@@ -61,10 +61,10 @@ function PayoutsPage() {
       setCommunity(c as Community);
 
       const [{ data: bal }, { data: pos }] = await Promise.all([
-        supabase.from("community_balances").select("*").eq("community_id", c.id),
+        supabase.from("community_balances_by_source").select("*").eq("community_id", c.id),
         supabase
           .from("payouts")
-          .select("id, amount, currency, status, method, requested_at, paid_at, notes, failed_reason")
+          .select("id, amount, currency, source, status, method, requested_at, paid_at, notes, failed_reason")
           .eq("community_id", c.id)
           .order("requested_at", { ascending: false }),
       ]);
