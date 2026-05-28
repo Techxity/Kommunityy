@@ -158,12 +158,19 @@ function Signup() {
 
           <Field label="Contact Phone *">
             <div className="flex gap-2">
-              <select className="input w-28 shrink-0">
+              <select className="input w-32 shrink-0" defaultValue="+234">
                 {DIAL.map((d) => (
                   <option key={d.c} value={d.code}>{d.c} {d.code}</option>
                 ))}
               </select>
-              <input required type="tel" className="input flex-1" placeholder="803 000 0000" />
+              <input
+                required
+                type="tel"
+                inputMode="tel"
+                pattern="[0-9 ()+\-]{6,}"
+                className="input min-w-0 flex-1"
+                placeholder="803 000 0000"
+              />
             </div>
           </Field>
 
@@ -179,9 +186,6 @@ function Signup() {
             </Field>
           </div>
 
-          <Field label="Fields members need to provide to join" hint="You can refine this later in the onboarding form builder">
-            <textarea rows={3} className="input" placeholder="e.g. Full name, phone, year of joining, who invited you…" />
-          </Field>
 
           <Field label="Will you collect payments or donations?">
             <div className="flex gap-2">
