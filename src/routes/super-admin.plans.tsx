@@ -25,6 +25,18 @@ function PlansPage() {
   const [editing, setEditing] = useState<Plan | null>(null);
   const [creatingPlan, setCreatingPlan] = useState(false);
 
+  // Trial defaults applied to every newly provisioned community.
+  const [trialEnabled, setTrialEnabled] = useState(true);
+  const [trialDays, setTrialDays] = useState(14);
+  const [trialPlan, setTrialPlan] = useState<string>("Enterprise");
+  const [requireCard, setRequireCard] = useState(false);
+  const [trialSaved, setTrialSaved] = useState(false);
+
+  function saveTrial() {
+    setTrialSaved(true);
+    setTimeout(() => setTrialSaved(false), 1500);
+  }
+
   const plan = plans.find((p) => p.tier === selectedTier) ?? plans[0];
 
   function toggleModule(m: string) {
