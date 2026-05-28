@@ -18,6 +18,7 @@ type Row = {
   id: string;
   amount: number;
   currency: "NGN" | "USD";
+  source: "dues" | "donations";
   status: string;
   method: string | null;
   requested_at: string;
@@ -47,7 +48,7 @@ function SuperPayoutsPage() {
       let q = supabase
         .from("payouts")
         .select(
-          "id, amount, currency, status, method, requested_at, paid_at, notes, failed_reason, community_id, community:communities!inner(name, bank_name, account_number, account_name, paystack_recipient_code)",
+          "id, amount, currency, source, status, method, requested_at, paid_at, notes, failed_reason, community_id, community:communities!inner(name, bank_name, account_number, account_name, paystack_recipient_code)",
         )
         .order("requested_at", { ascending: false });
       if (tab === "pending") q = q.in("status", ["requested", "approved"]);
@@ -104,6 +105,9 @@ function SuperPayoutsPage() {
                       {sym(r.currency)}
                       {Number(r.amount).toLocaleString()} → {r.community?.name}
                     </p>
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {r.source}
+                    </span>
                     {statusBadge(r.status)}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">

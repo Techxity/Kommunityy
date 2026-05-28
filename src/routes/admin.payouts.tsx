@@ -15,7 +15,8 @@ export const Route = createFileRoute("/admin/payouts")({
   component: PayoutsPage,
 });
 
-type Balance = { currency: "NGN" | "USD"; collected: number; paid_out: number; pending_out: number; available: number };
+type Source = "dues" | "donations";
+type Balance = { currency: "NGN" | "USD"; source: Source; collected: number; paid_out: number; pending_out: number; available: number };
 type Community = {
   id: string;
   name: string;
@@ -29,6 +30,7 @@ type Payout = {
   id: string;
   amount: number;
   currency: "NGN" | "USD";
+  source: Source;
   status: string;
   method: string | null;
   requested_at: string;
@@ -59,10 +61,10 @@ function PayoutsPage() {
       setCommunity(c as Community);
 
       const [{ data: bal }, { data: pos }] = await Promise.all([
-        supabase.from("community_balances").select("*").eq("community_id", c.id),
+        supabase.from("community_balances_by_source").select("*").eq("community_id", c.id),
         supabase
           .from("payouts")
-          .select("id, amount, currency, status, method, requested_at, paid_at, notes, failed_reason")
+          .select("id, amount, currency, source, status, method, requested_at, paid_at, notes, failed_reason")
           .eq("community_id", c.id)
           .order("requested_at", { ascending: false }),
       ]);
@@ -102,24 +104,31 @@ function BalancesGrid({
   community: Community;
   onRefresh: () => void;
 }) {
-  const ngn = balances.find((b) => b.currency === "NGN") ?? {
-    currency: "NGN" as const,
-    collected: 0,
-    paid_out: 0,
-    pending_out: 0,
-    available: 0,
-  };
-  const usd = balances.find((b) => b.currency === "USD") ?? {
-    currency: "USD" as const,
-    collected: 0,
-    paid_out: 0,
-    pending_out: 0,
-    available: 0,
-  };
+  const combos: { currency: "NGN" | "USD"; source: Source }[] = [
+    { currency: "NGN", source: "dues" },
+    { currency: "NGN", source: "donations" },
+    { currency: "USD", source: "dues" },
+    { currency: "USD", source: "donations" },
+  ];
+  const get = (currency: "NGN" | "USD", source: Source): Balance =>
+    balances.find((b) => b.currency === currency && b.source === source) ?? {
+      currency,
+      source,
+      collected: 0,
+      paid_out: 0,
+      pending_out: 0,
+      available: 0,
+    };
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <BalanceCard b={ngn} community={community} onRefresh={onRefresh} />
-      <BalanceCard b={usd} community={community} onRefresh={onRefresh} />
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {combos.map((c) => (
+        <BalanceCard
+          key={`${c.currency}-${c.source}`}
+          b={get(c.currency, c.source)}
+          community={community}
+          onRefresh={onRefresh}
+        />
+      ))}
     </div>
   );
 }
@@ -145,7 +154,9 @@ function BalanceCard({
     if (!amt || amt <= 0) return setErr("Enter a valid amount");
     setBusy(true);
     try {
-      await reqFn({ data: { community_id: community.id, currency: b.currency, amount: amt } });
+      await reqFn({
+        data: { community_id: community.id, currency: b.currency, source: b.source, amount: amt },
+      });
       setAmount("");
       onRefresh();
     } catch (e: any) {
@@ -159,7 +170,9 @@ function BalanceCard({
     <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
       <div className="flex items-center gap-2">
         <Banknote className="h-5 w-5 text-primary" />
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">{b.currency}</p>
+        <p className="text-xs uppercase tracking-wider text-muted-foreground">
+          {b.currency} · {b.source}
+        </p>
       </div>
       <p className="mt-2 font-display text-3xl font-bold">
         {sym(b.currency)}
@@ -356,6 +369,9 @@ function PayoutHistory({ payouts }: { payouts: Payout[] }) {
                 <p className="font-display text-sm font-bold">
                   {sym(p.currency)}
                   {Number(p.amount).toLocaleString()}
+                  <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {p.source}
+                  </span>
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Requested {new Date(p.requested_at).toLocaleDateString()}
