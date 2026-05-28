@@ -18,16 +18,52 @@ function timeAgo(iso: string) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+function getCountryFromChapterRegion(region?: string): string {
+  if (!region) return "";
+  const parts = region.split(",");
+  return parts.length > 1 ? parts[parts.length - 1].trim() : region.trim();
+}
+
 function PendingApprovalsPage() {
   const submissions = usePendingMembers();
   const chapters = useChapters();
   const chapterById = (id?: string) => chapters.find((c) => c.id === id);
 
-  const pending = useMemo(() => submissions.filter((s) => s.status === "pending"), [submissions]);
+  const [showFilters, setShowFilters] = useState(false);
+  const [chapterFilter, setChapterFilter] = useState("");
+  const [countryFilter, setCountryFilter] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+
+  const allPending = useMemo(() => submissions.filter((s) => s.status === "pending"), [submissions]);
   const decided = submissions.filter((s) => s.status !== "pending");
 
+  const filteredPending = useMemo(() => {
+    return allPending.filter((s) => {
+      const chapter = chapterById(s.chapterId);
+      const country = s.data["Country"] || getCountryFromChapterRegion(chapter?.region);
+      const role = s.data["Role"] || "";
+      const matchesChapter = !chapterFilter || s.chapterId === chapterFilter;
+      const matchesCountry = !countryFilter || country === countryFilter;
+      const matchesRole = !roleFilter || role === roleFilter;
+      return matchesChapter && matchesCountry && matchesRole;
+    });
+  }, [allPending, chapterFilter, countryFilter, roleFilter, chapters]);
+
+  const chapterOptions = useMemo(() => chapters.map((c) => ({ id: c.id, name: c.name })), [chapters]);
+  const countryOptions = useMemo(
+    () => Array.from(new Set(allPending.map((s) => {
+      const ch = chapterById(s.chapterId);
+      return s.data["Country"] || getCountryFromChapterRegion(ch?.region);
+    }).filter(Boolean))),
+    [allPending, chapters]
+  );
+  const roleOptions = useMemo(
+    () => Array.from(new Set(allPending.map((s) => s.data["Role"]).filter(Boolean))),
+    [allPending]
+  );
+
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const allSelected = pending.length > 0 && selected.size === pending.length;
+  const allSelected = filteredPending.length > 0 && selected.size === filteredPending.length;
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -38,11 +74,18 @@ function PendingApprovalsPage() {
     });
   };
   const toggleAll = () => {
-    setSelected(allSelected ? new Set() : new Set(pending.map((s) => s.id)));
+    setSelected(allSelected ? new Set() : new Set(filteredPending.map((s) => s.id)));
   };
   const bulkSet = (status: "approved" | "rejected") => {
     selected.forEach((id) => pendingMembersStore.setStatus(id, status));
     setSelected(new Set());
+  };
+
+  const hasFilters = chapterFilter || countryFilter || roleFilter;
+  const clearFilters = () => {
+    setChapterFilter("");
+    setCountryFilter("");
+    setRoleFilter("");
   };
 
   return (
@@ -58,11 +101,77 @@ function PendingApprovalsPage() {
           </p>
         </div>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/15 px-3 py-1 text-xs font-semibold text-warning">
-          <Clock className="h-3 w-3" /> {pending.length} awaiting review
+          <Clock className="h-3 w-3" /> {filteredPending.length} awaiting review
         </span>
       </header>
 
-      {pending.length > 0 && (
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={() => setShowFilters((s) => !s)}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition ${
+            showFilters || hasFilters
+              ? "border-primary bg-primary/10 text-primary"
+              : "border-border bg-card text-muted-foreground hover:bg-muted"
+          }`}
+        >
+          <SlidersHorizontal className="h-4 w-4" /> Filters
+          {hasFilters && <span className="rounded-full bg-primary px-1.5 py-0 text-[10px] font-bold text-primary-foreground">{[chapterFilter, countryFilter, roleFilter].filter(Boolean).length}</span>}
+        </button>
+        {hasFilters && (
+          <button
+            onClick={clearFilters}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <X className="h-3 w-3" /> Clear filters
+          </button>
+        )}
+      </div>
+
+      {showFilters && (
+        <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Chapter</label>
+            <select
+              value={chapterFilter}
+              onChange={(e) => setChapterFilter(e.target.value)}
+              className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm outline-none focus:border-ring"
+            >
+              <option value="">All chapters</option>
+              {chapterOptions.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Country</label>
+            <select
+              value={countryFilter}
+              onChange={(e) => setCountryFilter(e.target.value)}
+              className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm outline-none focus:border-ring"
+            >
+              <option value="">All countries</option>
+              {countryOptions.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Role</label>
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm outline-none focus:border-ring"
+            >
+              <option value="">All roles</option>
+              {roleOptions.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {filteredPending.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border bg-card px-4 py-2.5 shadow-soft">
           <button
             onClick={toggleAll}
@@ -96,17 +205,19 @@ function PendingApprovalsPage() {
       )}
 
       <div className="space-y-3">
-        {pending.length === 0 && (
+        {filteredPending.length === 0 && (
           <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
             <Inbox className="mx-auto h-8 w-8 text-muted-foreground" />
             <p className="mt-3 font-display text-lg font-semibold">No pending applications</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              New submissions from your join link will appear here.
+              {hasFilters ? "No applications match your filters." : "New submissions from your join link will appear here."}
             </p>
           </div>
         )}
-        {pending.map((s) => {
+        {filteredPending.map((s) => {
           const chapter = chapterById(s.chapterId);
+          const country = s.data["Country"] || getCountryFromChapterRegion(chapter?.region);
+          const role = s.data["Role"] || "";
           const name = s.data["Name"] ?? "(no name)";
           const email = s.data["Email"];
           const phone = s.data["Phone number"];
@@ -149,6 +260,16 @@ function PendingApprovalsPage() {
                           <MapPin className="h-3 w-3" /> {chapter.name}
                         </span>
                       )}
+                      {country && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5">
+                          {country}
+                        </span>
+                      )}
+                      {role && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-primary">
+                          {role}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -170,7 +291,7 @@ function PendingApprovalsPage() {
 
               <dl className="mt-4 grid gap-x-6 gap-y-2 border-t border-border pt-4 text-xs sm:grid-cols-2">
                 {Object.entries(s.data)
-                  .filter(([k]) => k !== "Chapter")
+                  .filter(([k]) => k !== "Chapter" && k !== "Country" && k !== "Role")
                   .map(([k, v]) => (
                     <div key={k} className="flex justify-between gap-3">
                       <dt className="text-muted-foreground">{k}</dt>
