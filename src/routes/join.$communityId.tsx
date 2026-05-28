@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { CheckCircle2, Users2, ShieldCheck, Sparkles } from "lucide-react";
+import { CheckCircle2, Users2, ShieldCheck, Sparkles, Ban } from "lucide-react";
 import { community } from "@/lib/mock-data";
 import { useOnboardingFields } from "@/lib/onboarding-store";
 import { useChapters } from "@/lib/chapters-store";
 import { pendingMembersStore } from "@/lib/pending-members-store";
+import { isCommunityDisabled, useCommunities } from "@/lib/communities-store";
 
 export const Route = createFileRoute("/join/$communityId")({
   component: PublicJoinPage,
