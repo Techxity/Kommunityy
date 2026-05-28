@@ -154,7 +154,9 @@ function BalanceCard({
     if (!amt || amt <= 0) return setErr("Enter a valid amount");
     setBusy(true);
     try {
-      await reqFn({ data: { community_id: community.id, currency: b.currency, amount: amt } });
+      await reqFn({
+        data: { community_id: community.id, currency: b.currency, source: b.source, amount: amt },
+      });
       setAmount("");
       onRefresh();
     } catch (e: any) {
@@ -168,7 +170,9 @@ function BalanceCard({
     <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
       <div className="flex items-center gap-2">
         <Banknote className="h-5 w-5 text-primary" />
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">{b.currency}</p>
+        <p className="text-xs uppercase tracking-wider text-muted-foreground">
+          {b.currency} · {b.source}
+        </p>
       </div>
       <p className="mt-2 font-display text-3xl font-bold">
         {sym(b.currency)}
