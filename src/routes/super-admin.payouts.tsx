@@ -105,6 +105,9 @@ function SuperPayoutsPage() {
                       {sym(r.currency)}
                       {Number(r.amount).toLocaleString()} → {r.community?.name}
                     </p>
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {r.source}
+                    </span>
                     {statusBadge(r.status)}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
