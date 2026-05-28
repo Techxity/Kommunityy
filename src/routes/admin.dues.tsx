@@ -46,8 +46,8 @@ function Dues() {
         </div>
 
         <div className="space-y-4">
-          <Tile icon={Banknote} label="Current dues" value={`₦${dues.amount.toLocaleString()}`} sub={dues.frequency} />
-          <Tile icon={Calendar} label="Next due date" value={dues.nextDue} sub="Reminders auto-sent" />
+          <Tile icon={Banknote} label="Current dues" value={`₦${dues.amount.toLocaleString()}`} sub={`${dues.frequency} • Next: ${dues.nextDue}`} />
+          <Tile icon={Calendar} label="Total collected" value={`₦${duesHistory.filter(d => d.status === "Paid").reduce((sum, d) => sum + d.amount, 0).toLocaleString()}`} sub="till date" />
         </div>
       </div>
 
