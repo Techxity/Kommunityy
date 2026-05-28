@@ -10,9 +10,39 @@ export const Route = createFileRoute("/admin/members")({
 function MembersPage() {
   const [query, setQuery] = useState("");
   const [showInvite, setShowInvite] = useState(false);
-  const filtered = members.filter((m) =>
-    [m.name, m.email, m.role].some((f) => f.toLowerCase().includes(query.toLowerCase()))
-  );
+  const [showFilters, setShowFilters] = useState(false);
+  const [chapterFilter, setChapterFilter] = useState("");
+  const [countryFilter, setCountryFilter] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+
+  const chapters = useMemo(() => Array.from(new Set(members.map((m) => m.chapter).filter(Boolean))), []);
+  const countries = useMemo(() => Array.from(new Set(members.map((m) => m.country).filter(Boolean))), []);
+  const roles = useMemo(() => Array.from(new Set(members.map((m) => m.role).filter(Boolean))), []);
+  const statuses = useMemo(() => Array.from(new Set(members.map((m) => m.status).filter(Boolean))), []);
+
+  const filtered = useMemo(() => {
+    return members.filter((m) => {
+      const matchesQuery = [m.name, m.email, m.role].some((f) => f.toLowerCase().includes(query.toLowerCase()));
+      const matchesChapter = !chapterFilter || m.chapter === chapterFilter;
+      const matchesCountry = !countryFilter || m.country === countryFilter;
+      const matchesRole = !roleFilter || m.role === roleFilter;
+      const matchesStatus = !statusFilter || m.status === statusFilter;
+      return matchesQuery && matchesChapter && matchesCountry && matchesRole && matchesStatus;
+    });
+  }, [query, chapterFilter, countryFilter, roleFilter, statusFilter]);
+
+  const activeCount = members.filter((m) => m.status === "active").length;
+  const inactiveCount = members.filter((m) => m.status === "inactive").length;
+
+  const clearFilters = () => {
+    setChapterFilter("");
+    setCountryFilter("");
+    setRoleFilter("");
+    setStatusFilter("");
+  };
+
+  const hasFilters = chapterFilter || countryFilter || roleFilter || statusFilter;
 
   return (
     <div className="space-y-6">
@@ -45,17 +75,96 @@ function MembersPage() {
               className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:border-ring"
             />
           </div>
+          <button
+            onClick={() => setShowFilters((s) => !s)}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition ${
+              showFilters || hasFilters
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border bg-background text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            <SlidersHorizontal className="h-4 w-4" /> Filters
+            {hasFilters && <span className="rounded-full bg-primary px-1.5 py-0 text-[10px] font-bold text-primary-foreground">{[chapterFilter, countryFilter, roleFilter, statusFilter].filter(Boolean).length}</span>}
+          </button>
           <div className="flex gap-2 text-xs text-muted-foreground">
-            <span className="rounded-full bg-success/15 px-2.5 py-1 text-success">Active {members.filter(m=>m.status==='active').length}</span>
-            <span className="rounded-full bg-muted px-2.5 py-1">Inactive {members.filter(m=>m.status==='inactive').length}</span>
+            <span className="rounded-full bg-success/15 px-2.5 py-1 text-success">Active {activeCount}</span>
+            <span className="rounded-full bg-muted px-2.5 py-1">Inactive {inactiveCount}</span>
           </div>
         </div>
+
+        {showFilters && (
+          <div className="flex flex-wrap items-end gap-3 border-b border-border bg-muted/20 px-4 py-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Chapter</label>
+              <select
+                value={chapterFilter}
+                onChange={(e) => setChapterFilter(e.target.value)}
+                className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm outline-none focus:border-ring"
+              >
+                <option value="">All chapters</option>
+                {chapters.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Country</label>
+              <select
+                value={countryFilter}
+                onChange={(e) => setCountryFilter(e.target.value)}
+                className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm outline-none focus:border-ring"
+              >
+                <option value="">All countries</option>
+                {countries.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Role</label>
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm outline-none focus:border-ring"
+              >
+                <option value="">All roles</option>
+                {roles.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Status</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm outline-none focus:border-ring"
+              >
+                <option value="">All statuses</option>
+                {statuses.map((s) => (
+                  <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                ))}
+              </select>
+            </div>
+            {hasFilters && (
+              <button
+                onClick={clearFilters}
+                className="mb-0.5 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-3 w-3" /> Clear
+              </button>
+            )}
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Member</th>
                 <th className="px-4 py-3 font-medium">Role</th>
+                <th className="px-4 py-3 font-medium">Chapter</th>
+                <th className="px-4 py-3 font-medium">Country</th>
                 <th className="px-4 py-3 font-medium">Phone</th>
                 <th className="px-4 py-3 font-medium">Joined</th>
                 <th className="px-4 py-3 font-medium">Status</th>
@@ -77,6 +186,8 @@ function MembersPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3">{m.role}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{m.chapter}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{m.country}</td>
                   <td className="px-4 py-3 text-muted-foreground">{m.phone}</td>
                   <td className="px-4 py-3 text-muted-foreground">{m.joined}</td>
                   <td className="px-4 py-3">
@@ -92,6 +203,13 @@ function MembersPage() {
                   </td>
                 </tr>
               ))}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                    No members match your filters.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
