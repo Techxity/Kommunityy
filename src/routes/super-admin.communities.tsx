@@ -154,9 +154,13 @@ function Communities() {
 }
 
 function CommunityDetails({ community, onClose }: { community: Community; onClose: () => void }) {
+  const o = community.onboarding;
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-soft" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-soft"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-start justify-between">
           <div>
             <p className="text-xs uppercase tracking-wider text-muted-foreground">{community.id}</p>
@@ -167,6 +171,7 @@ function CommunityDetails({ community, onClose }: { community: Community; onClos
             <X className="h-4 w-4" />
           </button>
         </div>
+
         <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
           <Detail label="Owner" value={community.owner} />
           <Detail label="Plan" value={community.plan} />
@@ -176,11 +181,55 @@ function CommunityDetails({ community, onClose }: { community: Community; onClos
           <Detail label="Joined" value={community.joined} />
           <Detail label="Access" value={community.disabled ? "Disabled" : "Active"} />
         </div>
+
         {community.disabled && (
           <p className="mt-5 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-700">
             Members of this community can't sign in or submit join applications until you re-enable it.
           </p>
         )}
+
+        <div className="mt-6">
+          <div className="flex items-center justify-between">
+            <p className="font-display text-sm font-bold uppercase tracking-wider">Onboarding submission</p>
+            {o && (
+              <span className="text-[11px] text-muted-foreground">Submitted {o.submittedAt}</span>
+            )}
+          </div>
+          {o ? (
+            <div className="mt-3 space-y-3">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <Detail label="Contact name" value={o.contactName} />
+                <Detail label="Role" value={o.contactRole} />
+                <Detail label="Contact email" value={o.contactEmail} />
+                <Detail label="Phone" value={o.contactPhone} />
+                <Detail label="Founded" value={String(o.foundedYear)} />
+                <Detail label="Expected members" value={o.expectedMembers.toLocaleString()} />
+                <Detail label="Collects dues" value={o.collectsDues} />
+                <Detail label="Payment provider" value={o.paymentProvider} />
+                {o.website && <Detail label="Website" value={o.website} />}
+                <Detail label="Terms accepted" value={o.agreedToTerms ? "Yes" : "No"} />
+              </div>
+              <div className="rounded-lg border border-border bg-background p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Primary goal</p>
+                <p className="mt-1 text-sm">{o.primaryGoal}</p>
+              </div>
+              <div className="rounded-lg border border-border bg-background p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Address</p>
+                <p className="mt-1 text-sm">{o.address}</p>
+              </div>
+              {o.notes && (
+                <div className="rounded-lg border border-border bg-background p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Notes from applicant</p>
+                  <p className="mt-1 text-sm">{o.notes}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="mt-3 rounded-lg border border-dashed border-border p-4 text-xs text-muted-foreground">
+              No onboarding submission on file for this community.
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );
