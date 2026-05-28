@@ -29,7 +29,6 @@ function Signup() {
   const [submitted, setSubmitted] = useState(false);
   const [name, setName] = useState("");
   const [type, setType] = useState("Estate");
-  const [payments, setPayments] = useState("Not sure");
   const [pricingPlan, setPricingPlan] = useState("");
   const [generatedId, setGeneratedId] = useState("");
   const [communityId, setCommunityId] = useState("");
