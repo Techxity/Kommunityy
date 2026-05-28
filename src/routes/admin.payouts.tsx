@@ -369,6 +369,9 @@ function PayoutHistory({ payouts }: { payouts: Payout[] }) {
                 <p className="font-display text-sm font-bold">
                   {sym(p.currency)}
                   {Number(p.amount).toLocaleString()}
+                  <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {p.source}
+                  </span>
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Requested {new Date(p.requested_at).toLocaleDateString()}
