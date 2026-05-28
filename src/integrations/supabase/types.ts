@@ -16,27 +16,27 @@ export type Database = {
     Tables: {
       communities: {
         Row: {
+          accept_ngn: boolean
+          accept_usd: boolean
           created_at: string
-          currency: Database["public"]["Enums"]["payment_currency"]
           id: string
           name: string
-          provider: Database["public"]["Enums"]["payment_provider"]
           updated_at: string
         }
         Insert: {
+          accept_ngn?: boolean
+          accept_usd?: boolean
           created_at?: string
-          currency?: Database["public"]["Enums"]["payment_currency"]
           id?: string
           name: string
-          provider?: Database["public"]["Enums"]["payment_provider"]
           updated_at?: string
         }
         Update: {
+          accept_ngn?: boolean
+          accept_usd?: boolean
           created_at?: string
-          currency?: Database["public"]["Enums"]["payment_currency"]
           id?: string
           name?: string
-          provider?: Database["public"]["Enums"]["payment_provider"]
           updated_at?: string
         }
         Relationships: []
@@ -99,7 +99,6 @@ export type Database = {
         Row: {
           community_id: string
           created_at: string
-          currency: Database["public"]["Enums"]["payment_currency"]
           deadline: string | null
           id: string
           paystack_page_slug: string | null
@@ -107,13 +106,13 @@ export type Database = {
           shareable_slug: string
           status: Database["public"]["Enums"]["donation_status"]
           stripe_product_id: string | null
-          target: number
+          target_ngn: number | null
+          target_usd: number | null
           updated_at: string
         }
         Insert: {
           community_id: string
           created_at?: string
-          currency: Database["public"]["Enums"]["payment_currency"]
           deadline?: string | null
           id?: string
           paystack_page_slug?: string | null
@@ -121,13 +120,13 @@ export type Database = {
           shareable_slug: string
           status?: Database["public"]["Enums"]["donation_status"]
           stripe_product_id?: string | null
-          target: number
+          target_ngn?: number | null
+          target_usd?: number | null
           updated_at?: string
         }
         Update: {
           community_id?: string
           created_at?: string
-          currency?: Database["public"]["Enums"]["payment_currency"]
           deadline?: string | null
           id?: string
           paystack_page_slug?: string | null
@@ -135,7 +134,8 @@ export type Database = {
           shareable_slug?: string
           status?: Database["public"]["Enums"]["donation_status"]
           stripe_product_id?: string | null
-          target?: number
+          target_ngn?: number | null
+          target_usd?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -198,34 +198,37 @@ export type Database = {
       dues_plans: {
         Row: {
           active: boolean
-          amount: number
+          amount_ngn: number | null
+          amount_usd: number | null
           community_id: string
           created_at: string
-          currency: Database["public"]["Enums"]["payment_currency"]
           id: string
           interval: Database["public"]["Enums"]["dues_interval"]
+          name: string
           paystack_plan_code: string | null
           stripe_price_id: string | null
         }
         Insert: {
           active?: boolean
-          amount: number
+          amount_ngn?: number | null
+          amount_usd?: number | null
           community_id: string
           created_at?: string
-          currency: Database["public"]["Enums"]["payment_currency"]
           id?: string
           interval: Database["public"]["Enums"]["dues_interval"]
+          name?: string
           paystack_plan_code?: string | null
           stripe_price_id?: string | null
         }
         Update: {
           active?: boolean
-          amount?: number
+          amount_ngn?: number | null
+          amount_usd?: number | null
           community_id?: string
           created_at?: string
-          currency?: Database["public"]["Enums"]["payment_currency"]
           id?: string
           interval?: Database["public"]["Enums"]["dues_interval"]
+          name?: string
           paystack_plan_code?: string | null
           stripe_price_id?: string | null
         }
@@ -243,7 +246,8 @@ export type Database = {
     Views: {
       donation_totals: {
         Row: {
-          collected: number | null
+          collected_ngn: number | null
+          collected_usd: number | null
           donation_id: string | null
           payer_count: number | null
         }

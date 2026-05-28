@@ -1,136 +1,123 @@
-## Multi-currency Payments: Stripe (USD) + Paystack (NGN)
+## Multi-currency Payments — Member Picks Currency at Checkout
 
-Each community picks its currency at setup. The app routes dues and donations to the right processor automatically — Stripe for USD, Paystack for NGN. Members never see the plumbing.
-
----
-
-### Provider split
-
-| Currency | Processor | Why |
-|---|---|---|
-| NGN (₦) | **Paystack** | Native Nigerian payouts, supports card, bank transfer, USSD. Stripe cannot pay out to Nigerian businesses. |
-| USD ($) | **Stripe (built-in)** | Lovable's `enable_stripe_payments` — no API keys to paste, test mode out of the box. |
-
-Both providers support **subscriptions** (for dues) and **one-off charges** (for donations), so the flows mirror each other.
+Community admin enables one or both currencies. Each member picks ₦ or $ when they pay. Stripe handles every $ charge; Paystack handles every ₦ charge. Two processors, one unified app.
 
 ---
 
-### What each role sets up
+### What changes vs the previous plan
+
+Currency is no longer locked to the community. It's chosen **per payment** by the payer (member or donor). The community admin only decides *which currencies are accepted*.
+
+---
+
+### Roles
 
 **Super admin (platform owner, one-time)**
-1. Enable Lovable Cloud.
-2. Run `enable_stripe_payments` for the USD rail. Claim + verify the Stripe account for live mode.
-3. Create a Paystack business account at paystack.com, generate a secret key, and add it as a Lovable secret (`PAYSTACK_SECRET_KEY`). Add `PAYSTACK_WEBHOOK_SECRET` too.
-4. In Paystack dashboard, point the webhook to `https://<project>.lovable.app/api/public/paystack-webhook`. In Stripe dashboard, point its webhook to `/api/public/stripe-webhook`.
-5. Manage which communities are live vs test.
+1. Enable Lovable Cloud (already done).
+2. Run `enable_stripe_payments` for the USD rail.
+3. Create a Paystack business account, add `PAYSTACK_SECRET_KEY` + `PAYSTACK_WEBHOOK_SECRET` to Lovable secrets (we'll request these when needed — no values to enter yet).
+4. Point Stripe webhook → `/api/public/stripe-webhook`, Paystack webhook → `/api/public/paystack-webhook`.
 
-**Community admin (per community, ongoing)**
-1. **Choose currency at community setup**: NGN or USD. This locks the processor for that community.
-2. **Dues** — create a dues plan (amount + interval). The app creates a Stripe Price *or* a Paystack Plan under the hood depending on currency.
-3. **Invite members to subscribe** — each member opens a "Set up dues" link → Stripe Checkout or Paystack subscription page → returns to the app, status flips to Active.
-4. **Donations** — create a campaign with a target. The app creates a shareable link `/donate/<slug>` that opens the right hosted checkout for the campaign's currency.
-5. **End donation** / **View payers** / **Edit** — all work the same regardless of provider; the DB is the source of truth.
+**Community admin (per community)**
+1. **Settings → Accepted currencies**: toggle ₦ NGN, $ USD, or both (default: both on).
+2. **Dues plan**: enter the amount in ₦ AND/OR the amount in $ (only for currencies that are enabled). Each is a separate plan under the hood (one Paystack plan + one Stripe price), but the admin sees a single "dues" entry.
+3. **Donations**: enter target in ₦ AND/OR $ (admin picks which currencies this campaign accepts). Target shows in both if both are enabled. Optional: a single "primary" currency for the progress bar — or convert at a fixed admin-set FX rate so both fund a unified total.
+4. **View payers**: list shows each payer with the currency they paid in (`₦25,000` / `$30`). Totals are shown per currency (no auto-FX in the dashboard).
 
-**Members (payers)**
-- Pay dues from their dashboard (one click → hosted checkout → done; recurring afterward).
-- Donate via the public link (any amount, no login needed; if logged in, payment is linked to their member record).
+**Members / donors**
+- On the "Pay dues" or "Donate" screen, see a currency selector: ₦ NGN or $ USD (only the currencies the admin enabled).
+- Pick one → land on Paystack or Stripe checkout → return to the app, payment recorded against the chosen currency.
 
 ---
 
-### Data model (Lovable Cloud)
+### Data model adjustments
 
 ```
 communities
-  +currency               'NGN' | 'USD'
-  +payment_provider       'paystack' | 'stripe'   (derived from currency)
-
-members
-  +stripe_customer_id?    nullable
-  +paystack_customer_code? nullable
-  +dues_subscription_id?  (Stripe sub id OR Paystack subscription code)
-  +dues_status            'active' | 'past_due' | 'cancelled' | 'none'
+  accept_ngn         boolean   default true
+  accept_usd         boolean   default true
+  -- (drop the single `currency`/`provider` columns from the old plan)
 
 dues_plans
-  community_id, amount, currency, interval
-  stripe_price_id?        nullable
-  paystack_plan_code?     nullable
-  active
+  community_id
+  amount_ngn         numeric?  -- nullable; null means "not offered in NGN"
+  amount_usd         numeric?  -- nullable; null means "not offered in USD"
+  interval           'monthly' | 'quarterly' | 'yearly'
+  paystack_plan_code text?     -- created lazily when amount_ngn is set
+  stripe_price_id    text?     -- created lazily when amount_usd is set
 
 dues_payments
-  member_id, plan_id, amount, currency, paid_at
-  provider                'stripe' | 'paystack'
-  provider_ref            invoice id / transaction reference
-  status                  'paid' | 'failed' | 'refunded'
+  plan_id, member_name, member_email
+  amount, currency ('NGN'|'USD'), provider ('paystack'|'stripe')
+  provider_ref, status, paid_at
 
 donations
-  community_id, purpose, target, currency, deadline, status
-  stripe_product_id?      nullable
-  paystack_page_slug?     nullable
-  shareable_slug
+  community_id, purpose
+  target_ngn         numeric?
+  target_usd         numeric?
+  deadline, status, shareable_slug
+  paystack_page_slug text?
+  stripe_product_id  text?
 
 donation_payments
-  donation_id, member_id?, payer_name, payer_email, amount, currency, paid_at
-  provider, provider_ref
+  donation_id, payer_name, payer_email
+  amount, currency, provider, provider_ref, status, paid_at
 ```
+
+I'll **migrate the existing tables** (added in the previous turn) to this shape — drop `communities.currency` / `communities.provider`, add the accept flags, swap `dues_plans.amount/currency` for `amount_ngn`/`amount_usd`, swap `donations.target/currency` for `target_ngn`/`target_usd`. Payment-record tables stay as-is (each row already has its own `currency` + `provider`).
+
+---
 
 ### Code layout
 
 ```
 src/lib/payments/
-  provider.ts              picks 'stripe' | 'paystack' from community.currency
-  stripe.server.ts         Stripe SDK calls (createPrice, createCheckout, etc.)
-  paystack.server.ts       Paystack REST calls (plans, subscriptions, transactions)
-  dues.functions.ts        createDuesPlan, startSubscription, cancelSubscription
-  donations.functions.ts   createDonation, endDonation, createDonationCheckout
+  provider.ts          getProvider(currency) → paystack | stripe
+  stripe.server.ts     createPrice, createCheckoutSession, createSubscription
+  paystack.server.ts   createPlan, initializeTransaction, createSubscription
+  dues.functions.ts    createOrUpdateDuesPlan, startDuesCheckout(planId, currency)
+  donations.functions.ts createDonation, endDonation, startDonationCheckout(donationId, currency, amount)
 
 src/routes/api/public/
-  stripe-webhook.ts        verifies Stripe signature, updates dues/donation tables
-  paystack-webhook.ts      verifies Paystack x-paystack-signature, same job
+  stripe-webhook.ts    verifies sig, inserts dues_payments / donation_payments
+  paystack-webhook.ts  verifies sig, inserts the same
 
 src/routes/
-  donate.$slug.tsx         public donation landing page (any currency)
+  donate.$slug.tsx     public donation page with currency selector
+  pay-dues.$planId.tsx public "pay your dues" page with currency selector
 ```
 
-### Provider router (single seam)
-
-A tiny abstraction so the UI never branches:
+### Provider router (unchanged seam)
 
 ```ts
-// payments/provider.ts
-interface PaymentProvider {
-  createDuesPlan(input): Promise<{ planRef: string }>
-  startDuesSubscription(input): Promise<{ checkoutUrl: string }>
-  cancelDuesSubscription(ref: string): Promise<void>
-  createDonationCheckout(input): Promise<{ checkoutUrl: string }>
-}
-
-export function getProvider(currency: 'NGN' | 'USD'): PaymentProvider {
+export function getProvider(currency: 'NGN' | 'USD') {
   return currency === 'NGN' ? paystack : stripe;
 }
 ```
 
-The Dues and Donations server functions just call `getProvider(community.currency).method(...)` — no `if`s in the UI.
+The seam is now invoked at **checkout time** with the payer's choice, not at community-setup time.
+
+---
 
 ### UI changes
-- **Community setup**: add a "Currency" radio (₦ NGN / $ USD). Locked after first dues/donation is created.
-- **Dues page**: existing "Dues setup" modal stays; the amount field shows the right symbol based on community currency.
-- **Donations page**: tiles show `₦` or `$` based on each donation's currency; "Copy link" button on active tiles for the shareable donation URL.
-- **Member dashboard**: "Pay dues" button → opens hosted checkout in a new tab.
 
-### Secrets to add (super admin)
-- `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` — auto-provisioned by `enable_stripe_payments`.
-- `PAYSTACK_SECRET_KEY`, `PAYSTACK_WEBHOOK_SECRET` — added manually via Lovable's secrets UI after creating the Paystack account.
+- **Community settings**: two checkboxes — "Accept ₦ NGN", "Accept $ USD".
+- **Dues setup modal**: two amount fields side-by-side, one per currency. Leave one blank to not offer it.
+- **Donation modal**: two target fields side-by-side (₦ target / $ target). Admin picks deadline + purpose as today.
+- **Donation tile**: shows `Collected: ₦120,000 + $300 / Target: ₦500,000 + $1,000`. Progress bar tracks the currency with the higher % completion, or shows two bars.
+- **Public donation page (`/donate/<slug>`)**: amount input + currency toggle. Submitting routes to Paystack (₦) or Stripe ($).
+- **Member dues page**: currency toggle if both are offered for the plan; single-currency view if only one.
 
-### Build sequence
-1. Enable Lovable Cloud.
-2. Add DB tables + RLS.
-3. Run `enable_stripe_payments`.
-4. Add Paystack secrets.
-5. Build the provider abstraction + Stripe and Paystack adapters.
-6. Build the two webhook endpoints.
-7. Wire Dues and Donations server functions to the provider router.
-8. Update community setup with the currency field; update Dues/Donations UI to show the right symbol and open hosted checkouts.
-9. Test end-to-end in Stripe test mode and Paystack test mode.
-10. Super admin claims Stripe live mode and switches Paystack to live keys.
+---
+
+### What this turn ships
+
+1. Run the migration to reshape the tables (drop old columns, add new ones).
+2. Wait for super admin to enable Stripe (`enable_stripe_payments`) and add Paystack secrets — I'll prompt for those when needed.
+3. Build the provider abstraction + Stripe and Paystack adapters.
+4. Build the two webhook endpoints.
+5. Wire Dues and Donations server functions and update the admin modals.
+6. Build the public `/donate/<slug>` page with the currency selector.
+7. Test end-to-end in both providers' test modes.
 
 Ready to build when you approve.
