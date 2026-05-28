@@ -13,8 +13,8 @@ export function MarketingNav() {
         </Link>
         <nav className="hidden items-center gap-8 text-sm font-medium text-muted-foreground md:flex">
           <Link to="/" activeOptions={{ exact: true }} className="hover:text-foreground" activeProps={{ className: "text-foreground" }}>Home</Link>
+          <Link to="/about" className="hover:text-foreground" activeProps={{ className: "text-foreground" }}>About us</Link>
           <Link to="/pricing" className="hover:text-foreground" activeProps={{ className: "text-foreground" }}>Pricing</Link>
-          <a href="#features" className="hover:text-foreground">Features</a>
         </nav>
         <div className="flex items-center gap-3">
           <Link to="/login" className="hidden text-sm font-medium text-muted-foreground hover:text-foreground sm:block">Sign in</Link>
