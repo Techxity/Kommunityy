@@ -115,6 +115,17 @@ function PublicJoinPage() {
 
       {/* Form */}
       <div className="mx-auto -mt-8 max-w-3xl px-6 pb-16">
+        {disabled && (
+          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-5 text-destructive">
+            <Ban className="mt-0.5 h-5 w-5 shrink-0" />
+            <div>
+              <p className="font-display text-base font-bold">This community is currently disabled</p>
+              <p className="mt-1 text-sm">
+                New applications and member sign-ins are paused. Please contact your community admin for more information.
+              </p>
+            </div>
+          </div>
+        )}
         <form
           onSubmit={submit}
           className="rounded-3xl border border-border bg-card p-6 shadow-elegant md:p-10"
