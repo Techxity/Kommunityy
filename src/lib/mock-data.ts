@@ -10,14 +10,18 @@ export const community = {
 };
 
 export const members = [
-  { id: "1", name: "Adaeze Okafor", email: "adaeze@example.com", phone: "+234 803 111 2233", whatsapp: "+234 803 111 2233", dob: "1988-03-12", status: "active", joined: "2023-04-12", role: "President" },
-  { id: "2", name: "Tunde Bakare", email: "tunde@example.com", phone: "+234 802 555 8899", whatsapp: "+234 802 555 8899", dob: "1979-11-02", status: "active", joined: "2022-01-08", role: "Treasurer" },
-  { id: "3", name: "Chiamaka Eze", email: "chiamaka@example.com", phone: "+234 805 222 1010", whatsapp: "+234 805 222 1010", dob: "1992-07-21", status: "active", joined: "2024-02-19", role: "Secretary" },
-  { id: "4", name: "Femi Adeyemi", email: "femi@example.com", phone: "+234 809 444 7700", whatsapp: "+234 809 444 7700", dob: "1985-05-30", status: "active", joined: "2023-09-30", role: "Member" },
-  { id: "5", name: "Ngozi Umeh", email: "ngozi@example.com", phone: "+234 701 333 9911", whatsapp: "+234 701 333 9911", dob: "1990-12-04", status: "inactive", joined: "2021-06-14", role: "Member" },
-  { id: "6", name: "Kola Salami", email: "kola@example.com", phone: "+234 706 999 1212", whatsapp: "+234 706 999 1212", dob: "1995-08-18", status: "active", joined: "2024-08-01", role: "Member" },
-  { id: "7", name: "Amaka Ibe", email: "amaka@example.com", phone: "+234 803 770 4321", whatsapp: "+234 803 770 4321", dob: "1987-02-25", status: "active", joined: "2022-11-22", role: "PRO" },
-  { id: "8", name: "Yusuf Bello", email: "yusuf@example.com", phone: "+234 808 110 4567", whatsapp: "+234 808 110 4567", dob: "1983-09-09", status: "active", joined: "2023-03-15", role: "Member" },
+  { id: "1", name: "Adaeze Okafor", email: "adaeze@example.com", phone: "+234 803 111 2233", whatsapp: "+234 803 111 2233", dob: "1988-03-12", status: "active", joined: "2023-04-12", role: "President", chapter: "Lagos Chapter", country: "Nigeria" },
+  { id: "2", name: "Tunde Bakare", email: "tunde@example.com", phone: "+234 802 555 8899", whatsapp: "+234 802 555 8899", dob: "1979-11-02", status: "active", joined: "2022-01-08", role: "Treasurer", chapter: "London Chapter", country: "United Kingdom" },
+  { id: "3", name: "Chiamaka Eze", email: "chiamaka@example.com", phone: "+234 805 222 1010", whatsapp: "+234 805 222 1010", dob: "1992-07-21", status: "active", joined: "2024-02-19", role: "Secretary", chapter: "Enugu Chapter", country: "Nigeria" },
+  { id: "4", name: "Femi Adeyemi", email: "femi@example.com", phone: "+234 809 444 7700", whatsapp: "+234 809 444 7700", dob: "1985-05-30", status: "active", joined: "2023-09-30", role: "Member", chapter: "Lagos Chapter", country: "Nigeria" },
+  { id: "5", name: "Ngozi Umeh", email: "ngozi@example.com", phone: "+234 701 333 9911", whatsapp: "+234 701 333 9911", dob: "1990-12-04", status: "inactive", joined: "2021-06-14", role: "Member", chapter: "Abuja Chapter", country: "Nigeria" },
+  { id: "6", name: "Kola Salami", email: "kola@example.com", phone: "+234 706 999 1212", whatsapp: "+234 706 999 1212", dob: "1995-08-18", status: "active", joined: "2024-08-01", role: "Member", chapter: "Houston Chapter", country: "United States" },
+  { id: "7", name: "Amaka Ibe", email: "amaka@example.com", phone: "+234 803 770 4321", whatsapp: "+234 803 770 4321", dob: "1987-02-25", status: "active", joined: "2022-11-22", role: "PRO", chapter: "Port Harcourt Chapter", country: "Nigeria" },
+  { id: "8", name: "Yusuf Bello", email: "yusuf@example.com", phone: "+234 808 110 4567", whatsapp: "+234 808 110 4567", dob: "1983-09-09", status: "active", joined: "2023-03-15", role: "Member", chapter: "Abuja Chapter", country: "Nigeria" },
+  { id: "9", name: "Amina Bello", email: "amina@example.com", phone: "+234 701 222 3344", whatsapp: "+234 701 222 3344", dob: "1993-01-15", status: "active", joined: "2024-01-10", role: "Member", chapter: "Lagos Chapter", country: "Nigeria" },
+  { id: "10", name: "David Okonkwo", email: "david@example.com", phone: "+1 713 555 0198", whatsapp: "+1 713 555 0198", dob: "1980-06-22", status: "inactive", joined: "2023-07-20", role: "Member", chapter: "Houston Chapter", country: "United States" },
+  { id: "11", name: "Grace Adeleke", email: "grace@example.com", phone: "+234 805 333 4455", whatsapp: "+234 805 333 4455", dob: "1991-09-30", status: "active", joined: "2022-05-15", role: "Vice President", chapter: "Lagos Chapter", country: "Nigeria" },
+  { id: "12", name: "James Osei", email: "james@example.com", phone: "+44 20 7946 0958", whatsapp: "+44 20 7946 0958", dob: "1984-12-12", status: "active", joined: "2024-03-01", role: "Member", chapter: "London Chapter", country: "United Kingdom" },
 ];
 
 export const callTreePairs = [
