@@ -14,16 +14,251 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      communities: {
+        Row: {
+          created_at: string
+          currency: Database["public"]["Enums"]["payment_currency"]
+          id: string
+          name: string
+          provider: Database["public"]["Enums"]["payment_provider"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: Database["public"]["Enums"]["payment_currency"]
+          id?: string
+          name: string
+          provider?: Database["public"]["Enums"]["payment_provider"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency?: Database["public"]["Enums"]["payment_currency"]
+          id?: string
+          name?: string
+          provider?: Database["public"]["Enums"]["payment_provider"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      donation_payments: {
+        Row: {
+          amount: number
+          currency: Database["public"]["Enums"]["payment_currency"]
+          donation_id: string
+          id: string
+          paid_at: string
+          payer_email: string | null
+          payer_name: string
+          provider: Database["public"]["Enums"]["payment_provider"]
+          provider_ref: string
+          status: Database["public"]["Enums"]["payment_status"]
+        }
+        Insert: {
+          amount: number
+          currency: Database["public"]["Enums"]["payment_currency"]
+          donation_id: string
+          id?: string
+          paid_at?: string
+          payer_email?: string | null
+          payer_name: string
+          provider: Database["public"]["Enums"]["payment_provider"]
+          provider_ref: string
+          status?: Database["public"]["Enums"]["payment_status"]
+        }
+        Update: {
+          amount?: number
+          currency?: Database["public"]["Enums"]["payment_currency"]
+          donation_id?: string
+          id?: string
+          paid_at?: string
+          payer_email?: string | null
+          payer_name?: string
+          provider?: Database["public"]["Enums"]["payment_provider"]
+          provider_ref?: string
+          status?: Database["public"]["Enums"]["payment_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "donation_payments_donation_id_fkey"
+            columns: ["donation_id"]
+            isOneToOne: false
+            referencedRelation: "donation_totals"
+            referencedColumns: ["donation_id"]
+          },
+          {
+            foreignKeyName: "donation_payments_donation_id_fkey"
+            columns: ["donation_id"]
+            isOneToOne: false
+            referencedRelation: "donations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      donations: {
+        Row: {
+          community_id: string
+          created_at: string
+          currency: Database["public"]["Enums"]["payment_currency"]
+          deadline: string | null
+          id: string
+          paystack_page_slug: string | null
+          purpose: string
+          shareable_slug: string
+          status: Database["public"]["Enums"]["donation_status"]
+          stripe_product_id: string | null
+          target: number
+          updated_at: string
+        }
+        Insert: {
+          community_id: string
+          created_at?: string
+          currency: Database["public"]["Enums"]["payment_currency"]
+          deadline?: string | null
+          id?: string
+          paystack_page_slug?: string | null
+          purpose: string
+          shareable_slug: string
+          status?: Database["public"]["Enums"]["donation_status"]
+          stripe_product_id?: string | null
+          target: number
+          updated_at?: string
+        }
+        Update: {
+          community_id?: string
+          created_at?: string
+          currency?: Database["public"]["Enums"]["payment_currency"]
+          deadline?: string | null
+          id?: string
+          paystack_page_slug?: string | null
+          purpose?: string
+          shareable_slug?: string
+          status?: Database["public"]["Enums"]["donation_status"]
+          stripe_product_id?: string | null
+          target?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "donations_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dues_payments: {
+        Row: {
+          amount: number
+          currency: Database["public"]["Enums"]["payment_currency"]
+          id: string
+          member_email: string | null
+          member_name: string
+          paid_at: string
+          plan_id: string
+          provider: Database["public"]["Enums"]["payment_provider"]
+          provider_ref: string
+          status: Database["public"]["Enums"]["payment_status"]
+        }
+        Insert: {
+          amount: number
+          currency: Database["public"]["Enums"]["payment_currency"]
+          id?: string
+          member_email?: string | null
+          member_name: string
+          paid_at?: string
+          plan_id: string
+          provider: Database["public"]["Enums"]["payment_provider"]
+          provider_ref: string
+          status?: Database["public"]["Enums"]["payment_status"]
+        }
+        Update: {
+          amount?: number
+          currency?: Database["public"]["Enums"]["payment_currency"]
+          id?: string
+          member_email?: string | null
+          member_name?: string
+          paid_at?: string
+          plan_id?: string
+          provider?: Database["public"]["Enums"]["payment_provider"]
+          provider_ref?: string
+          status?: Database["public"]["Enums"]["payment_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dues_payments_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "dues_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dues_plans: {
+        Row: {
+          active: boolean
+          amount: number
+          community_id: string
+          created_at: string
+          currency: Database["public"]["Enums"]["payment_currency"]
+          id: string
+          interval: Database["public"]["Enums"]["dues_interval"]
+          paystack_plan_code: string | null
+          stripe_price_id: string | null
+        }
+        Insert: {
+          active?: boolean
+          amount: number
+          community_id: string
+          created_at?: string
+          currency: Database["public"]["Enums"]["payment_currency"]
+          id?: string
+          interval: Database["public"]["Enums"]["dues_interval"]
+          paystack_plan_code?: string | null
+          stripe_price_id?: string | null
+        }
+        Update: {
+          active?: boolean
+          amount?: number
+          community_id?: string
+          created_at?: string
+          currency?: Database["public"]["Enums"]["payment_currency"]
+          id?: string
+          interval?: Database["public"]["Enums"]["dues_interval"]
+          paystack_plan_code?: string | null
+          stripe_price_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dues_plans_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
-      [_ in never]: never
+      donation_totals: {
+        Row: {
+          collected: number | null
+          donation_id: string | null
+          payer_count: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      donation_status: "active" | "closed"
+      dues_interval: "monthly" | "quarterly" | "yearly"
+      payment_currency: "NGN" | "USD"
+      payment_provider: "paystack" | "stripe"
+      payment_status: "paid" | "failed" | "refunded" | "pending"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +385,12 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      donation_status: ["active", "closed"],
+      dues_interval: ["monthly", "quarterly", "yearly"],
+      payment_currency: ["NGN", "USD"],
+      payment_provider: ["paystack", "stripe"],
+      payment_status: ["paid", "failed", "refunded", "pending"],
+    },
   },
 } as const
