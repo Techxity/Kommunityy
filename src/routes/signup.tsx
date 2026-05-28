@@ -36,6 +36,7 @@ function Signup() {
 
   const nameValid = /^[A-Za-z0-9\-&' ]+$/.test(name) && name.trim().length >= 5;
   const showNameError = name.length > 0 && !nameValid;
+  const pricingValid = pricingPlan !== "";
 
   function generateId() {
     const slug = name
@@ -50,7 +51,7 @@ function Signup() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!nameValid) return;
+    if (!nameValid || !pricingValid) return;
     setSubmitted(true);
   }
 
