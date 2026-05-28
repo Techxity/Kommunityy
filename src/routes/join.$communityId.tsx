@@ -31,6 +31,9 @@ const INPUT_TYPES: Record<string, string> = {
 };
 
 function PublicJoinPage() {
+  const { communityId } = Route.useParams();
+  useCommunities(); // subscribe so toggling updates this page
+  const disabled = isCommunityDisabled(communityId);
   const fields = useOnboardingFields();
   const chapters = useChapters();
   const [values, setValues] = useState<Record<string, string>>({});
