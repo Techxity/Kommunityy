@@ -190,21 +190,6 @@ function Signup() {
           </div>
 
 
-          <Field label="Will you collect payments or donations?">
-            <div className="flex gap-2">
-              {["Yes", "No", "Not sure"].map((opt) => (
-                <label
-                  key={opt}
-                  className={`cursor-pointer rounded-full border px-4 py-1.5 text-sm transition ${
-                    payments === opt ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted"
-                  }`}
-                >
-                  <input type="radio" name="payments" checked={payments === opt} onChange={() => setPayments(opt)} className="sr-only" />
-                  {opt}
-                </label>
-              ))}
-            </div>
-          </Field>
 
           <Field label="Select Pricing Plan *" hint="You'll only be charged after your 14-day trial ends">
             <div className="grid gap-3 sm:grid-cols-3">
