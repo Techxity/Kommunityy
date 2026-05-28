@@ -16,27 +16,45 @@ export const Route = createFileRoute("/admin/donations")({
 
 interface DonationFormData {
   purpose: string;
-  target: string;
+  target_ngn: string;
+  target_usd: string;
   deadline: string;
+}
+
+interface Payer {
+  member: string;
+  amount: number;
+  currency: "NGN" | "USD";
+  date: string;
 }
 
 interface Donation {
   id: string;
   purpose: string;
-  target: number;
-  collected: number;
-  currency: string;
+  target_ngn: number;
+  target_usd: number;
+  collected_ngn: number;
+  collected_usd: number;
   deadline: string;
   status: string;
-  payers?: { member: string; amount: number; date: string }[];
+  payers?: Payer[];
 }
 
-const samplePayers = [
-  { member: "Adaeze Okafor", amount: 50000, date: "2025-05-12" },
-  { member: "Tunde Bakare", amount: 25000, date: "2025-05-10" },
-  { member: "Chiamaka Eze", amount: 100000, date: "2025-05-08" },
-  { member: "Kola Salami", amount: 15000, date: "2025-05-05" },
+const samplePayers: Payer[] = [
+  { member: "Adaeze Okafor", amount: 50000, currency: "NGN", date: "2025-05-12" },
+  { member: "Tunde Bakare", amount: 25000, currency: "NGN", date: "2025-05-10" },
+  { member: "Chiamaka Eze", amount: 100, currency: "USD", date: "2025-05-08" },
+  { member: "Kola Salami", amount: 15000, currency: "NGN", date: "2025-05-05" },
 ];
+
+const fmt = (amount: number, currency: "NGN" | "USD") =>
+  currency === "NGN"
+    ? `₦${amount.toLocaleString()}`
+    : `$${amount.toLocaleString()}`;
+
+// Community-level accepted currencies (would come from communities table).
+const ACCEPT_NGN = true;
+const ACCEPT_USD = true;
 
 function DonationModal({
   open,
@@ -52,8 +70,6 @@ function DonationModal({
   onSave: (data: DonationFormData) => void;
 }) {
   const [form, setForm] = useState(initial);
-
-  // re-sync when modal opens with new initial values
   const [lastInitial, setLastInitial] = useState(initial);
   if (open && lastInitial !== initial) {
     setLastInitial(initial);
@@ -67,36 +83,57 @@ function DonationModal({
           <DialogTitle className="font-display">{title}</DialogTitle>
         </DialogHeader>
         <div className="mt-2 grid gap-4 md:grid-cols-2">
-          <Field label="Purpose">
-            <input
-              className="input"
-              placeholder="e.g. Borehole Repair Fund"
-              value={form.purpose}
-              onChange={(e) => setForm((f) => ({ ...f, purpose: e.target.value }))}
-            />
-          </Field>
-          <Field label="Target amount">
-            <input
-              className="input"
-              type="number"
-              placeholder="500000"
-              value={form.target}
-              onChange={(e) => setForm((f) => ({ ...f, target: e.target.value }))}
-            />
-          </Field>
-          <Field label="Closing date">
-            <input
-              className="input"
-              type="date"
-              value={form.deadline}
-              onChange={(e) => setForm((f) => ({ ...f, deadline: e.target.value }))}
-            />
-          </Field>
+          <div className="md:col-span-2">
+            <Field label="Purpose">
+              <input
+                className="input"
+                placeholder="e.g. Borehole Repair Fund"
+                value={form.purpose}
+                onChange={(e) => setForm((f) => ({ ...f, purpose: e.target.value }))}
+              />
+            </Field>
+          </div>
+          {ACCEPT_NGN && (
+            <Field label="Target (₦ NGN)">
+              <input
+                className="input"
+                type="number"
+                placeholder="500000"
+                value={form.target_ngn}
+                onChange={(e) => setForm((f) => ({ ...f, target_ngn: e.target.value }))}
+              />
+            </Field>
+          )}
+          {ACCEPT_USD && (
+            <Field label="Target ($ USD)">
+              <input
+                className="input"
+                type="number"
+                placeholder="1000"
+                value={form.target_usd}
+                onChange={(e) => setForm((f) => ({ ...f, target_usd: e.target.value }))}
+              />
+            </Field>
+          )}
+          <div className="md:col-span-2">
+            <Field label="Closing date">
+              <input
+                className="input"
+                type="date"
+                value={form.deadline}
+                onChange={(e) => setForm((f) => ({ ...f, deadline: e.target.value }))}
+              />
+            </Field>
+          </div>
         </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Leave a currency blank to not accept donations in it. Members choose ₦ or $ when they pay.
+        </p>
         <div className="mt-5 flex justify-end">
           <Button
             onClick={() => {
-              if (!form.purpose || !form.target || !form.deadline) return;
+              if (!form.purpose || !form.deadline) return;
+              if (!form.target_ngn && !form.target_usd) return;
               onSave(form);
               onOpenChange(false);
             }}
@@ -111,25 +148,42 @@ function DonationModal({
 
 function Donations() {
   const [list, setList] = useState<Donation[]>(
-    seedDonations.map((d) => ({ ...d, payers: samplePayers })),
+    seedDonations.map((d) => ({
+      id: d.id,
+      purpose: d.purpose,
+      target_ngn: d.target,
+      target_usd: 0,
+      collected_ngn: d.collected,
+      collected_usd: 0,
+      deadline: d.deadline,
+      status: d.status,
+      payers: samplePayers,
+    })),
   );
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<DonationFormData>({
     purpose: "",
-    target: "",
+    target_ngn: "",
+    target_usd: "",
     deadline: "",
   });
   const [payersFor, setPayersFor] = useState<Donation | null>(null);
 
-  const emptyForm: DonationFormData = { purpose: "", target: "", deadline: "" };
+  const emptyForm: DonationFormData = {
+    purpose: "",
+    target_ngn: "",
+    target_usd: "",
+    deadline: "",
+  };
 
   const handleEdit = (d: Donation) => {
     setEditingId(d.id);
     setEditForm({
       purpose: d.purpose,
-      target: String(d.target),
+      target_ngn: d.target_ngn ? String(d.target_ngn) : "",
+      target_usd: d.target_usd ? String(d.target_usd) : "",
       deadline: d.deadline,
     });
     setEditOpen(true);
@@ -147,9 +201,10 @@ function Donations() {
       {
         id: `d${Date.now()}`,
         purpose: data.purpose,
-        target: Number(data.target) || 0,
-        collected: 0,
-        currency: "NGN",
+        target_ngn: Number(data.target_ngn) || 0,
+        target_usd: Number(data.target_usd) || 0,
+        collected_ngn: 0,
+        collected_usd: 0,
         deadline: data.deadline,
         status: "Active",
         payers: [],
@@ -165,7 +220,8 @@ function Donations() {
           ? {
               ...d,
               purpose: data.purpose,
-              target: Number(data.target) || 0,
+              target_ngn: Number(data.target_ngn) || 0,
+              target_usd: Number(data.target_usd) || 0,
               deadline: data.deadline,
             }
           : d,
@@ -180,7 +236,7 @@ function Donations() {
         <div>
           <h1 className="font-display text-3xl font-bold">Donations</h1>
           <p className="text-sm text-muted-foreground">
-            Run goal-based fundraisers. Members are notified at start, during, and at close.
+            Run goal-based fundraisers. Members pick ₦ or $ at checkout.
           </p>
         </div>
         <Button
@@ -193,29 +249,69 @@ function Donations() {
 
       <div className="grid gap-4 md:grid-cols-2">
         {list.map((d) => {
-          const pct = d.target > 0 ? Math.min(100, Math.round((d.collected / d.target) * 100)) : 0;
+          const pctNgn =
+            d.target_ngn > 0
+              ? Math.min(100, Math.round((d.collected_ngn / d.target_ngn) * 100))
+              : 0;
+          const pctUsd =
+            d.target_usd > 0
+              ? Math.min(100, Math.round((d.collected_usd / d.target_usd) * 100))
+              : 0;
           return (
-            <div key={d.id} className="rounded-2xl border border-border bg-card p-6 shadow-soft">
+            <div
+              key={d.id}
+              className="rounded-2xl border border-border bg-card p-6 shadow-soft"
+            >
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">{d.status}</p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                    {d.status}
+                  </p>
                   <h3 className="mt-1 font-display text-xl font-bold">{d.purpose}</h3>
                   <p className="mt-1 text-xs text-muted-foreground">Closes {d.deadline}</p>
                 </div>
                 <HeartHandshake className="h-5 w-5 text-accent" />
               </div>
-              <div className="mt-5 flex items-baseline gap-2">
-                <span className="font-display text-3xl font-bold">
-                  ₦{d.collected.toLocaleString()}
-                </span>
-                <span className="text-sm text-muted-foreground">
-                  / ₦{d.target.toLocaleString()}
-                </span>
+
+              <div className="mt-5 space-y-3">
+                {d.target_ngn > 0 && (
+                  <div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-display text-2xl font-bold">
+                        ₦{d.collected_ngn.toLocaleString()}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        / ₦{d.target_ngn.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full bg-gradient-accent"
+                        style={{ width: `${pctNgn}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+                {d.target_usd > 0 && (
+                  <div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-display text-2xl font-bold">
+                        ${d.collected_usd.toLocaleString()}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        / ${d.target_usd.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full bg-gradient-accent"
+                        style={{ width: `${pctUsd}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-                <div className="h-full bg-gradient-accent" style={{ width: `${pct}%` }} />
-              </div>
-              <p className="mt-2 text-xs font-semibold text-success">{pct}% raised</p>
+
               <div className="mt-5 flex gap-2">
                 {d.status === "Active" ? (
                   <button
@@ -281,18 +377,28 @@ function Donations() {
                       <p className="text-xs text-muted-foreground">{p.date}</p>
                     </div>
                     <p className="font-display text-sm font-bold">
-                      ₦{p.amount.toLocaleString()}
+                      {fmt(p.amount, p.currency)}
                     </p>
                   </div>
                 ))}
                 <div className="flex items-center justify-between bg-muted/50 px-4 py-3">
-                  <p className="text-sm font-semibold">Total</p>
-                  <p className="font-display text-sm font-bold">
-                    ₦
-                    {payersFor.payers
-                      .reduce((s, p) => s + p.amount, 0)
-                      .toLocaleString()}
-                  </p>
+                  <div className="text-sm font-semibold">Totals</div>
+                  <div className="font-display text-sm font-bold space-x-3">
+                    {(() => {
+                      const ngn = payersFor.payers
+                        .filter((p) => p.currency === "NGN")
+                        .reduce((s, p) => s + p.amount, 0);
+                      const usd = payersFor.payers
+                        .filter((p) => p.currency === "USD")
+                        .reduce((s, p) => s + p.amount, 0);
+                      return (
+                        <>
+                          {ngn > 0 && <span>₦{ngn.toLocaleString()}</span>}
+                          {usd > 0 && <span>${usd.toLocaleString()}</span>}
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
               </div>
             ) : (
