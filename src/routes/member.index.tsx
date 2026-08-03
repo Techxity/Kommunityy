@@ -78,7 +78,20 @@ function MemberHome() {
             <>
               <p className="mt-2 text-sm">You're paired to call</p>
               <p className="mt-1 font-display text-2xl font-bold">{myPairing.callee === me.name ? myPairing.caller : myPairing.callee}</p>
-              <button className="mt-4 w-full rounded-full bg-primary py-2 text-sm font-semibold text-primary-foreground">Submit feedback</button>
+              {feedbackToken ? (
+                <Link
+                  to="/feedback/$token"
+                  params={{ token: feedbackToken }}
+                  className="mt-4 block w-full rounded-full bg-primary py-2 text-center text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+                >
+                  Submit feedback
+                </Link>
+              ) : (
+                <p className="mt-4 rounded-full bg-muted py-2 text-center text-xs text-muted-foreground">
+                  Feedback opens once your admin activates this call tree round.
+                </p>
+              )}
+
             </>
           ) : (
             <p className="mt-3 text-sm text-muted-foreground">No active call tree assignment.</p>
