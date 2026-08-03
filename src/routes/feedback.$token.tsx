@@ -1,5 +1,5 @@
-import { createFileRoute, useParams } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, HelpCircle, AlertTriangle, PhoneCall, Mail, Phone } from "lucide-react";
 import { members, community } from "@/lib/mock-data";
 import { callTreeStore, type FeedbackStatus } from "@/lib/call-tree-store";
@@ -43,6 +43,7 @@ const OPTIONS: Array<{
 
 function FeedbackPage() {
   const { token } = useParams({ from: "/feedback/$token" });
+  const navigate = useNavigate();
   // Re-evaluate when the token / submission state changes.
   const [tick, setTick] = useState(0);
   const hit = useMemo(() => callTreeStore.findByToken(token), [token, tick]);
@@ -50,6 +51,13 @@ function FeedbackPage() {
   const [status, setStatus] = useState<FeedbackStatus | null>(null);
   const [notes, setNotes] = useState("");
   const [submitted, setSubmitted] = useState(false);
+
+  // After a successful submit, send the member to the call tree history page.
+  useEffect(() => {
+    if (!submitted) return;
+    const t = setTimeout(() => navigate({ to: "/admin/calltree" }), 1500);
+    return () => clearTimeout(t);
+  }, [submitted, navigate]);
 
   if (!hit) {
     return (
@@ -82,6 +90,7 @@ function FeedbackPage() {
           <p className="mt-2 text-sm text-muted-foreground">
             Your feedback has been shared with the {community.name} admin team.
           </p>
+          <p className="mt-4 text-xs text-muted-foreground">Taking you to the call tree history…</p>
         </div>
       </Shell>
     );

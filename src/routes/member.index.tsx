@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { members, election, callTreePairs, broadcasts, dues } from "@/lib/mock-data";
+import { useEffect, useState } from "react";
 import { useCallTreeSessions } from "@/lib/call-tree-store";
 import { Cake, PhoneCall, Vote, Banknote, Megaphone, ArrowUpRight } from "lucide-react";
 
@@ -14,6 +15,8 @@ function MemberHome() {
 
   // Live call-tree assignment → feedback link for this member
   const sessions = useCallTreeSessions();
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
   let feedbackToken: string | null = null;
   for (const s of sessions) {
     if (s.status !== "active") continue;
@@ -78,7 +81,7 @@ function MemberHome() {
             <>
               <p className="mt-2 text-sm">You're paired to call</p>
               <p className="mt-1 font-display text-2xl font-bold">{myPairing.callee === me.name ? myPairing.caller : myPairing.callee}</p>
-              {feedbackToken ? (
+              {hydrated && feedbackToken ? (
                 <Link
                   to="/feedback/$token"
                   params={{ token: feedbackToken }}
