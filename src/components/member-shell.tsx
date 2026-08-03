@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
-import { Home, User, Banknote, Vote, Megaphone, Users2, LogOut } from "lucide-react";
+import { Home, User, Banknote, Vote, Megaphone, Users2, LogOut, PhoneCall } from "lucide-react";
 
 type NavItem = { to: string; label: string; icon: typeof Home; exact?: boolean };
 const nav: NavItem[] = [
@@ -7,6 +7,7 @@ const nav: NavItem[] = [
   { to: "/member/profile", label: "My Profile", icon: User },
   { to: "/member/dues", label: "My Dues", icon: Banknote },
   { to: "/member/elections", label: "Elections", icon: Vote },
+  { to: "/member/calltree", label: "Call Tree", icon: PhoneCall },
   { to: "/member/updates", label: "Updates", icon: Megaphone },
 ];
 

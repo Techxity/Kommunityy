@@ -33,6 +33,7 @@ import { Route as MemberUpdatesRouteImport } from './routes/member.updates'
 import { Route as MemberProfileRouteImport } from './routes/member.profile'
 import { Route as MemberElectionsRouteImport } from './routes/member.elections'
 import { Route as MemberDuesRouteImport } from './routes/member.dues'
+import { Route as MemberCalltreeRouteImport } from './routes/member.calltree'
 import { Route as JoinCommunityIdRouteImport } from './routes/join.$communityId'
 import { Route as FeedbackTokenRouteImport } from './routes/feedback.$token'
 import { Route as DonateSlugRouteImport } from './routes/donate.$slug'
@@ -170,6 +171,11 @@ const MemberDuesRoute = MemberDuesRouteImport.update({
   path: '/dues',
   getParentRoute: () => MemberRoute,
 } as any)
+const MemberCalltreeRoute = MemberCalltreeRouteImport.update({
+  id: '/calltree',
+  path: '/calltree',
+  getParentRoute: () => MemberRoute,
+} as any)
 const JoinCommunityIdRoute = JoinCommunityIdRouteImport.update({
   id: '/join/$communityId',
   path: '/join/$communityId',
@@ -275,6 +281,7 @@ export interface FileRoutesByFullPath {
   '/donate/$slug': typeof DonateSlugRoute
   '/feedback/$token': typeof FeedbackTokenRoute
   '/join/$communityId': typeof JoinCommunityIdRoute
+  '/member/calltree': typeof MemberCalltreeRoute
   '/member/dues': typeof MemberDuesRoute
   '/member/elections': typeof MemberElectionsRoute
   '/member/profile': typeof MemberProfileRoute
@@ -314,6 +321,7 @@ export interface FileRoutesByTo {
   '/donate/$slug': typeof DonateSlugRoute
   '/feedback/$token': typeof FeedbackTokenRoute
   '/join/$communityId': typeof JoinCommunityIdRoute
+  '/member/calltree': typeof MemberCalltreeRoute
   '/member/dues': typeof MemberDuesRoute
   '/member/elections': typeof MemberElectionsRoute
   '/member/profile': typeof MemberProfileRoute
@@ -357,6 +365,7 @@ export interface FileRoutesById {
   '/donate/$slug': typeof DonateSlugRoute
   '/feedback/$token': typeof FeedbackTokenRoute
   '/join/$communityId': typeof JoinCommunityIdRoute
+  '/member/calltree': typeof MemberCalltreeRoute
   '/member/dues': typeof MemberDuesRoute
   '/member/elections': typeof MemberElectionsRoute
   '/member/profile': typeof MemberProfileRoute
@@ -401,6 +410,7 @@ export interface FileRouteTypes {
     | '/donate/$slug'
     | '/feedback/$token'
     | '/join/$communityId'
+    | '/member/calltree'
     | '/member/dues'
     | '/member/elections'
     | '/member/profile'
@@ -440,6 +450,7 @@ export interface FileRouteTypes {
     | '/donate/$slug'
     | '/feedback/$token'
     | '/join/$communityId'
+    | '/member/calltree'
     | '/member/dues'
     | '/member/elections'
     | '/member/profile'
@@ -482,6 +493,7 @@ export interface FileRouteTypes {
     | '/donate/$slug'
     | '/feedback/$token'
     | '/join/$communityId'
+    | '/member/calltree'
     | '/member/dues'
     | '/member/elections'
     | '/member/profile'
@@ -688,6 +700,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberDuesRouteImport
       parentRoute: typeof MemberRoute
     }
+    '/member/calltree': {
+      id: '/member/calltree'
+      path: '/calltree'
+      fullPath: '/member/calltree'
+      preLoaderRoute: typeof MemberCalltreeRouteImport
+      parentRoute: typeof MemberRoute
+    }
     '/join/$communityId': {
       id: '/join/$communityId'
       path: '/join/$communityId'
@@ -848,6 +867,7 @@ const AdminRouteChildren: AdminRouteChildren = {
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 interface MemberRouteChildren {
+  MemberCalltreeRoute: typeof MemberCalltreeRoute
   MemberDuesRoute: typeof MemberDuesRoute
   MemberElectionsRoute: typeof MemberElectionsRoute
   MemberProfileRoute: typeof MemberProfileRoute
@@ -856,6 +876,7 @@ interface MemberRouteChildren {
 }
 
 const MemberRouteChildren: MemberRouteChildren = {
+  MemberCalltreeRoute: MemberCalltreeRoute,
   MemberDuesRoute: MemberDuesRoute,
   MemberElectionsRoute: MemberElectionsRoute,
   MemberProfileRoute: MemberProfileRoute,
@@ -912,3 +933,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
