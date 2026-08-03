@@ -1,14 +1,40 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
 import { dues, duesHistory } from "@/lib/mock-data";
-import { AlertTriangle, Banknote } from "lucide-react";
+import { AlertTriangle, Banknote, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/member/dues")({
   component: MemberDues,
 });
 
 function MemberDues() {
+  const navigate = useNavigate();
+  const [paying, setPaying] = useState(false);
+  const [payErr, setPayErr] = useState<string | null>(null);
   const myHistory = duesHistory.filter((d) => d.member === "Adaeze Okafor" || true).slice(0, 5);
   const missed = myHistory.filter((d) => d.status === "Missed").length;
+
+  const payNow = async () => {
+    setPayErr(null);
+    setPaying(true);
+    try {
+      const { data, error } = await supabase
+        .from("dues_plans")
+        .select("id")
+        .eq("active", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!data) throw new Error("No active dues plan yet — ask your admin to set one up.");
+      navigate({ to: "/pay-dues/$planId", params: { planId: data.id } });
+    } catch (e: any) {
+      setPayErr(e.message ?? "Could not start payment");
+      setPaying(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <header>
@@ -22,8 +48,17 @@ function MemberDues() {
           <p className="mt-3 text-xs uppercase tracking-wider opacity-70">Next payment due</p>
           <p className="mt-1 font-display text-4xl font-bold">₦{dues.amount.toLocaleString()}</p>
           <p className="mt-1 text-xs opacity-80">{dues.frequency} · due {dues.nextDue}</p>
-          <button className="mt-5 rounded-full bg-primary-foreground/15 px-4 py-2 text-sm font-semibold">Pay now via Stripe</button>
+          <button
+            onClick={payNow}
+            disabled={paying}
+            className="mt-5 inline-flex items-center gap-2 rounded-full bg-primary-foreground/15 px-4 py-2 text-sm font-semibold transition hover:bg-primary-foreground/25 disabled:opacity-60"
+          >
+            {paying && <Loader2 className="h-4 w-4 animate-spin" />}
+            {paying ? "Starting…" : "Pay now via Paystack"}
+          </button>
+          {payErr && <p className="mt-2 text-xs font-medium text-primary-foreground/90">{payErr}</p>}
         </div>
+
         {missed > 0 ? (
           <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-6">
             <AlertTriangle className="h-5 w-5 text-destructive" />
