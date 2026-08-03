@@ -55,7 +55,7 @@ function FeedbackPage() {
   // After a successful submit, send the member to the call tree history page.
   useEffect(() => {
     if (!submitted) return;
-    const t = setTimeout(() => navigate({ to: "/admin/calltree" }), 1500);
+    const t = setTimeout(() => navigate({ to: "/member/calltree" }), 1500);
     return () => clearTimeout(t);
   }, [submitted, navigate]);
 
@@ -90,7 +90,7 @@ function FeedbackPage() {
           <p className="mt-2 text-sm text-muted-foreground">
             Your feedback has been shared with the {community.name} admin team.
           </p>
-          <p className="mt-4 text-xs text-muted-foreground">Taking you to the call tree history…</p>
+          <p className="mt-4 text-xs text-muted-foreground">Taking you to your call tree history…</p>
         </div>
       </Shell>
     );
