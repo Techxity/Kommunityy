@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { members, election, callTreePairs, broadcasts, dues } from "@/lib/mock-data";
+import { useCallTreeSessions } from "@/lib/call-tree-store";
 import { Cake, PhoneCall, Vote, Banknote, Megaphone, ArrowUpRight } from "lucide-react";
 
 export const Route = createFileRoute("/member/")({
@@ -10,6 +11,21 @@ function MemberHome() {
   const me = members[0]; // simulated logged-in member
   const isBirthday = new Date().toDateString() === new Date(new Date().getFullYear(), new Date(me.dob).getMonth(), new Date(me.dob).getDate()).toDateString();
   const myPairing = callTreePairs.find((p) => p.caller === me.name || p.callee === me.name);
+
+  // Live call-tree assignment → feedback link for this member
+  const sessions = useCallTreeSessions();
+  let feedbackToken: string | null = null;
+  for (const s of sessions) {
+    if (s.status !== "active") continue;
+    for (const p of s.pairings) {
+      if (p.memberAId === me.id) feedbackToken = p.tokenA;
+      else if (p.memberBId === me.id) feedbackToken = p.tokenB;
+      else if (p.memberCId === me.id && p.tokenC) feedbackToken = p.tokenC;
+      if (feedbackToken) break;
+    }
+    if (feedbackToken) break;
+  }
+
 
   return (
     <div className="space-y-6">
