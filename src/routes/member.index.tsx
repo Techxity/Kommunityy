@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { members, election, callTreePairs, broadcasts, dues } from "@/lib/mock-data";
+import { useCallTreeSessions } from "@/lib/call-tree-store";
 import { Cake, PhoneCall, Vote, Banknote, Megaphone, ArrowUpRight } from "lucide-react";
 
 export const Route = createFileRoute("/member/")({
@@ -10,6 +11,21 @@ function MemberHome() {
   const me = members[0]; // simulated logged-in member
   const isBirthday = new Date().toDateString() === new Date(new Date().getFullYear(), new Date(me.dob).getMonth(), new Date(me.dob).getDate()).toDateString();
   const myPairing = callTreePairs.find((p) => p.caller === me.name || p.callee === me.name);
+
+  // Live call-tree assignment → feedback link for this member
+  const sessions = useCallTreeSessions();
+  let feedbackToken: string | null = null;
+  for (const s of sessions) {
+    if (s.status !== "active") continue;
+    for (const p of s.pairings) {
+      if (p.memberAId === me.id) feedbackToken = p.tokenA;
+      else if (p.memberBId === me.id) feedbackToken = p.tokenB;
+      else if (p.memberCId === me.id && p.tokenC) feedbackToken = p.tokenC;
+      if (feedbackToken) break;
+    }
+    if (feedbackToken) break;
+  }
+
 
   return (
     <div className="space-y-6">
@@ -62,7 +78,20 @@ function MemberHome() {
             <>
               <p className="mt-2 text-sm">You're paired to call</p>
               <p className="mt-1 font-display text-2xl font-bold">{myPairing.callee === me.name ? myPairing.caller : myPairing.callee}</p>
-              <button className="mt-4 w-full rounded-full bg-primary py-2 text-sm font-semibold text-primary-foreground">Submit feedback</button>
+              {feedbackToken ? (
+                <Link
+                  to="/feedback/$token"
+                  params={{ token: feedbackToken }}
+                  className="mt-4 block w-full rounded-full bg-primary py-2 text-center text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+                >
+                  Submit feedback
+                </Link>
+              ) : (
+                <p className="mt-4 rounded-full bg-muted py-2 text-center text-xs text-muted-foreground">
+                  Feedback opens once your admin activates this call tree round.
+                </p>
+              )}
+
             </>
           ) : (
             <p className="mt-3 text-sm text-muted-foreground">No active call tree assignment.</p>
