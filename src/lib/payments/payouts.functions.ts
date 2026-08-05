@@ -170,3 +170,21 @@ export const rejectPayout = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+// Super-admin-only listing that includes community bank details.
+export const listPayoutRequests = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) => z.object({ pending_only: z.boolean().default(false) }).parse(i))
+  .handler(async ({ data, context }) => {
+    await assertSuperAdmin(context.supabase, context.userId);
+    let q = supabaseAdmin
+      .from("payouts")
+      .select(
+        "id, amount, currency, source, status, method, requested_at, paid_at, notes, failed_reason, community_id, community:communities!inner(name, bank_name, account_number, account_name, paystack_recipient_code)",
+      )
+      .order("requested_at", { ascending: false });
+    if (data.pending_only) q = q.in("status", ["requested", "approved"]);
+    const { data: rows, error } = await q;
+    if (error) throw new Error("Could not load payout requests");
+    return rows ?? [];
+  });

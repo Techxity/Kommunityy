@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { supabase } from "@/integrations/supabase/client";
 import {
+  listPayoutRequests,
   approvePayoutPaystack,
   markPayoutPaid,
   rejectPayout,
@@ -36,6 +36,7 @@ function SuperPayoutsPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
+  const listFn = useServerFn(listPayoutRequests);
   const approveFn = useServerFn(approvePayoutPaystack);
   const markFn = useServerFn(markPayoutPaid);
   const rejectFn = useServerFn(rejectPayout);
@@ -45,15 +46,13 @@ function SuperPayoutsPage() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      let q = supabase
-        .from("payouts")
-        .select(
-          "id, amount, currency, source, status, method, requested_at, paid_at, notes, failed_reason, community_id, community:communities!inner(name, bank_name, account_number, account_name, paystack_recipient_code)",
-        )
-        .order("requested_at", { ascending: false });
-      if (tab === "pending") q = q.in("status", ["requested", "approved"]);
-      const { data } = await q;
-      setRows((data ?? []) as any);
+      try {
+        const data = await listFn({ data: { pending_only: tab === "pending" } });
+        setRows((data ?? []) as any);
+      } catch (e: any) {
+        setErr(e.message ?? "Could not load payouts");
+        setRows([]);
+      }
       setLoading(false);
     })();
   }, [tab, tick]);
