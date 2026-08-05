@@ -432,6 +432,52 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          community_id: string | null
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          community_id?: string | null
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          community_id?: string | null
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_roles_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "community_balances"
+            referencedColumns: ["community_id"]
+          },
+          {
+            foreignKeyName: "user_roles_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "community_balances_by_source"
+            referencedColumns: ["community_id"]
+          },
+        ]
+      }
     }
     Views: {
       community_balances: {
@@ -468,9 +514,14 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      is_community_admin: {
+        Args: { _community_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_super_admin: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
+      app_role: "super_admin" | "community_admin" | "member"
       donation_status: "active" | "closed"
       dues_interval: "monthly" | "quarterly" | "yearly"
       payment_currency: "NGN" | "USD"
@@ -606,6 +657,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["super_admin", "community_admin", "member"],
       donation_status: ["active", "closed"],
       dues_interval: ["monthly", "quarterly", "yearly"],
       payment_currency: ["NGN", "USD"],
