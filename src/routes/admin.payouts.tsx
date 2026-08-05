@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  getCommunityBank,
   listBanks,
   resolveAccount,
   saveCommunityBank,
@@ -53,12 +54,28 @@ function PayoutsPage() {
       setLoading(true);
       const { data: c } = await supabase
         .from("communities")
-        .select("id, name, bank_name, bank_code, account_number, account_name, paystack_recipient_code")
+        .select("id, name")
         .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle();
       if (!c) return setLoading(false);
-      setCommunity(c as Community);
+
+      // Bank details are not client-readable; fetch via authorized server fn.
+      let bank: Partial<Community> = {};
+      try {
+        bank = ((await getCommunityBank({ data: { community_id: c.id } })) ?? {}) as Partial<Community>;
+      } catch {
+        bank = {};
+      }
+      setCommunity({
+        id: c.id,
+        name: c.name,
+        bank_name: bank.bank_name ?? null,
+        bank_code: bank.bank_code ?? null,
+        account_number: bank.account_number ?? null,
+        account_name: bank.account_name ?? null,
+        paystack_recipient_code: bank.paystack_recipient_code ?? null,
+      });
 
       const [{ data: bal }, { data: pos }] = await Promise.all([
         supabase.from("community_balances_by_source").select("*").eq("community_id", c.id),

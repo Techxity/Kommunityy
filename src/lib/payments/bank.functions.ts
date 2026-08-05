@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { assertCommunityAdmin } from "./authz";
 import {
   listBanks as paystackListBanks,
   resolveAccount as paystackResolveAccount,
@@ -8,6 +10,7 @@ import {
 } from "./paystack.server";
 
 export const listBanks = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((i) => z.object({ currency: z.enum(["NGN", "USD"]).default("NGN") }).parse(i))
   .handler(async ({ data }) => {
     const banks = await paystackListBanks(data.currency);
@@ -15,6 +18,7 @@ export const listBanks = createServerFn({ method: "POST" })
   });
 
 export const resolveAccount = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((i) =>
     z
       .object({
@@ -27,7 +31,23 @@ export const resolveAccount = createServerFn({ method: "POST" })
     return paystackResolveAccount(data.account_number, data.bank_code);
   });
 
+// Community admins read their own bank details (columns are hidden from clients).
+export const getCommunityBank = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) => z.object({ community_id: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    await assertCommunityAdmin(context.supabase, context.userId, data.community_id);
+    const { data: row, error } = await supabaseAdmin
+      .from("communities")
+      .select("bank_name, bank_code, account_number, account_name, paystack_recipient_code")
+      .eq("id", data.community_id)
+      .maybeSingle();
+    if (error) throw new Error("Could not load bank details");
+    return row ?? null;
+  });
+
 export const saveCommunityBank = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((i) =>
     z
       .object({
@@ -38,7 +58,9 @@ export const saveCommunityBank = createServerFn({ method: "POST" })
       })
       .parse(i),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    await assertCommunityAdmin(context.supabase, context.userId, data.community_id);
+
     // Resolve to confirm + get account name
     const resolved = await paystackResolveAccount(data.account_number, data.bank_code);
 

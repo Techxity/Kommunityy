@@ -1,7 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { assertCommunityAdmin, assertSuperAdmin } from "./authz";
 import { initiateTransfer } from "./paystack.server";
+
 
 async function getAvailable(
   community_id: string,
@@ -20,6 +23,7 @@ async function getAvailable(
 }
 
 export const requestPayout = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((i) =>
     z
       .object({
@@ -31,7 +35,9 @@ export const requestPayout = createServerFn({ method: "POST" })
       })
       .parse(i),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    await assertCommunityAdmin(context.supabase, context.userId, data.community_id);
+
     const { data: community, error: cErr } = await supabaseAdmin
       .from("communities")
       .select("bank_code, account_number")
@@ -58,6 +64,7 @@ export const requestPayout = createServerFn({ method: "POST" })
         amount: data.amount,
         notes: data.notes ?? null,
         status: "requested",
+        requested_by: context.userId,
       })
       .select()
       .single();
@@ -66,8 +73,11 @@ export const requestPayout = createServerFn({ method: "POST" })
   });
 
 export const approvePayoutPaystack = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((i) => z.object({ payout_id: z.string().uuid() }).parse(i))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    await assertSuperAdmin(context.supabase, context.userId);
+
     const { data: payout, error } = await supabaseAdmin
       .from("payouts")
       .select("id, community_id, amount, currency, status")
@@ -101,6 +111,7 @@ export const approvePayoutPaystack = createServerFn({ method: "POST" })
         method: "paystack_transfer",
         paystack_transfer_code: tx.transfer_code,
         paystack_transfer_ref: tx.reference,
+        approved_by: context.userId,
         approved_at: new Date().toISOString(),
       })
       .eq("id", payout.id);
@@ -110,6 +121,7 @@ export const approvePayoutPaystack = createServerFn({ method: "POST" })
   });
 
 export const markPayoutPaid = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((i) =>
     z
       .object({
@@ -118,12 +130,15 @@ export const markPayoutPaid = createServerFn({ method: "POST" })
       })
       .parse(i),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    await assertSuperAdmin(context.supabase, context.userId);
+
     const { error } = await supabaseAdmin
       .from("payouts")
       .update({
         status: "paid",
         method: "manual",
+        approved_by: context.userId,
         approved_at: new Date().toISOString(),
         paid_at: new Date().toISOString(),
         notes: data.note ?? null,
@@ -135,19 +150,41 @@ export const markPayoutPaid = createServerFn({ method: "POST" })
   });
 
 export const rejectPayout = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((i) =>
     z.object({ payout_id: z.string().uuid(), reason: z.string().max(500) }).parse(i),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    await assertSuperAdmin(context.supabase, context.userId);
+
     const { error } = await supabaseAdmin
       .from("payouts")
       .update({
         status: "rejected",
         failed_reason: data.reason,
+        approved_by: context.userId,
         approved_at: new Date().toISOString(),
       })
       .eq("id", data.payout_id)
       .eq("status", "requested");
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+// Super-admin-only listing that includes community bank details.
+export const listPayoutRequests = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) => z.object({ pending_only: z.boolean().default(false) }).parse(i))
+  .handler(async ({ data, context }) => {
+    await assertSuperAdmin(context.supabase, context.userId);
+    let q = supabaseAdmin
+      .from("payouts")
+      .select(
+        "id, amount, currency, source, status, method, requested_at, paid_at, notes, failed_reason, community_id, community:communities!inner(name, bank_name, account_number, account_name, paystack_recipient_code)",
+      )
+      .order("requested_at", { ascending: false });
+    if (data.pending_only) q = q.in("status", ["requested", "approved"]);
+    const { data: rows, error } = await q;
+    if (error) throw new Error("Could not load payout requests");
+    return rows ?? [];
   });
