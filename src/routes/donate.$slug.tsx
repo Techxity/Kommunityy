@@ -16,18 +16,16 @@ export const Route = createFileRoute("/donate/$slug")({
     if (error) throw new Error(error.message);
     if (!data) throw notFound();
 
+    // Public aggregate view — individual donor rows are admin-only.
     const { data: totals } = await supabase
-      .from("donation_payments")
-      .select("amount, currency")
+      .from("donation_totals")
+      .select("collected_ngn, collected_usd")
       .eq("donation_id", data.id)
-      .eq("status", "paid");
-    const collected_ngn = (totals ?? [])
-      .filter((t) => t.currency === "NGN")
-      .reduce((s, t) => s + Number(t.amount), 0);
-    const collected_usd = (totals ?? [])
-      .filter((t) => t.currency === "USD")
-      .reduce((s, t) => s + Number(t.amount), 0);
+      .maybeSingle();
+    const collected_ngn = Number(totals?.collected_ngn ?? 0);
+    const collected_usd = Number(totals?.collected_usd ?? 0);
     return { donation: data, collected_ngn, collected_usd };
+
   },
   component: DonatePage,
   notFoundComponent: () => (
