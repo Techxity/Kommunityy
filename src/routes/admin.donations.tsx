@@ -40,13 +40,6 @@ interface Donation {
   payers?: Payer[];
 }
 
-const samplePayers: Payer[] = [
-  { member: "Adaeze Okafor", amount: 50000, currency: "NGN", date: "2025-05-12" },
-  { member: "Tunde Bakare", amount: 25000, currency: "NGN", date: "2025-05-10" },
-  { member: "Chiamaka Eze", amount: 100, currency: "USD", date: "2025-05-08" },
-  { member: "Kola Salami", amount: 15000, currency: "NGN", date: "2025-05-05" },
-];
-
 const fmt = (amount: number, currency: "NGN" | "USD") =>
   currency === "NGN"
     ? `₦${amount.toLocaleString()}`
@@ -157,7 +150,7 @@ function Donations() {
       collected_usd: 0,
       deadline: d.deadline,
       status: d.status,
-      payers: samplePayers,
+      payers: [],
     })),
   );
   const [createOpen, setCreateOpen] = useState(false);

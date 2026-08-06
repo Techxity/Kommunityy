@@ -1,5 +1,6 @@
-import { Link, Outlet, useLocation } from "@tanstack/react-router";
+import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { Home, User, Banknote, Vote, Megaphone, Users2, LogOut, PhoneCall } from "lucide-react";
+import { logout } from "@/lib/auth/auth.functions";
 
 type NavItem = { to: string; label: string; icon: typeof Home; exact?: boolean };
 const nav: NavItem[] = [
@@ -13,6 +14,13 @@ const nav: NavItem[] = [
 
 export function MemberShell() {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  async function handleSignOut() {
+    await logout();
+    navigate({ to: "/login" });
+  }
+
   return (
     <div className="min-h-screen bg-muted/40">
       <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
@@ -41,9 +49,13 @@ export function MemberShell() {
               );
             })}
           </nav>
-          <Link to="/login" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+          >
             <LogOut className="h-3.5 w-3.5" /> Sign out
-          </Link>
+          </button>
         </div>
         <nav className="flex gap-1 overflow-x-auto px-4 pb-2 md:hidden">
           {nav.map((item) => {

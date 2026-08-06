@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { birthdayMessages, members, community } from "@/lib/mock-data";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Cake, Send, Sparkles, Check } from "lucide-react";
+import { getMyCommunity } from "@/lib/payments/communities.functions";
+import { getBirthdayMessages, saveBirthdayMessage, listMembersWithBirthdays, sendBirthdayEmails } from "@/lib/membership/birthdays.functions";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
@@ -9,26 +10,56 @@ export const Route = createFileRoute("/admin/birthdays")({
   component: Birthdays,
 });
 
+type Member = { id: string; name: string; email: string; dob: string };
+
 function isTodayBirthday(dob: string) {
   const d = new Date(dob);
   const now = new Date();
-  return d.getDate() === now.getDate() && d.getMonth() === now.getMonth();
+  return d.getUTCDate() === now.getDate() && d.getUTCMonth() === now.getMonth();
 }
 
 function Birthdays() {
-  const [messages, setMessages] = useState(birthdayMessages);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [messages, setMessages] = useState<Record<string, string>>({});
+  const [communityName, setCommunityName] = useState("");
   const [active, setActive] = useState(MONTHS[new Date().getMonth()]);
   const [lastRun, setLastRun] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
   const [justSent, setJustSent] = useState(false);
+  const [savingMessage, setSavingMessage] = useState(false);
 
-  const thisMonth = members.filter((m) => new Date(m.dob).getMonth() === MONTHS.indexOf(active));
-  const today = members.filter((m) => isTodayBirthday(m.dob));
+  useEffect(() => {
+    listMembersWithBirthdays().then(setMembers);
+    getBirthdayMessages().then(setMessages);
+    getMyCommunity().then((c) => setCommunityName(c?.name ?? ""));
+  }, []);
 
-  const sendToday = () => {
-    setLastRun(new Date().toISOString());
-    setJustSent(true);
-    setTimeout(() => setJustSent(false), 2200);
-  };
+  const thisMonth = members.filter((m) => new Date(m.dob).getUTCMonth() === MONTHS.indexOf(active));
+  const today = members.filter((m) => isTodayBirthday(m.dob) && m.email);
+
+  async function sendToday() {
+    if (today.length === 0) return;
+    setSending(true);
+    try {
+      await sendBirthdayEmails({ data: { memberIds: today.map((m) => m.id) } });
+      setLastRun(new Date().toISOString());
+      setJustSent(true);
+      setTimeout(() => setJustSent(false), 2200);
+    } catch (err: any) {
+      alert(err?.message ?? "Couldn't send birthday emails.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function saveMessage() {
+    setSavingMessage(true);
+    try {
+      await saveBirthdayMessage({ data: { month: active as any, message: messages[active] ?? "" } });
+    } finally {
+      setSavingMessage(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -36,17 +67,17 @@ function Birthdays() {
         <div>
           <h1 className="font-display text-3xl font-bold">Birthday messages</h1>
           <p className="text-sm text-muted-foreground">
-            Birthday emails are sent automatically every morning to today's celebrants using the month's message.
+            Pick a month's message, then send it to today's celebrants whenever you're ready.
           </p>
         </div>
         <div className="flex flex-col items-end gap-1">
           <button
             onClick={sendToday}
-            disabled={today.length === 0}
+            disabled={today.length === 0 || sending}
             className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-soft hover:opacity-90 disabled:opacity-40"
           >
             {justSent ? <Check className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
-            {justSent ? "Queued" : `Send today's emails (${today.length})`}
+            {sending ? "Sending…" : justSent ? "Sent" : `Send today's emails (${today.length})`}
           </button>
           {lastRun && (
             <p className="text-[11px] text-muted-foreground">
@@ -105,18 +136,22 @@ function Birthdays() {
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">Message for</p>
                 <h2 className="font-display text-2xl font-bold">{active}</h2>
               </div>
-              <button className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
-                <Send className="h-3 w-3" /> Save & schedule
+              <button
+                onClick={saveMessage}
+                disabled={savingMessage}
+                className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+              >
+                <Send className="h-3 w-3" /> {savingMessage ? "Saving…" : "Save"}
               </button>
             </div>
             <textarea
               rows={5}
-              value={messages[active]}
+              value={messages[active] ?? ""}
               onChange={(e) => setMessages({ ...messages, [active]: e.target.value })}
               className="mt-4 w-full rounded-lg border border-border bg-background p-3 text-sm outline-none focus:border-ring"
             />
             <p className="mt-2 text-xs text-muted-foreground">
-              Sent from {community.name}. Tip: keep messages short, warm, and authentic.
+              Sent from {communityName || "your community"}. Tip: keep messages short, warm, and authentic.
             </p>
           </div>
 
@@ -136,7 +171,7 @@ function Birthdays() {
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-semibold">{m.name}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(m.dob).toLocaleDateString(undefined, { month: "long", day: "numeric" })}</p>
+                      <p className="text-xs text-muted-foreground">{new Date(m.dob).toLocaleDateString(undefined, { month: "long", day: "numeric", timeZone: "UTC" })}</p>
                     </div>
                     <span className="text-xs text-muted-foreground">{m.email}</span>
                   </li>

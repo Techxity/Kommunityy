@@ -30,7 +30,7 @@ function MemberCallTree() {
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => setHydrated(true), []);
 
-  const rows = hydrated
+  const rows = hydrated && me
     ? sessions.flatMap((s) =>
         s.pairings.flatMap((p) => {
           const slot =

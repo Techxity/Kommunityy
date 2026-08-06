@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getRequestHost } from "@tanstack/react-start/server";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { sql } from "@/lib/db/client";
 import { initializeTransaction } from "./paystack.server";
 
 const StartDuesInput = z.object({
@@ -14,12 +14,13 @@ const StartDuesInput = z.object({
 export const startDuesCheckout = createServerFn({ method: "POST" })
   .inputValidator((input) => StartDuesInput.parse(input))
   .handler(async ({ data }) => {
-    const { data: plan, error } = await supabaseAdmin
-      .from("dues_plans")
-      .select("id, name, amount_ngn, amount_usd, active")
-      .eq("id", data.plan_id)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
+    const rows = await sql`
+      SELECT id, name, amount_ngn, amount_usd, active
+      FROM public.dues_plans
+      WHERE id = ${data.plan_id}
+      LIMIT 1
+    `;
+    const plan = rows[0];
     if (!plan || !plan.active) throw new Error("Plan not available");
     const amount = data.currency === "NGN" ? plan.amount_ngn : plan.amount_usd;
     if (!amount) throw new Error(`${data.currency} not offered for this plan`);
@@ -41,3 +42,31 @@ export const startDuesCheckout = createServerFn({ method: "POST" })
     });
     return { authorization_url: tx.authorization_url, reference: tx.reference };
   });
+
+// Public: a dues plan's checkout details (no auth — this is a shareable pay link).
+export const getDuesPlan = createServerFn({ method: "POST" })
+  .inputValidator((i) => z.object({ plan_id: z.string().uuid() }).parse(i))
+  .handler(async ({ data }) => {
+    const rows = await sql`
+      SELECT id, name, amount_ngn, amount_usd, interval, active
+      FROM public.dues_plans
+      WHERE id = ${data.plan_id}
+      LIMIT 1
+    `;
+    const plan = rows[0];
+    if (!plan || !plan.active) return null;
+    return plan;
+  });
+
+// Public: the id of the most recently created active dues plan, so members
+// can be routed to a pay link without exposing the whole table.
+export const getActiveDuesPlanId = createServerFn({ method: "POST" }).handler(async () => {
+  const rows = await sql`
+    SELECT id
+    FROM public.dues_plans
+    WHERE active = true
+    ORDER BY created_at DESC
+    LIMIT 1
+  `;
+  return rows[0]?.id ?? null;
+});

@@ -14,6 +14,9 @@ function Updates() {
         <p className="text-sm text-muted-foreground">Announcements from your community admin.</p>
       </header>
       <div className="space-y-3">
+        {broadcasts.length === 0 && (
+          <p className="text-sm text-muted-foreground">No updates yet.</p>
+        )}
         {broadcasts.map((b) => (
           <article key={b.id} className="rounded-2xl border border-border bg-card p-6 shadow-soft">
             <div className="flex items-center gap-2">

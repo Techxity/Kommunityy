@@ -9,76 +9,53 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SuperAdminRouteImport } from './routes/super-admin'
-import { Route as SignupRouteImport } from './routes/signup'
-import { Route as PricingRouteImport } from './routes/pricing'
-import { Route as MemberRouteImport } from './routes/member'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as AdminRouteImport } from './routes/admin'
-import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as SuperAdminIndexRouteImport } from './routes/super-admin.index'
-import { Route as MemberIndexRouteImport } from './routes/member.index'
+import { Route as AboutRouteImport } from './routes/about'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as MemberRouteImport } from './routes/member'
+import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as SignupRouteImport } from './routes/signup'
+import { Route as SuperAdminRouteImport } from './routes/super-admin'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
-import { Route as SuperAdminSupportRouteImport } from './routes/super-admin.support'
-import { Route as SuperAdminPlansRouteImport } from './routes/super-admin.plans'
-import { Route as SuperAdminPayoutsRouteImport } from './routes/super-admin.payouts'
-import { Route as SuperAdminFeesRouteImport } from './routes/super-admin.fees'
-import { Route as SuperAdminCommunitiesRouteImport } from './routes/super-admin.communities'
-import { Route as SuperAdminBillingRouteImport } from './routes/super-admin.billing'
-import { Route as SuperAdminAuditRouteImport } from './routes/super-admin.audit'
-import { Route as SuperAdminAdminsRouteImport } from './routes/super-admin.admins'
-import { Route as PayDuesPlanIdRouteImport } from './routes/pay-dues.$planId'
-import { Route as MemberUpdatesRouteImport } from './routes/member.updates'
-import { Route as MemberProfileRouteImport } from './routes/member.profile'
-import { Route as MemberElectionsRouteImport } from './routes/member.elections'
-import { Route as MemberDuesRouteImport } from './routes/member.dues'
-import { Route as MemberCalltreeRouteImport } from './routes/member.calltree'
-import { Route as JoinCommunityIdRouteImport } from './routes/join.$communityId'
-import { Route as FeedbackTokenRouteImport } from './routes/feedback.$token'
-import { Route as DonateSlugRouteImport } from './routes/donate.$slug'
-import { Route as AdminSubscriptionRouteImport } from './routes/admin.subscription'
-import { Route as AdminPayoutsRouteImport } from './routes/admin.payouts'
-import { Route as AdminOnboardingRouteImport } from './routes/admin.onboarding'
-import { Route as AdminMembersRouteImport } from './routes/admin.members'
-import { Route as AdminElectionsRouteImport } from './routes/admin.elections'
-import { Route as AdminDuesRouteImport } from './routes/admin.dues'
-import { Route as AdminDonationsRouteImport } from './routes/admin.donations'
-import { Route as AdminChaptersRouteImport } from './routes/admin.chapters'
-import { Route as AdminCalltreeRouteImport } from './routes/admin.calltree'
-import { Route as AdminBroadcastRouteImport } from './routes/admin.broadcast'
 import { Route as AdminBirthdaysRouteImport } from './routes/admin.birthdays'
-import { Route as ApiPublicPaystackWebhookRouteImport } from './routes/api/public/paystack-webhook'
+import { Route as AdminBroadcastRouteImport } from './routes/admin.broadcast'
+import { Route as AdminCalltreeRouteImport } from './routes/admin.calltree'
+import { Route as AdminChaptersRouteImport } from './routes/admin.chapters'
+import { Route as AdminDonationsRouteImport } from './routes/admin.donations'
+import { Route as AdminDuesRouteImport } from './routes/admin.dues'
+import { Route as AdminElectionsRouteImport } from './routes/admin.elections'
+import { Route as AdminMembersRouteImport } from './routes/admin.members'
+import { Route as AdminOnboardingRouteImport } from './routes/admin.onboarding'
+import { Route as AdminPayoutsRouteImport } from './routes/admin.payouts'
+import { Route as AdminSubscriptionRouteImport } from './routes/admin.subscription'
+import { Route as DonateSlugRouteImport } from './routes/donate.$slug'
+import { Route as FeedbackTokenRouteImport } from './routes/feedback.$token'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
+import { Route as JoinCommunityIdRouteImport } from './routes/join.$communityId'
+import { Route as MemberIndexRouteImport } from './routes/member.index'
+import { Route as MemberCalltreeRouteImport } from './routes/member.calltree'
+import { Route as MemberDuesRouteImport } from './routes/member.dues'
+import { Route as MemberElectionsRouteImport } from './routes/member.elections'
+import { Route as MemberProfileRouteImport } from './routes/member.profile'
+import { Route as MemberUpdatesRouteImport } from './routes/member.updates'
+import { Route as PayDuesPlanIdRouteImport } from './routes/pay-dues.$planId'
+import { Route as SuperAdminIndexRouteImport } from './routes/super-admin.index'
+import { Route as SuperAdminAdminsRouteImport } from './routes/super-admin.admins'
+import { Route as SuperAdminAuditRouteImport } from './routes/super-admin.audit'
+import { Route as SuperAdminBillingRouteImport } from './routes/super-admin.billing'
+import { Route as SuperAdminCommunitiesRouteImport } from './routes/super-admin.communities'
+import { Route as SuperAdminFeesRouteImport } from './routes/super-admin.fees'
+import { Route as SuperAdminPayoutsRouteImport } from './routes/super-admin.payouts'
+import { Route as SuperAdminPlansRouteImport } from './routes/super-admin.plans'
+import { Route as SuperAdminSupportRouteImport } from './routes/super-admin.support'
+import { Route as AdminMembersIndexRouteImport } from './routes/admin.members.index'
 import { Route as AdminMembersPendingRouteImport } from './routes/admin.members.pending'
+import { Route as ApiPublicPaystackWebhookRouteImport } from './routes/api/public/paystack-webhook'
 
-const SuperAdminRoute = SuperAdminRouteImport.update({
-  id: '/super-admin',
-  path: '/super-admin',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SignupRoute = SignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PricingRoute = PricingRouteImport.update({
-  id: '/pricing',
-  path: '/pricing',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MemberRoute = MemberRouteImport.update({
-  id: '/member',
-  path: '/member',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminRoute = AdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AboutRoute = AboutRouteImport.update({
@@ -86,159 +63,39 @@ const AboutRoute = AboutRouteImport.update({
   path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SuperAdminIndexRoute = SuperAdminIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => SuperAdminRoute,
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const MemberIndexRoute = MemberIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => MemberRoute,
+const MemberRoute = MemberRouteImport.update({
+  id: '/member',
+  path: '/member',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SuperAdminRoute = SuperAdminRouteImport.update({
+  id: '/super-admin',
+  path: '/super-admin',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AdminRoute,
-} as any)
-const SuperAdminSupportRoute = SuperAdminSupportRouteImport.update({
-  id: '/support',
-  path: '/support',
-  getParentRoute: () => SuperAdminRoute,
-} as any)
-const SuperAdminPlansRoute = SuperAdminPlansRouteImport.update({
-  id: '/plans',
-  path: '/plans',
-  getParentRoute: () => SuperAdminRoute,
-} as any)
-const SuperAdminPayoutsRoute = SuperAdminPayoutsRouteImport.update({
-  id: '/payouts',
-  path: '/payouts',
-  getParentRoute: () => SuperAdminRoute,
-} as any)
-const SuperAdminFeesRoute = SuperAdminFeesRouteImport.update({
-  id: '/fees',
-  path: '/fees',
-  getParentRoute: () => SuperAdminRoute,
-} as any)
-const SuperAdminCommunitiesRoute = SuperAdminCommunitiesRouteImport.update({
-  id: '/communities',
-  path: '/communities',
-  getParentRoute: () => SuperAdminRoute,
-} as any)
-const SuperAdminBillingRoute = SuperAdminBillingRouteImport.update({
-  id: '/billing',
-  path: '/billing',
-  getParentRoute: () => SuperAdminRoute,
-} as any)
-const SuperAdminAuditRoute = SuperAdminAuditRouteImport.update({
-  id: '/audit',
-  path: '/audit',
-  getParentRoute: () => SuperAdminRoute,
-} as any)
-const SuperAdminAdminsRoute = SuperAdminAdminsRouteImport.update({
-  id: '/admins',
-  path: '/admins',
-  getParentRoute: () => SuperAdminRoute,
-} as any)
-const PayDuesPlanIdRoute = PayDuesPlanIdRouteImport.update({
-  id: '/pay-dues/$planId',
-  path: '/pay-dues/$planId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MemberUpdatesRoute = MemberUpdatesRouteImport.update({
-  id: '/updates',
-  path: '/updates',
-  getParentRoute: () => MemberRoute,
-} as any)
-const MemberProfileRoute = MemberProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => MemberRoute,
-} as any)
-const MemberElectionsRoute = MemberElectionsRouteImport.update({
-  id: '/elections',
-  path: '/elections',
-  getParentRoute: () => MemberRoute,
-} as any)
-const MemberDuesRoute = MemberDuesRouteImport.update({
-  id: '/dues',
-  path: '/dues',
-  getParentRoute: () => MemberRoute,
-} as any)
-const MemberCalltreeRoute = MemberCalltreeRouteImport.update({
-  id: '/calltree',
-  path: '/calltree',
-  getParentRoute: () => MemberRoute,
-} as any)
-const JoinCommunityIdRoute = JoinCommunityIdRouteImport.update({
-  id: '/join/$communityId',
-  path: '/join/$communityId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FeedbackTokenRoute = FeedbackTokenRouteImport.update({
-  id: '/feedback/$token',
-  path: '/feedback/$token',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DonateSlugRoute = DonateSlugRouteImport.update({
-  id: '/donate/$slug',
-  path: '/donate/$slug',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminSubscriptionRoute = AdminSubscriptionRouteImport.update({
-  id: '/subscription',
-  path: '/subscription',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminPayoutsRoute = AdminPayoutsRouteImport.update({
-  id: '/payouts',
-  path: '/payouts',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminOnboardingRoute = AdminOnboardingRouteImport.update({
-  id: '/onboarding',
-  path: '/onboarding',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminMembersRoute = AdminMembersRouteImport.update({
-  id: '/members',
-  path: '/members',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminElectionsRoute = AdminElectionsRouteImport.update({
-  id: '/elections',
-  path: '/elections',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminDuesRoute = AdminDuesRouteImport.update({
-  id: '/dues',
-  path: '/dues',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminDonationsRoute = AdminDonationsRouteImport.update({
-  id: '/donations',
-  path: '/donations',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminChaptersRoute = AdminChaptersRouteImport.update({
-  id: '/chapters',
-  path: '/chapters',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminCalltreeRoute = AdminCalltreeRouteImport.update({
-  id: '/calltree',
-  path: '/calltree',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminBroadcastRoute = AdminBroadcastRouteImport.update({
-  id: '/broadcast',
-  path: '/broadcast',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminBirthdaysRoute = AdminBirthdaysRouteImport.update({
@@ -246,17 +103,172 @@ const AdminBirthdaysRoute = AdminBirthdaysRouteImport.update({
   path: '/birthdays',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminBroadcastRoute = AdminBroadcastRouteImport.update({
+  id: '/broadcast',
+  path: '/broadcast',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminCalltreeRoute = AdminCalltreeRouteImport.update({
+  id: '/calltree',
+  path: '/calltree',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminChaptersRoute = AdminChaptersRouteImport.update({
+  id: '/chapters',
+  path: '/chapters',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminDonationsRoute = AdminDonationsRouteImport.update({
+  id: '/donations',
+  path: '/donations',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminDuesRoute = AdminDuesRouteImport.update({
+  id: '/dues',
+  path: '/dues',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminElectionsRoute = AdminElectionsRouteImport.update({
+  id: '/elections',
+  path: '/elections',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminMembersRoute = AdminMembersRouteImport.update({
+  id: '/members',
+  path: '/members',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminOnboardingRoute = AdminOnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPayoutsRoute = AdminPayoutsRouteImport.update({
+  id: '/payouts',
+  path: '/payouts',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminSubscriptionRoute = AdminSubscriptionRouteImport.update({
+  id: '/subscription',
+  path: '/subscription',
+  getParentRoute: () => AdminRoute,
+} as any)
+const DonateSlugRoute = DonateSlugRouteImport.update({
+  id: '/donate/$slug',
+  path: '/donate/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeedbackTokenRoute = FeedbackTokenRouteImport.update({
+  id: '/feedback/$token',
+  path: '/feedback/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JoinCommunityIdRoute = JoinCommunityIdRouteImport.update({
+  id: '/join/$communityId',
+  path: '/join/$communityId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MemberIndexRoute = MemberIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberCalltreeRoute = MemberCalltreeRouteImport.update({
+  id: '/calltree',
+  path: '/calltree',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberDuesRoute = MemberDuesRouteImport.update({
+  id: '/dues',
+  path: '/dues',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberElectionsRoute = MemberElectionsRouteImport.update({
+  id: '/elections',
+  path: '/elections',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberProfileRoute = MemberProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberUpdatesRoute = MemberUpdatesRouteImport.update({
+  id: '/updates',
+  path: '/updates',
+  getParentRoute: () => MemberRoute,
+} as any)
+const PayDuesPlanIdRoute = PayDuesPlanIdRouteImport.update({
+  id: '/pay-dues/$planId',
+  path: '/pay-dues/$planId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SuperAdminIndexRoute = SuperAdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
+const SuperAdminAdminsRoute = SuperAdminAdminsRouteImport.update({
+  id: '/admins',
+  path: '/admins',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
+const SuperAdminAuditRoute = SuperAdminAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
+const SuperAdminBillingRoute = SuperAdminBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
+const SuperAdminCommunitiesRoute = SuperAdminCommunitiesRouteImport.update({
+  id: '/communities',
+  path: '/communities',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
+const SuperAdminFeesRoute = SuperAdminFeesRouteImport.update({
+  id: '/fees',
+  path: '/fees',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
+const SuperAdminPayoutsRoute = SuperAdminPayoutsRouteImport.update({
+  id: '/payouts',
+  path: '/payouts',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
+const SuperAdminPlansRoute = SuperAdminPlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
+const SuperAdminSupportRoute = SuperAdminSupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
+const AdminMembersIndexRoute = AdminMembersIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminMembersRoute,
+} as any)
+const AdminMembersPendingRoute = AdminMembersPendingRouteImport.update({
+  id: '/pending',
+  path: '/pending',
+  getParentRoute: () => AdminMembersRoute,
+} as any)
 const ApiPublicPaystackWebhookRoute =
   ApiPublicPaystackWebhookRouteImport.update({
     id: '/api/public/paystack-webhook',
     path: '/api/public/paystack-webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
-const AdminMembersPendingRoute = AdminMembersPendingRouteImport.update({
-  id: '/pending',
-  path: '/pending',
-  getParentRoute: () => AdminMembersRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -280,6 +292,7 @@ export interface FileRoutesByFullPath {
   '/admin/subscription': typeof AdminSubscriptionRoute
   '/donate/$slug': typeof DonateSlugRoute
   '/feedback/$token': typeof FeedbackTokenRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/join/$communityId': typeof JoinCommunityIdRoute
   '/member/calltree': typeof MemberCalltreeRoute
   '/member/dues': typeof MemberDuesRoute
@@ -300,6 +313,7 @@ export interface FileRoutesByFullPath {
   '/super-admin/': typeof SuperAdminIndexRoute
   '/admin/members/pending': typeof AdminMembersPendingRoute
   '/api/public/paystack-webhook': typeof ApiPublicPaystackWebhookRoute
+  '/admin/members/': typeof AdminMembersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -314,12 +328,12 @@ export interface FileRoutesByTo {
   '/admin/donations': typeof AdminDonationsRoute
   '/admin/dues': typeof AdminDuesRoute
   '/admin/elections': typeof AdminElectionsRoute
-  '/admin/members': typeof AdminMembersRouteWithChildren
   '/admin/onboarding': typeof AdminOnboardingRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
   '/donate/$slug': typeof DonateSlugRoute
   '/feedback/$token': typeof FeedbackTokenRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/join/$communityId': typeof JoinCommunityIdRoute
   '/member/calltree': typeof MemberCalltreeRoute
   '/member/dues': typeof MemberDuesRoute
@@ -340,6 +354,7 @@ export interface FileRoutesByTo {
   '/super-admin': typeof SuperAdminIndexRoute
   '/admin/members/pending': typeof AdminMembersPendingRoute
   '/api/public/paystack-webhook': typeof ApiPublicPaystackWebhookRoute
+  '/admin/members': typeof AdminMembersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -364,6 +379,7 @@ export interface FileRoutesById {
   '/admin/subscription': typeof AdminSubscriptionRoute
   '/donate/$slug': typeof DonateSlugRoute
   '/feedback/$token': typeof FeedbackTokenRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/join/$communityId': typeof JoinCommunityIdRoute
   '/member/calltree': typeof MemberCalltreeRoute
   '/member/dues': typeof MemberDuesRoute
@@ -384,6 +400,7 @@ export interface FileRoutesById {
   '/super-admin/': typeof SuperAdminIndexRoute
   '/admin/members/pending': typeof AdminMembersPendingRoute
   '/api/public/paystack-webhook': typeof ApiPublicPaystackWebhookRoute
+  '/admin/members/': typeof AdminMembersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -409,6 +426,7 @@ export interface FileRouteTypes {
     | '/admin/subscription'
     | '/donate/$slug'
     | '/feedback/$token'
+    | '/invite/$token'
     | '/join/$communityId'
     | '/member/calltree'
     | '/member/dues'
@@ -429,6 +447,7 @@ export interface FileRouteTypes {
     | '/super-admin/'
     | '/admin/members/pending'
     | '/api/public/paystack-webhook'
+    | '/admin/members/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -443,12 +462,12 @@ export interface FileRouteTypes {
     | '/admin/donations'
     | '/admin/dues'
     | '/admin/elections'
-    | '/admin/members'
     | '/admin/onboarding'
     | '/admin/payouts'
     | '/admin/subscription'
     | '/donate/$slug'
     | '/feedback/$token'
+    | '/invite/$token'
     | '/join/$communityId'
     | '/member/calltree'
     | '/member/dues'
@@ -469,6 +488,7 @@ export interface FileRouteTypes {
     | '/super-admin'
     | '/admin/members/pending'
     | '/api/public/paystack-webhook'
+    | '/admin/members'
   id:
     | '__root__'
     | '/'
@@ -492,6 +512,7 @@ export interface FileRouteTypes {
     | '/admin/subscription'
     | '/donate/$slug'
     | '/feedback/$token'
+    | '/invite/$token'
     | '/join/$communityId'
     | '/member/calltree'
     | '/member/dues'
@@ -512,6 +533,7 @@ export interface FileRouteTypes {
     | '/super-admin/'
     | '/admin/members/pending'
     | '/api/public/paystack-webhook'
+    | '/admin/members/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -525,6 +547,7 @@ export interface RootRouteChildren {
   SuperAdminRoute: typeof SuperAdminRouteWithChildren
   DonateSlugRoute: typeof DonateSlugRoute
   FeedbackTokenRoute: typeof FeedbackTokenRoute
+  InviteTokenRoute: typeof InviteTokenRoute
   JoinCommunityIdRoute: typeof JoinCommunityIdRoute
   PayDuesPlanIdRoute: typeof PayDuesPlanIdRoute
   ApiPublicPaystackWebhookRoute: typeof ApiPublicPaystackWebhookRoute
@@ -532,46 +555,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/super-admin': {
-      id: '/super-admin'
-      path: '/super-admin'
-      fullPath: '/super-admin'
-      preLoaderRoute: typeof SuperAdminRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/signup': {
-      id: '/signup'
-      path: '/signup'
-      fullPath: '/signup'
-      preLoaderRoute: typeof SignupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/pricing': {
-      id: '/pricing'
-      path: '/pricing'
-      fullPath: '/pricing'
-      preLoaderRoute: typeof PricingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/member': {
-      id: '/member'
-      path: '/member'
-      fullPath: '/member'
-      preLoaderRoute: typeof MemberRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin': {
-      id: '/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AdminRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/about': {
@@ -581,221 +569,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/super-admin/': {
-      id: '/super-admin/'
-      path: '/'
-      fullPath: '/super-admin/'
-      preLoaderRoute: typeof SuperAdminIndexRouteImport
-      parentRoute: typeof SuperAdminRoute
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/member/': {
-      id: '/member/'
-      path: '/'
-      fullPath: '/member/'
-      preLoaderRoute: typeof MemberIndexRouteImport
-      parentRoute: typeof MemberRoute
+    '/member': {
+      id: '/member'
+      path: '/member'
+      fullPath: '/member'
+      preLoaderRoute: typeof MemberRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/super-admin': {
+      id: '/super-admin'
+      path: '/super-admin'
+      fullPath: '/super-admin'
+      preLoaderRoute: typeof SuperAdminRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/admin/': {
       id: '/admin/'
       path: '/'
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/super-admin/support': {
-      id: '/super-admin/support'
-      path: '/support'
-      fullPath: '/super-admin/support'
-      preLoaderRoute: typeof SuperAdminSupportRouteImport
-      parentRoute: typeof SuperAdminRoute
-    }
-    '/super-admin/plans': {
-      id: '/super-admin/plans'
-      path: '/plans'
-      fullPath: '/super-admin/plans'
-      preLoaderRoute: typeof SuperAdminPlansRouteImport
-      parentRoute: typeof SuperAdminRoute
-    }
-    '/super-admin/payouts': {
-      id: '/super-admin/payouts'
-      path: '/payouts'
-      fullPath: '/super-admin/payouts'
-      preLoaderRoute: typeof SuperAdminPayoutsRouteImport
-      parentRoute: typeof SuperAdminRoute
-    }
-    '/super-admin/fees': {
-      id: '/super-admin/fees'
-      path: '/fees'
-      fullPath: '/super-admin/fees'
-      preLoaderRoute: typeof SuperAdminFeesRouteImport
-      parentRoute: typeof SuperAdminRoute
-    }
-    '/super-admin/communities': {
-      id: '/super-admin/communities'
-      path: '/communities'
-      fullPath: '/super-admin/communities'
-      preLoaderRoute: typeof SuperAdminCommunitiesRouteImport
-      parentRoute: typeof SuperAdminRoute
-    }
-    '/super-admin/billing': {
-      id: '/super-admin/billing'
-      path: '/billing'
-      fullPath: '/super-admin/billing'
-      preLoaderRoute: typeof SuperAdminBillingRouteImport
-      parentRoute: typeof SuperAdminRoute
-    }
-    '/super-admin/audit': {
-      id: '/super-admin/audit'
-      path: '/audit'
-      fullPath: '/super-admin/audit'
-      preLoaderRoute: typeof SuperAdminAuditRouteImport
-      parentRoute: typeof SuperAdminRoute
-    }
-    '/super-admin/admins': {
-      id: '/super-admin/admins'
-      path: '/admins'
-      fullPath: '/super-admin/admins'
-      preLoaderRoute: typeof SuperAdminAdminsRouteImport
-      parentRoute: typeof SuperAdminRoute
-    }
-    '/pay-dues/$planId': {
-      id: '/pay-dues/$planId'
-      path: '/pay-dues/$planId'
-      fullPath: '/pay-dues/$planId'
-      preLoaderRoute: typeof PayDuesPlanIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/member/updates': {
-      id: '/member/updates'
-      path: '/updates'
-      fullPath: '/member/updates'
-      preLoaderRoute: typeof MemberUpdatesRouteImport
-      parentRoute: typeof MemberRoute
-    }
-    '/member/profile': {
-      id: '/member/profile'
-      path: '/profile'
-      fullPath: '/member/profile'
-      preLoaderRoute: typeof MemberProfileRouteImport
-      parentRoute: typeof MemberRoute
-    }
-    '/member/elections': {
-      id: '/member/elections'
-      path: '/elections'
-      fullPath: '/member/elections'
-      preLoaderRoute: typeof MemberElectionsRouteImport
-      parentRoute: typeof MemberRoute
-    }
-    '/member/dues': {
-      id: '/member/dues'
-      path: '/dues'
-      fullPath: '/member/dues'
-      preLoaderRoute: typeof MemberDuesRouteImport
-      parentRoute: typeof MemberRoute
-    }
-    '/member/calltree': {
-      id: '/member/calltree'
-      path: '/calltree'
-      fullPath: '/member/calltree'
-      preLoaderRoute: typeof MemberCalltreeRouteImport
-      parentRoute: typeof MemberRoute
-    }
-    '/join/$communityId': {
-      id: '/join/$communityId'
-      path: '/join/$communityId'
-      fullPath: '/join/$communityId'
-      preLoaderRoute: typeof JoinCommunityIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/feedback/$token': {
-      id: '/feedback/$token'
-      path: '/feedback/$token'
-      fullPath: '/feedback/$token'
-      preLoaderRoute: typeof FeedbackTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/donate/$slug': {
-      id: '/donate/$slug'
-      path: '/donate/$slug'
-      fullPath: '/donate/$slug'
-      preLoaderRoute: typeof DonateSlugRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin/subscription': {
-      id: '/admin/subscription'
-      path: '/subscription'
-      fullPath: '/admin/subscription'
-      preLoaderRoute: typeof AdminSubscriptionRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/payouts': {
-      id: '/admin/payouts'
-      path: '/payouts'
-      fullPath: '/admin/payouts'
-      preLoaderRoute: typeof AdminPayoutsRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/onboarding': {
-      id: '/admin/onboarding'
-      path: '/onboarding'
-      fullPath: '/admin/onboarding'
-      preLoaderRoute: typeof AdminOnboardingRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/members': {
-      id: '/admin/members'
-      path: '/members'
-      fullPath: '/admin/members'
-      preLoaderRoute: typeof AdminMembersRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/elections': {
-      id: '/admin/elections'
-      path: '/elections'
-      fullPath: '/admin/elections'
-      preLoaderRoute: typeof AdminElectionsRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/dues': {
-      id: '/admin/dues'
-      path: '/dues'
-      fullPath: '/admin/dues'
-      preLoaderRoute: typeof AdminDuesRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/donations': {
-      id: '/admin/donations'
-      path: '/donations'
-      fullPath: '/admin/donations'
-      preLoaderRoute: typeof AdminDonationsRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/chapters': {
-      id: '/admin/chapters'
-      path: '/chapters'
-      fullPath: '/admin/chapters'
-      preLoaderRoute: typeof AdminChaptersRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/calltree': {
-      id: '/admin/calltree'
-      path: '/calltree'
-      fullPath: '/admin/calltree'
-      preLoaderRoute: typeof AdminCalltreeRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/broadcast': {
-      id: '/admin/broadcast'
-      path: '/broadcast'
-      fullPath: '/admin/broadcast'
-      preLoaderRoute: typeof AdminBroadcastRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/birthdays': {
@@ -805,12 +625,222 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminBirthdaysRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/api/public/paystack-webhook': {
-      id: '/api/public/paystack-webhook'
-      path: '/api/public/paystack-webhook'
-      fullPath: '/api/public/paystack-webhook'
-      preLoaderRoute: typeof ApiPublicPaystackWebhookRouteImport
+    '/admin/broadcast': {
+      id: '/admin/broadcast'
+      path: '/broadcast'
+      fullPath: '/admin/broadcast'
+      preLoaderRoute: typeof AdminBroadcastRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/calltree': {
+      id: '/admin/calltree'
+      path: '/calltree'
+      fullPath: '/admin/calltree'
+      preLoaderRoute: typeof AdminCalltreeRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/chapters': {
+      id: '/admin/chapters'
+      path: '/chapters'
+      fullPath: '/admin/chapters'
+      preLoaderRoute: typeof AdminChaptersRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/donations': {
+      id: '/admin/donations'
+      path: '/donations'
+      fullPath: '/admin/donations'
+      preLoaderRoute: typeof AdminDonationsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/dues': {
+      id: '/admin/dues'
+      path: '/dues'
+      fullPath: '/admin/dues'
+      preLoaderRoute: typeof AdminDuesRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/elections': {
+      id: '/admin/elections'
+      path: '/elections'
+      fullPath: '/admin/elections'
+      preLoaderRoute: typeof AdminElectionsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/members': {
+      id: '/admin/members'
+      path: '/members'
+      fullPath: '/admin/members'
+      preLoaderRoute: typeof AdminMembersRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/onboarding': {
+      id: '/admin/onboarding'
+      path: '/onboarding'
+      fullPath: '/admin/onboarding'
+      preLoaderRoute: typeof AdminOnboardingRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/payouts': {
+      id: '/admin/payouts'
+      path: '/payouts'
+      fullPath: '/admin/payouts'
+      preLoaderRoute: typeof AdminPayoutsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/subscription': {
+      id: '/admin/subscription'
+      path: '/subscription'
+      fullPath: '/admin/subscription'
+      preLoaderRoute: typeof AdminSubscriptionRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/donate/$slug': {
+      id: '/donate/$slug'
+      path: '/donate/$slug'
+      fullPath: '/donate/$slug'
+      preLoaderRoute: typeof DonateSlugRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/feedback/$token': {
+      id: '/feedback/$token'
+      path: '/feedback/$token'
+      fullPath: '/feedback/$token'
+      preLoaderRoute: typeof FeedbackTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/join/$communityId': {
+      id: '/join/$communityId'
+      path: '/join/$communityId'
+      fullPath: '/join/$communityId'
+      preLoaderRoute: typeof JoinCommunityIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/member/': {
+      id: '/member/'
+      path: '/'
+      fullPath: '/member/'
+      preLoaderRoute: typeof MemberIndexRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/member/calltree': {
+      id: '/member/calltree'
+      path: '/calltree'
+      fullPath: '/member/calltree'
+      preLoaderRoute: typeof MemberCalltreeRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/member/dues': {
+      id: '/member/dues'
+      path: '/dues'
+      fullPath: '/member/dues'
+      preLoaderRoute: typeof MemberDuesRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/member/elections': {
+      id: '/member/elections'
+      path: '/elections'
+      fullPath: '/member/elections'
+      preLoaderRoute: typeof MemberElectionsRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/member/profile': {
+      id: '/member/profile'
+      path: '/profile'
+      fullPath: '/member/profile'
+      preLoaderRoute: typeof MemberProfileRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/member/updates': {
+      id: '/member/updates'
+      path: '/updates'
+      fullPath: '/member/updates'
+      preLoaderRoute: typeof MemberUpdatesRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/pay-dues/$planId': {
+      id: '/pay-dues/$planId'
+      path: '/pay-dues/$planId'
+      fullPath: '/pay-dues/$planId'
+      preLoaderRoute: typeof PayDuesPlanIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/super-admin/': {
+      id: '/super-admin/'
+      path: '/'
+      fullPath: '/super-admin/'
+      preLoaderRoute: typeof SuperAdminIndexRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
+    '/super-admin/admins': {
+      id: '/super-admin/admins'
+      path: '/admins'
+      fullPath: '/super-admin/admins'
+      preLoaderRoute: typeof SuperAdminAdminsRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
+    '/super-admin/audit': {
+      id: '/super-admin/audit'
+      path: '/audit'
+      fullPath: '/super-admin/audit'
+      preLoaderRoute: typeof SuperAdminAuditRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
+    '/super-admin/billing': {
+      id: '/super-admin/billing'
+      path: '/billing'
+      fullPath: '/super-admin/billing'
+      preLoaderRoute: typeof SuperAdminBillingRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
+    '/super-admin/communities': {
+      id: '/super-admin/communities'
+      path: '/communities'
+      fullPath: '/super-admin/communities'
+      preLoaderRoute: typeof SuperAdminCommunitiesRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
+    '/super-admin/fees': {
+      id: '/super-admin/fees'
+      path: '/fees'
+      fullPath: '/super-admin/fees'
+      preLoaderRoute: typeof SuperAdminFeesRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
+    '/super-admin/payouts': {
+      id: '/super-admin/payouts'
+      path: '/payouts'
+      fullPath: '/super-admin/payouts'
+      preLoaderRoute: typeof SuperAdminPayoutsRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
+    '/super-admin/plans': {
+      id: '/super-admin/plans'
+      path: '/plans'
+      fullPath: '/super-admin/plans'
+      preLoaderRoute: typeof SuperAdminPlansRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
+    '/super-admin/support': {
+      id: '/super-admin/support'
+      path: '/support'
+      fullPath: '/super-admin/support'
+      preLoaderRoute: typeof SuperAdminSupportRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
+    '/admin/members/': {
+      id: '/admin/members/'
+      path: '/'
+      fullPath: '/admin/members/'
+      preLoaderRoute: typeof AdminMembersIndexRouteImport
+      parentRoute: typeof AdminMembersRoute
     }
     '/admin/members/pending': {
       id: '/admin/members/pending'
@@ -819,15 +849,24 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminMembersPendingRouteImport
       parentRoute: typeof AdminMembersRoute
     }
+    '/api/public/paystack-webhook': {
+      id: '/api/public/paystack-webhook'
+      path: '/api/public/paystack-webhook'
+      fullPath: '/api/public/paystack-webhook'
+      preLoaderRoute: typeof ApiPublicPaystackWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 interface AdminMembersRouteChildren {
   AdminMembersPendingRoute: typeof AdminMembersPendingRoute
+  AdminMembersIndexRoute: typeof AdminMembersIndexRoute
 }
 
 const AdminMembersRouteChildren: AdminMembersRouteChildren = {
   AdminMembersPendingRoute: AdminMembersPendingRoute,
+  AdminMembersIndexRoute: AdminMembersIndexRoute,
 }
 
 const AdminMembersRouteWithChildren = AdminMembersRoute._addFileChildren(
@@ -926,6 +965,7 @@ const rootRouteChildren: RootRouteChildren = {
   SuperAdminRoute: SuperAdminRouteWithChildren,
   DonateSlugRoute: DonateSlugRoute,
   FeedbackTokenRoute: FeedbackTokenRoute,
+  InviteTokenRoute: InviteTokenRoute,
   JoinCommunityIdRoute: JoinCommunityIdRoute,
   PayDuesPlanIdRoute: PayDuesPlanIdRoute,
   ApiPublicPaystackWebhookRoute: ApiPublicPaystackWebhookRoute,
@@ -933,3 +973,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

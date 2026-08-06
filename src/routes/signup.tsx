@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { MarketingNav } from "@/components/marketing-nav";
 import { useState } from "react";
-import { ArrowLeft, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { signup } from "@/lib/auth/auth.functions";
 
 export const Route = createFileRoute("/signup")({
   head: () => ({
@@ -26,16 +27,22 @@ const DIAL = [
 
 function Signup() {
   const navigate = useNavigate();
-  const [submitted, setSubmitted] = useState(false);
   const [name, setName] = useState("");
   const [type, setType] = useState("Estate");
   const [pricingPlan, setPricingPlan] = useState("");
   const [generatedId, setGeneratedId] = useState("");
   const [communityId, setCommunityId] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const nameValid = /^[A-Za-z0-9\-&' ]+$/.test(name) && name.trim().length >= 5;
   const showNameError = name.length > 0 && !nameValid;
   const pricingValid = pricingPlan !== "";
+  const passwordValid = password.length >= 8;
 
   function generateId() {
     const slug = name
@@ -48,39 +55,26 @@ function Signup() {
     setCommunityId(`${slug}-${rand}`);
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!nameValid || !pricingValid) return;
-    setSubmitted(true);
-  }
-
-  if (submitted) {
-    return (
-      <div className="min-h-screen bg-background">
-        <MarketingNav />
-        <section className="mx-auto max-w-xl px-6 py-24 text-center">
-          <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-success/15 text-success">
-            <CheckCircle2 className="h-8 w-8" />
-          </div>
-          <h1 className="mt-6 font-display text-3xl font-bold">Check your email</h1>
-          <p className="mt-3 text-muted-foreground">
-            We've sent a verification link to confirm your community. Your <span className="font-semibold text-foreground">14-day Enterprise trial</span> starts the moment you verify.
-          </p>
-          <div className="mt-8 rounded-2xl border border-border bg-card p-6 text-left shadow-soft">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Community</p>
-            <p className="mt-1 font-display text-lg font-semibold">{name}</p>
-            <p className="mt-3 text-xs uppercase tracking-wider text-muted-foreground">Community ID</p>
-            <p className="mt-1 font-mono text-sm">{communityId || generatedId || "—"}</p>
-          </div>
-          <button
-            onClick={() => navigate({ to: "/admin" })}
-            className="mt-8 inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-soft hover:opacity-90"
-          >
-            Continue to admin console
-          </button>
-        </section>
-      </div>
-    );
+    if (!nameValid || !pricingValid || !passwordValid || !contactName || !contactEmail) return;
+    setError("");
+    setLoading(true);
+    try {
+      await signup({
+        data: {
+          communityName: name,
+          communityType: type,
+          name: contactName,
+          email: contactEmail,
+          password,
+        },
+      });
+      navigate({ to: "/admin" });
+    } catch (err: any) {
+      setError(err?.message ?? "Could not create your community. Please try again.");
+      setLoading(false);
+    }
   }
 
   return (
@@ -150,12 +144,38 @@ function Signup() {
 
           <div className="grid gap-6 md:grid-cols-2">
             <Field label="Contact Full Name *">
-              <input required pattern="[A-Za-z\s'\-]+" className="input" placeholder="Jane Doe" />
+              <input
+                required
+                pattern="[A-Za-z\s'\-]+"
+                value={contactName}
+                onChange={(e) => setContactName(e.target.value)}
+                className="input"
+                placeholder="Jane Doe"
+              />
             </Field>
             <Field label="Contact Email *">
-              <input required type="email" className="input" placeholder="jane@example.com" />
+              <input
+                required
+                type="email"
+                value={contactEmail}
+                onChange={(e) => setContactEmail(e.target.value)}
+                className="input"
+                placeholder="jane@example.com"
+              />
             </Field>
           </div>
+
+          <Field label="Password *" hint="Min 8 characters — this is what you'll use to sign in">
+            <input
+              required
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="input"
+              placeholder="••••••••"
+            />
+          </Field>
 
           <Field label="Contact Phone *">
             <div className="flex gap-2 w-full">
@@ -169,6 +189,8 @@ function Signup() {
                 type="tel"
                 inputMode="tel"
                 pattern="[0-9 ()+\-]{6,}"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
                 className="input"
                 style={{ flex: "1 1 0%", minWidth: 0 }}
                 placeholder="803 000 0000"
@@ -221,17 +243,29 @@ function Signup() {
             </div>
           </Field>
 
+          {error && (
+            <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-600">{error}</p>
+          )}
+
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
             <p className="text-xs text-muted-foreground">By submitting you agree to our terms and privacy.</p>
             <button
               type="submit"
-              disabled={!nameValid || !pricingValid}
+              disabled={!nameValid || !pricingValid || !passwordValid || loading}
               className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-soft transition hover:opacity-90 disabled:opacity-40"
             >
-              Create community & start trial
+              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+              {loading ? "Creating…" : "Create community & start trial"}
             </button>
           </div>
         </form>
+
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          Already have an account?{" "}
+          <Link to="/login" className="font-semibold text-foreground hover:text-accent">
+            Sign in
+          </Link>
+        </p>
       </section>
       <style>{`.input{width:100%;border-radius:0.625rem;border:1px solid var(--color-border);background:var(--color-background);padding:0.6rem 0.8rem;font-size:0.875rem;outline:none;transition:border-color .15s, box-shadow .15s}.input:focus{border-color:var(--color-ring);box-shadow:0 0 0 3px color-mix(in oklab, var(--color-ring) 25%, transparent)}`}</style>
     </div>

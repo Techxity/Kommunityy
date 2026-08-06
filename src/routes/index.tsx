@@ -75,10 +75,10 @@ function Landing() {
           {/* Hero bento preview */}
           <div className="mt-20 grid grid-cols-2 gap-3 md:grid-cols-4">
             {[
-              { k: "247", l: "Active members" },
-              { k: "14", l: "Birthdays this month" },
-              { k: "₦4.1M", l: "Dues collected MTD" },
-              { k: "3", l: "Live elections" },
+              { k: "Members", l: "Track everyone in one place" },
+              { k: "Birthdays", l: "Automatic monthly messages" },
+              { k: "Dues", l: "Collect in NGN or USD" },
+              { k: "Elections", l: "Run a clean voting cycle" },
             ].map((s) => (
               <div key={s.l} className="rounded-2xl border border-primary-foreground/15 bg-primary-foreground/5 p-5 backdrop-blur">
                 <p className="font-display text-3xl font-bold">{s.k}</p>

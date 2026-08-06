@@ -10,13 +10,26 @@ export const Route = createFileRoute("/member/")({
 
 function MemberHome() {
   const me = members[0]; // simulated logged-in member
-  const isBirthday = new Date().toDateString() === new Date(new Date().getFullYear(), new Date(me.dob).getMonth(), new Date(me.dob).getDate()).toDateString();
-  const myPairing = callTreePairs.find((p) => p.caller === me.name || p.callee === me.name);
 
   // Live call-tree assignment → feedback link for this member
   const sessions = useCallTreeSessions();
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => setHydrated(true), []);
+
+  if (!me) {
+    return (
+      <div className="space-y-6">
+        <header>
+          <h1 className="font-display text-3xl font-bold">Welcome 👋</h1>
+          <p className="text-sm text-muted-foreground">No member data yet.</p>
+        </header>
+      </div>
+    );
+  }
+
+  const isBirthday = new Date().toDateString() === new Date(new Date().getFullYear(), new Date(me.dob).getMonth(), new Date(me.dob).getDate()).toDateString();
+  const myPairing = callTreePairs.find((p) => p.caller === me.name || p.callee === me.name);
+
   let feedbackToken: string | null = null;
   for (const s of sessions) {
     if (s.status !== "active") continue;
@@ -36,7 +49,7 @@ function MemberHome() {
         <div className="rounded-3xl border border-accent/30 bg-gradient-hero p-8 text-primary-foreground shadow-elegant">
           <p className="text-xs uppercase tracking-[0.2em] text-primary-foreground/70">🎂 Happy birthday, {me.name.split(" ")[0]}!</p>
           <h2 className="mt-2 font-display text-3xl font-bold">May this year overflow with peace and laughter.</h2>
-          <p className="mt-2 text-primary-foreground/80">From everyone at Crestwood Estate Residents — we celebrate you today.</p>
+          <p className="mt-2 text-primary-foreground/80">From everyone in your community — we celebrate you today.</p>
         </div>
       )}
 

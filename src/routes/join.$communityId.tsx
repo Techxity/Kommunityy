@@ -1,21 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { CheckCircle2, Users2, ShieldCheck, Sparkles, Ban } from "lucide-react";
-import { community } from "@/lib/mock-data";
-import { useOnboardingFields } from "@/lib/onboarding-store";
-import { useChapters } from "@/lib/chapters-store";
-import { pendingMembersStore } from "@/lib/pending-members-store";
-import { isCommunityDisabled, useCommunities } from "@/lib/communities-store";
+import { useEffect, useMemo, useState } from "react";
+import { CheckCircle2, Users2, ShieldCheck, Sparkles } from "lucide-react";
+import { getPublicJoinForm, submitApplication } from "@/lib/membership/join.functions";
 
 export const Route = createFileRoute("/join/$communityId")({
   component: PublicJoinPage,
   head: ({ params }) => ({
     meta: [
-      { title: `Join ${community.name} — Kinfolk` },
-      { name: "description", content: `Apply to join ${community.name}. Quick onboarding, secure handling, reviewed by your community admin.` },
-      { property: "og:title", content: `Join ${community.name}` },
-      { property: "og:description", content: `Apply to join the ${community.name} community on Kinfolk.` },
-      { name: "robots", content: "noindex" }, // prototype
+      { title: "Join a community — Kinfolk" },
+      { name: "robots", content: "noindex" },
       { name: "x-community", content: params.communityId },
     ],
   }),
@@ -30,15 +23,27 @@ const INPUT_TYPES: Record<string, string> = {
   "Year of joining group": "number",
 };
 
+type JoinFormData = Awaited<ReturnType<typeof getPublicJoinForm>>;
+
 function PublicJoinPage() {
   const { communityId } = Route.useParams();
-  useCommunities(); // subscribe so toggling updates this page
-  const disabled = isCommunityDisabled(communityId);
-  const fields = useOnboardingFields();
-  const chapters = useChapters();
+  const [formData, setFormData] = useState<JoinFormData | null>(null);
+  const [loading, setLoading] = useState(true);
   const [values, setValues] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState("");
+
+  useEffect(() => {
+    getPublicJoinForm({ data: { communityId } })
+      .then(setFormData)
+      .finally(() => setLoading(false));
+  }, [communityId]);
+
+  const fields = formData?.fields ?? [];
+  const chapters = formData?.chapters ?? [];
+  const community = formData?.community;
 
   const required = useMemo<string[]>(() => fields.filter((f) => f === "Name" || f === "Email" || f === "Phone number"), [fields]);
 
@@ -47,20 +52,50 @@ function PublicJoinPage() {
     if (errors[f]) setErrors((prev) => ({ ...prev, [f]: "" }));
   }
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (disabled) return;
+    setSubmitError("");
     const errs: Record<string, string> = {};
     for (const f of required) if (!values[f]?.trim()) errs[f] = "Required";
     if (values["Email"] && !/^\S+@\S+\.\S+$/.test(values["Email"])) errs["Email"] = "Enter a valid email";
     setErrors(errs);
     if (Object.keys(errs).length) return;
 
-    pendingMembersStore.add({
-      data: values,
-      chapterId: values["Chapter"] || undefined,
-    });
-    setSubmitted(true);
+    setSubmitting(true);
+    try {
+      await submitApplication({
+        data: {
+          communityId,
+          values,
+          chapterId: values["Chapter"] || undefined,
+        },
+      });
+      setSubmitted(true);
+    } catch (err: any) {
+      setSubmitError(err?.message ?? "Couldn't submit your application. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (loading) {
+    return <div className="min-h-screen bg-muted/40" />;
+  }
+
+  if (!community) {
+    return (
+      <div className="min-h-screen bg-muted/40">
+        <div className="mx-auto flex min-h-screen max-w-xl flex-col items-center justify-center px-6 py-16 text-center">
+          <h1 className="font-display text-2xl font-bold">Community not found</h1>
+          <p className="mt-3 text-sm text-muted-foreground">
+            This join link doesn't match a community on Kinfolk. Double-check the link with whoever shared it with you.
+          </p>
+          <Link to="/" className="mt-8 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground">
+            Back to Kinfolk
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   if (submitted) {
@@ -97,7 +132,9 @@ function PublicJoinPage() {
             </span>
             <p className="font-display text-base font-semibold">Kinfolk</p>
           </div>
-          <p className="mt-8 text-xs uppercase tracking-[0.2em] text-primary-foreground/70">{community.type} · Membership application</p>
+          {community.type && (
+            <p className="mt-8 text-xs uppercase tracking-[0.2em] text-primary-foreground/70">{community.type} · Membership application</p>
+          )}
           <h1 className="mt-2 font-display text-4xl font-bold md:text-5xl">Join {community.name}</h1>
           <p className="mt-3 max-w-xl text-sm text-primary-foreground/85 md:text-base">
             Fill out the short form below. Your details go straight to the community admins for review — no account needed.
@@ -115,17 +152,6 @@ function PublicJoinPage() {
 
       {/* Form */}
       <div className="mx-auto -mt-8 max-w-3xl px-6 pb-16">
-        {disabled && (
-          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-5 text-destructive">
-            <Ban className="mt-0.5 h-5 w-5 shrink-0" />
-            <div>
-              <p className="font-display text-base font-bold">This community is currently disabled</p>
-              <p className="mt-1 text-sm">
-                New applications and member sign-ins are paused. Please contact your community admin for more information.
-              </p>
-            </div>
-          </div>
-        )}
         <form
           onSubmit={submit}
           className="rounded-3xl border border-border bg-card p-6 shadow-elegant md:p-10"
@@ -161,7 +187,7 @@ function PublicJoinPage() {
                         <option value="">Select a chapter…</option>
                         {chapters.map((c) => (
                           <option key={c.id} value={c.id}>
-                            {c.name} — {c.region}
+                            {c.name}{c.region ? ` — ${c.region}` : ""}
                           </option>
                         ))}
                       </select>
@@ -189,16 +215,18 @@ function PublicJoinPage() {
             </div>
           )}
 
+          {submitError && <p className="mt-4 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{submitError}</p>}
+
           <div className="mt-8 flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-muted-foreground">
               By submitting, you agree to share these details with the {community.name} admins for membership review.
             </p>
             <button
               type="submit"
-              disabled={fields.length === 0 || disabled}
+              disabled={fields.length === 0 || submitting}
               className="inline-flex items-center justify-center rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-soft hover:opacity-95 disabled:opacity-50"
             >
-              Submit application
+              {submitting ? "Submitting…" : "Submit application"}
             </button>
           </div>
         </form>

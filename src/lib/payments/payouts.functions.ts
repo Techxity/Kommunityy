@@ -1,29 +1,26 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { sql } from "@/lib/db/client";
+import { requireAuth } from "@/lib/auth/require-auth.server";
 import { assertCommunityAdmin, assertSuperAdmin } from "./authz";
 import { initiateTransfer } from "./paystack.server";
-
 
 async function getAvailable(
   community_id: string,
   currency: "NGN" | "USD",
   source: "dues" | "donations",
 ) {
-  const { data, error } = await supabaseAdmin
-    .from("community_balances_by_source")
-    .select("available")
-    .eq("community_id", community_id)
-    .eq("currency", currency)
-    .eq("source", source)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  return Number(data?.available ?? 0);
+  const rows = await sql`
+    SELECT available
+    FROM public.community_balances_by_source
+    WHERE community_id = ${community_id} AND currency = ${currency} AND source = ${source}
+    LIMIT 1
+  `;
+  return Number(rows[0]?.available ?? 0);
 }
 
 export const requestPayout = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((i) =>
     z
       .object({
@@ -36,14 +33,12 @@ export const requestPayout = createServerFn({ method: "POST" })
       .parse(i),
   )
   .handler(async ({ data, context }) => {
-    await assertCommunityAdmin(context.supabase, context.userId, data.community_id);
+    await assertCommunityAdmin(context.userId, data.community_id);
 
-    const { data: community, error: cErr } = await supabaseAdmin
-      .from("communities")
-      .select("bank_code, account_number")
-      .eq("id", data.community_id)
-      .maybeSingle();
-    if (cErr) throw new Error(cErr.message);
+    const communityRows = await sql`
+      SELECT bank_code, account_number FROM public.communities WHERE id = ${data.community_id} LIMIT 1
+    `;
+    const community = communityRows[0];
     if (!community?.bank_code || !community?.account_number) {
       throw new Error("Add bank details in Settings before requesting a payout");
     }
@@ -55,44 +50,31 @@ export const requestPayout = createServerFn({ method: "POST" })
       );
     }
 
-    const { data: row, error } = await supabaseAdmin
-      .from("payouts")
-      .insert({
-        community_id: data.community_id,
-        currency: data.currency,
-        source: data.source,
-        amount: data.amount,
-        notes: data.notes ?? null,
-        status: "requested",
-        requested_by: context.userId,
-      })
-      .select()
-      .single();
-    if (error) throw new Error(error.message);
-    return { id: row.id };
+    const rows = await sql`
+      INSERT INTO public.payouts (community_id, currency, source, amount, notes, status, requested_by)
+      VALUES (${data.community_id}, ${data.currency}, ${data.source}, ${data.amount}, ${data.notes ?? null}, 'requested', ${context.userId}::uuid)
+      RETURNING id
+    `;
+    return { id: rows[0].id };
   });
 
 export const approvePayoutPaystack = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((i) => z.object({ payout_id: z.string().uuid() }).parse(i))
   .handler(async ({ data, context }) => {
-    await assertSuperAdmin(context.supabase, context.userId);
+    await assertSuperAdmin(context.userId);
 
-    const { data: payout, error } = await supabaseAdmin
-      .from("payouts")
-      .select("id, community_id, amount, currency, status")
-      .eq("id", data.payout_id)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
+    const payoutRows = await sql`
+      SELECT id, community_id, amount, currency, status FROM public.payouts WHERE id = ${data.payout_id} LIMIT 1
+    `;
+    const payout = payoutRows[0];
     if (!payout) throw new Error("Payout not found");
     if (payout.status !== "requested") throw new Error("Payout is not pending");
 
-    const { data: community, error: cErr } = await supabaseAdmin
-      .from("communities")
-      .select("paystack_recipient_code, name")
-      .eq("id", payout.community_id)
-      .maybeSingle();
-    if (cErr) throw new Error(cErr.message);
+    const communityRows = await sql`
+      SELECT paystack_recipient_code, name FROM public.communities WHERE id = ${payout.community_id} LIMIT 1
+    `;
+    const community = communityRows[0];
     if (!community?.paystack_recipient_code) {
       throw new Error("Community has no Paystack recipient — use Mark as manually paid");
     }
@@ -104,24 +86,22 @@ export const approvePayoutPaystack = createServerFn({ method: "POST" })
       currency: payout.currency as "NGN" | "USD",
     });
 
-    const { error: uErr } = await supabaseAdmin
-      .from("payouts")
-      .update({
-        status: "approved",
-        method: "paystack_transfer",
-        paystack_transfer_code: tx.transfer_code,
-        paystack_transfer_ref: tx.reference,
-        approved_by: context.userId,
-        approved_at: new Date().toISOString(),
-      })
-      .eq("id", payout.id);
-    if (uErr) throw new Error(uErr.message);
+    await sql`
+      UPDATE public.payouts
+      SET status = 'approved',
+          method = 'paystack_transfer',
+          paystack_transfer_code = ${tx.transfer_code},
+          paystack_transfer_ref = ${tx.reference},
+          approved_by = ${context.userId}::uuid,
+          approved_at = now()
+      WHERE id = ${payout.id}
+    `;
 
     return { transfer_code: tx.transfer_code };
   });
 
 export const markPayoutPaid = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((i) =>
     z
       .object({
@@ -131,60 +111,98 @@ export const markPayoutPaid = createServerFn({ method: "POST" })
       .parse(i),
   )
   .handler(async ({ data, context }) => {
-    await assertSuperAdmin(context.supabase, context.userId);
+    await assertSuperAdmin(context.userId);
 
-    const { error } = await supabaseAdmin
-      .from("payouts")
-      .update({
-        status: "paid",
-        method: "manual",
-        approved_by: context.userId,
-        approved_at: new Date().toISOString(),
-        paid_at: new Date().toISOString(),
-        notes: data.note ?? null,
-      })
-      .eq("id", data.payout_id)
-      .in("status", ["requested", "approved"]);
-    if (error) throw new Error(error.message);
+    await sql`
+      UPDATE public.payouts
+      SET status = 'paid',
+          method = 'manual',
+          approved_by = ${context.userId}::uuid,
+          approved_at = now(),
+          paid_at = now(),
+          notes = ${data.note ?? null}
+      WHERE id = ${data.payout_id} AND status IN ('requested', 'approved')
+    `;
     return { ok: true };
   });
 
 export const rejectPayout = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((i) =>
     z.object({ payout_id: z.string().uuid(), reason: z.string().max(500) }).parse(i),
   )
   .handler(async ({ data, context }) => {
-    await assertSuperAdmin(context.supabase, context.userId);
+    await assertSuperAdmin(context.userId);
 
-    const { error } = await supabaseAdmin
-      .from("payouts")
-      .update({
-        status: "rejected",
-        failed_reason: data.reason,
-        approved_by: context.userId,
-        approved_at: new Date().toISOString(),
-      })
-      .eq("id", data.payout_id)
-      .eq("status", "requested");
-    if (error) throw new Error(error.message);
+    await sql`
+      UPDATE public.payouts
+      SET status = 'rejected',
+          failed_reason = ${data.reason},
+          approved_by = ${context.userId}::uuid,
+          approved_at = now()
+      WHERE id = ${data.payout_id} AND status = 'requested'
+    `;
     return { ok: true };
   });
 
 // Super-admin-only listing that includes community bank details.
 export const listPayoutRequests = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((i) => z.object({ pending_only: z.boolean().default(false) }).parse(i))
   .handler(async ({ data, context }) => {
-    await assertSuperAdmin(context.supabase, context.userId);
-    let q = supabaseAdmin
-      .from("payouts")
-      .select(
-        "id, amount, currency, source, status, method, requested_at, paid_at, notes, failed_reason, community_id, community:communities!inner(name, bank_name, account_number, account_name, paystack_recipient_code)",
-      )
-      .order("requested_at", { ascending: false });
-    if (data.pending_only) q = q.in("status", ["requested", "approved"]);
-    const { data: rows, error } = await q;
-    if (error) throw new Error("Could not load payout requests");
-    return rows ?? [];
+    await assertSuperAdmin(context.userId);
+    const rows = data.pending_only
+      ? await sql`
+          SELECT p.id, p.amount, p.currency, p.source, p.status, p.method, p.requested_at,
+                 p.paid_at, p.notes, p.failed_reason, p.community_id,
+                 json_build_object(
+                   'name', c.name, 'bank_name', c.bank_name, 'account_number', c.account_number,
+                   'account_name', c.account_name, 'paystack_recipient_code', c.paystack_recipient_code
+                 ) AS community
+          FROM public.payouts p
+          JOIN public.communities c ON c.id = p.community_id
+          WHERE p.status IN ('requested', 'approved')
+          ORDER BY p.requested_at DESC
+        `
+      : await sql`
+          SELECT p.id, p.amount, p.currency, p.source, p.status, p.method, p.requested_at,
+                 p.paid_at, p.notes, p.failed_reason, p.community_id,
+                 json_build_object(
+                   'name', c.name, 'bank_name', c.bank_name, 'account_number', c.account_number,
+                   'account_name', c.account_name, 'paystack_recipient_code', c.paystack_recipient_code
+                 ) AS community
+          FROM public.payouts p
+          JOIN public.communities c ON c.id = p.community_id
+          ORDER BY p.requested_at DESC
+        `;
+    return rows;
+  });
+
+// Community-admin view: balances by currency/source for one community.
+export const getCommunityBalances = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => z.object({ community_id: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    await assertCommunityAdmin(context.userId, data.community_id);
+    const rows = await sql`
+      SELECT currency, source, collected, paid_out, pending_out, available
+      FROM public.community_balances_by_source
+      WHERE community_id = ${data.community_id}
+    `;
+    return rows;
+  });
+
+// Community-admin view: payout history for one community (no bank details).
+export const listCommunityPayouts = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => z.object({ community_id: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    await assertCommunityAdmin(context.userId, data.community_id);
+    const rows = await sql`
+      SELECT id, amount, currency, source, status, method, requested_at, paid_at, notes, failed_reason
+      FROM public.payouts
+      WHERE community_id = ${data.community_id}
+      ORDER BY requested_at DESC
+    `;
+    return rows;
   });

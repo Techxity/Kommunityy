@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { supabase } from "@/integrations/supabase/client";
+import { listSubscriptionTiers, updateTierFee } from "@/lib/payments/tiers.functions";
 import { Button } from "@/components/ui/button";
 import { Percent } from "lucide-react";
 
@@ -22,10 +22,7 @@ function FeesPage() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const load = async () => {
-    const { data } = await supabase
-      .from("subscription_tiers")
-      .select("id, name, platform_fee_pct, monthly_price_ngn, monthly_price_usd")
-      .order("sort_order", { ascending: true });
+    const data = await listSubscriptionTiers();
     setTiers((data ?? []) as Tier[]);
   };
 
@@ -36,13 +33,14 @@ function FeesPage() {
   const save = async (t: Tier) => {
     setBusy(t.id);
     setMsg(null);
-    const { error } = await supabase
-      .from("subscription_tiers")
-      .update({ platform_fee_pct: t.platform_fee_pct })
-      .eq("id", t.id);
-    setBusy(null);
-    if (error) setMsg(error.message);
-    else setMsg(`Saved ${t.name}: ${t.platform_fee_pct}%`);
+    try {
+      await updateTierFee({ data: { tier_id: t.id, platform_fee_pct: t.platform_fee_pct } });
+      setMsg(`Saved ${t.name}: ${t.platform_fee_pct}%`);
+    } catch (e: any) {
+      setMsg(e.message ?? "Could not save");
+    } finally {
+      setBusy(null);
+    }
   };
 
   return (

@@ -1,32 +1,26 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { sql } from "@/lib/db/client";
 import { verifyWebhookSignature, verifyTransaction } from "@/lib/payments/paystack.server";
 
 // Resolve the community for a given donation_id or dues plan_id.
 async function communityForDonation(donation_id: string) {
-  const { data } = await supabaseAdmin
-    .from("donations")
-    .select("community_id")
-    .eq("id", donation_id)
-    .maybeSingle();
-  return data?.community_id ?? null;
+  const rows = await sql`SELECT community_id FROM public.donations WHERE id = ${donation_id} LIMIT 1`;
+  return rows[0]?.community_id ?? null;
 }
 async function communityForDuesPlan(plan_id: string) {
-  const { data } = await supabaseAdmin
-    .from("dues_plans")
-    .select("community_id")
-    .eq("id", plan_id)
-    .maybeSingle();
-  return data?.community_id ?? null;
+  const rows = await sql`SELECT community_id FROM public.dues_plans WHERE id = ${plan_id} LIMIT 1`;
+  return rows[0]?.community_id ?? null;
 }
 
 async function platformFeePctFor(community_id: string): Promise<number> {
-  const { data } = await supabaseAdmin
-    .from("communities")
-    .select("tier_id, subscription_tiers!inner(platform_fee_pct)")
-    .eq("id", community_id)
-    .maybeSingle();
-  const pct = (data as any)?.subscription_tiers?.platform_fee_pct;
+  const rows = await sql`
+    SELECT t.platform_fee_pct
+    FROM public.communities c
+    JOIN public.subscription_tiers t ON t.id = c.tier_id
+    WHERE c.id = ${community_id}
+    LIMIT 1
+  `;
+  const pct = rows[0]?.platform_fee_pct;
   return pct ? Number(pct) : 5; // sensible default
 }
 
@@ -70,33 +64,21 @@ export const Route = createFileRoute("/api/public/paystack-webhook")({
           const community_net = Math.max(0, gross - platform_fee);
 
           if (meta.kind === "donation" && meta.donation_id) {
-            await supabaseAdmin.from("donation_payments").insert({
-              donation_id: meta.donation_id,
-              payer_name: meta.payer_name ?? email ?? "Anonymous",
-              payer_email: email ?? null,
-              amount: gross,
-              currency,
-              provider: "paystack",
-              provider_ref: reference,
-              status: "paid",
-              paystack_fee,
-              platform_fee,
-              community_net,
-            });
+            await sql`
+              INSERT INTO public.donation_payments
+                (donation_id, payer_name, payer_email, amount, currency, provider, provider_ref, status, paystack_fee, platform_fee, community_net)
+              VALUES
+                (${meta.donation_id}, ${meta.payer_name ?? email ?? "Anonymous"}, ${email ?? null}, ${gross}, ${currency}, 'paystack', ${reference}, 'paid', ${paystack_fee}, ${platform_fee}, ${community_net})
+              ON CONFLICT (provider, provider_ref) DO NOTHING
+            `;
           } else if (meta.kind === "dues" && meta.plan_id) {
-            await supabaseAdmin.from("dues_payments").insert({
-              plan_id: meta.plan_id,
-              member_name: meta.member_name ?? email ?? "Member",
-              member_email: email ?? null,
-              amount: gross,
-              currency,
-              provider: "paystack",
-              provider_ref: reference,
-              status: "paid",
-              paystack_fee,
-              platform_fee,
-              community_net,
-            });
+            await sql`
+              INSERT INTO public.dues_payments
+                (plan_id, member_name, member_email, amount, currency, provider, provider_ref, status, paystack_fee, platform_fee, community_net)
+              VALUES
+                (${meta.plan_id}, ${meta.member_name ?? email ?? "Member"}, ${email ?? null}, ${gross}, ${currency}, 'paystack', ${reference}, 'paid', ${paystack_fee}, ${platform_fee}, ${community_net})
+              ON CONFLICT (provider, provider_ref) DO NOTHING
+            `;
           }
           return new Response("ok", { status: 200 });
         }
@@ -109,20 +91,20 @@ export const Route = createFileRoute("/api/public/paystack-webhook")({
         ) {
           const code = event.data?.transfer_code as string | undefined;
           if (!code) return new Response("ignored", { status: 200 });
-          const status =
-            event.event === "transfer.success"
-              ? "paid"
-              : event.event === "transfer.failed"
-              ? "failed"
-              : "failed";
-          const patch: {
-            status: "paid" | "failed";
-            paid_at?: string;
-            failed_reason?: string;
-          } = { status };
-          if (status === "paid") patch.paid_at = new Date().toISOString();
-          if (status === "failed") patch.failed_reason = event.data?.reason ?? "Reversed";
-          await supabaseAdmin.from("payouts").update(patch).eq("paystack_transfer_code", code);
+          const status: "paid" | "failed" = event.event === "transfer.success" ? "paid" : "failed";
+          const failed_reason = status === "failed" ? (event.data?.reason ?? "Reversed") : null;
+
+          if (status === "paid") {
+            await sql`
+              UPDATE public.payouts SET status = 'paid', paid_at = now()
+              WHERE paystack_transfer_code = ${code}
+            `;
+          } else {
+            await sql`
+              UPDATE public.payouts SET status = 'failed', failed_reason = ${failed_reason}
+              WHERE paystack_transfer_code = ${code}
+            `;
+          }
           return new Response("ok", { status: 200 });
         }
 

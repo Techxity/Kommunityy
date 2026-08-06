@@ -1,21 +1,15 @@
 import { useState } from "react";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { supabase } from "@/integrations/supabase/client";
-import { startDuesCheckout } from "@/lib/payments/dues.functions";
+import { getDuesPlan, startDuesCheckout } from "@/lib/payments/dues.functions";
 import { Button } from "@/components/ui/button";
 import { Wallet } from "lucide-react";
 
 export const Route = createFileRoute("/pay-dues/$planId")({
   loader: async ({ params }) => {
-    const { data, error } = await supabase
-      .from("dues_plans")
-      .select("id, name, amount_ngn, amount_usd, interval, active")
-      .eq("id", params.planId)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    if (!data || !data.active) throw notFound();
-    return { plan: data };
+    const plan = await getDuesPlan({ data: { plan_id: params.planId } });
+    if (!plan) throw notFound();
+    return { plan };
   },
   component: PayDuesPage,
   notFoundComponent: () => (

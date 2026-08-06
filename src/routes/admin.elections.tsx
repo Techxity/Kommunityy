@@ -1,109 +1,107 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { election as initialElection, members } from "@/lib/mock-data";
 import { Vote, Plus, Trophy, RotateCcw, History, Crown, Pencil, X, Check, Users, Search } from "lucide-react";
 import { toast } from "sonner";
+import {
+  getElectionsAdminData,
+  saveElectionRoles,
+  startElectionCycle,
+  endElection,
+  restartElection,
+  updateCandidates,
+} from "@/lib/membership/elections.functions";
 
 export const Route = createFileRoute("/admin/elections")({
   component: Elections,
 });
 
-type Candidate = { name: string; votes: number };
-type Position = { role: string; candidates: Candidate[] };
-type ElectionRecord = {
-  year: number;
-  status: "Live" | "Ended";
-  endsAt: string;
-  positions: Position[];
-};
+type MemberOption = { id: string; name: string };
+type Candidate = { id: string; memberId: string; name: string; votes: number };
+type Position = { id: string; role: string; candidates: Candidate[] };
+type ElectionRecord = { id: string; year: number; status: "live" | "ended"; endsAt: string; positions: Position[] };
 
-const initialHistory: ElectionRecord[] = [
-  {
-    year: 2024,
-    status: "Ended",
-    endsAt: "2024-06-30",
-    positions: [
-      { role: "President", candidates: [{ name: "Adaeze Okafor", votes: 138 }, { name: "Femi Adeyemi", votes: 72 }] },
-      { role: "Secretary", candidates: [{ name: "Chiamaka Eze", votes: 151 }, { name: "Amaka Ibe", votes: 54 }] },
-      { role: "Treasurer", candidates: [{ name: "Tunde Bakare", votes: 130 }, { name: "Yusuf Bello", votes: 80 }] },
-    ],
-  },
-  {
-    year: 2022,
-    status: "Ended",
-    endsAt: "2022-06-30",
-    positions: [
-      { role: "President", candidates: [{ name: "Femi Adeyemi", votes: 120 }, { name: "Adaeze Okafor", votes: 95 }] },
-      { role: "Secretary", candidates: [{ name: "Amaka Ibe", votes: 140 }, { name: "Chiamaka Eze", votes: 70 }] },
-    ],
-  },
-];
-
-const winnerOf = (p: Position) =>
-  [...p.candidates].sort((a, b) => b.votes - a.votes)[0]?.name ?? "—";
+const winnerOf = (p: Position) => [...p.candidates].sort((a, b) => b.votes - a.votes)[0]?.name ?? "—";
 
 function Elections() {
-  const [election, setElection] = useState<ElectionRecord>(initialElection as ElectionRecord);
-  const [history, setHistory] = useState<ElectionRecord[]>(initialHistory);
-  const [roles, setRoles] = useState<string[]>(["President", "Secretary", "Treasurer", "PRO", "Welfare Officer"]);
+  const [election, setElection] = useState<ElectionRecord | null>(null);
+  const [history, setHistory] = useState<ElectionRecord[]>([]);
+  const [currentExecutives, setCurrentExecutives] = useState<{ role: string; name: string; year: number }[]>([]);
+  const [roles, setRoles] = useState<string[]>([]);
+  const [memberOptions, setMemberOptions] = useState<MemberOption[]>([]);
   const [newRole, setNewRole] = useState("");
   const [showNewCycle, setShowNewCycle] = useState(false);
   const [showEditCandidates, setShowEditCandidates] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const isLive = election.status === "Live";
+  function refresh() {
+    getElectionsAdminData().then((d) => {
+      setElection(d.election as ElectionRecord | null);
+      setHistory(d.history as ElectionRecord[]);
+      setCurrentExecutives(d.currentExecutives);
+      setRoles(d.roles);
+      setMemberOptions(d.memberOptions);
+      setLoading(false);
+    });
+  }
 
-  // Current executives = winners from most recent ended election
-  const currentExecutives = useMemo(() => {
-    const lastEnded = history.find((h) => h.status === "Ended");
-    if (!lastEnded) return [];
-    return lastEnded.positions.map((p) => ({ role: p.role, name: winnerOf(p), year: lastEnded.year }));
-  }, [history]);
+  useEffect(() => {
+    refresh();
+  }, []);
 
-  const handleEndElection = () => {
+  const isLive = election?.status === "live";
+
+  const handleEndElection = async () => {
+    if (!election) return;
     if (!window.confirm("End this election? Results will be final and the winners become the new executives.")) return;
-    const ended: ElectionRecord = { ...election, status: "Ended" };
-    setHistory((prev) => [ended, ...prev.filter((h) => h.year !== ended.year)]);
-    setElection(ended);
+    await endElection({ data: { electionId: election.id } });
+    refresh();
     toast.success("Election ended. New executives confirmed.");
   };
 
-  const handleRestartElection = () => {
-    if (!window.confirm("Restart the election? Current results will be reset.")) return;
-    const reset: ElectionRecord = {
-      ...election,
-      status: "Live",
-      positions: election.positions.map((p) => ({ ...p, candidates: p.candidates.map((c) => ({ ...c, votes: 0 })) })),
-    };
-    setElection(reset);
-    setHistory((prev) => prev.filter((h) => h.year !== reset.year));
+  const handleRestartElection = async () => {
+    if (!election) return;
+    if (!window.confirm("Restart the election? Current votes will be reset.")) return;
+    await restartElection({ data: { electionId: election.id } });
+    refresh();
     toast.success("Election restarted.");
   };
 
-  const addRole = () => {
+  const addRole = async () => {
     const r = newRole.trim();
     if (!r) return;
     if (roles.includes(r)) {
       toast.error("Role already exists.");
       return;
     }
-    setRoles((prev) => [...prev, r]);
+    const next = [...roles, r];
+    setRoles(next);
     setNewRole("");
+    await saveElectionRoles({ data: { roles: next } });
     toast.success(`Role "${r}" added.`);
   };
 
-  const removeRole = (r: string) => {
-    setRoles((prev) => prev.filter((x) => x !== r));
+  const removeRole = async (r: string) => {
+    const next = roles.filter((x) => x !== r);
+    setRoles(next);
+    await saveElectionRoles({ data: { roles: next } });
   };
 
-  const startNewCycle = (year: number, endsAt: string, positions: Position[]) => {
+  const startNewCycle = async (year: number, endsAt: string, positions: { role: string; memberIds: string[] }[]) => {
     if (isLive) {
       toast.error("End the current election before starting a new cycle.");
       return;
     }
-    setElection({ year, status: "Live", endsAt, positions });
-    setShowNewCycle(false);
-    toast.success(`${year} election cycle is now live.`);
+    try {
+      await startElectionCycle({ data: { year, endsAt, positions } });
+      setShowNewCycle(false);
+      refresh();
+      toast.success(`${year} election cycle is now live.`);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Couldn't start the election cycle.");
+    }
   };
+
+  if (loading) return <div className="min-h-40" />;
 
   return (
     <div className="space-y-6">
@@ -122,91 +120,92 @@ function Elections() {
         </button>
       </header>
 
-      {/* Current cycle banner */}
       <div className="rounded-2xl border border-border bg-gradient-hero p-6 text-primary-foreground shadow-elegant">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-wider text-primary-foreground/70">Current cycle</p>
-            <h2 className="mt-1 font-display text-3xl font-bold">{election.year} Executive Council</h2>
-            <p className="mt-1 text-sm text-primary-foreground/70">Ends {election.endsAt} · 231 eligible voters</p>
+            <h2 className="mt-1 font-display text-3xl font-bold">{election ? `${election.year} Executive Council` : "No election yet"}</h2>
+            <p className="mt-1 text-sm text-primary-foreground/70">
+              {election?.endsAt ? `Ends ${election.endsAt}` : "No election running"} · {memberOptions.length} eligible voters
+            </p>
           </div>
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${
-              isLive ? "bg-success text-success-foreground" : "bg-muted text-muted-foreground"
-            }`}
-          >
-            {election.status}
-          </span>
+          {election && (
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${
+                isLive ? "bg-success text-success-foreground" : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {election.status}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Live results */}
-      <div className="grid gap-4 md:grid-cols-3">
-        {election.positions.map((p) => {
-          const total = p.candidates.reduce((s, c) => s + c.votes, 0);
-          const sorted = [...p.candidates].sort((a, b) => b.votes - a.votes);
-          return (
-            <div key={p.role} className="rounded-2xl border border-border bg-card p-6 shadow-soft">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Vote className="h-4 w-4 text-accent" />
-                  <h3 className="font-display text-lg font-semibold">{p.role}</h3>
+      {election && election.positions.length > 0 && (
+        <div className="grid gap-4 md:grid-cols-3">
+          {election.positions.map((p) => {
+            const total = p.candidates.reduce((s, c) => s + c.votes, 0);
+            const sorted = [...p.candidates].sort((a, b) => b.votes - a.votes);
+            return (
+              <div key={p.id} className="rounded-2xl border border-border bg-card p-6 shadow-soft">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Vote className="h-4 w-4 text-accent" />
+                    <h3 className="font-display text-lg font-semibold">{p.role}</h3>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{total} votes</span>
                 </div>
-                <span className="text-xs text-muted-foreground">{total} votes</span>
+                <ul className="mt-5 space-y-3">
+                  {sorted.map((c, i) => {
+                    const pct = total ? Math.round((c.votes / total) * 100) : 0;
+                    return (
+                      <li key={c.id}>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className={`flex items-center gap-1.5 font-medium ${i === 0 ? "text-foreground" : "text-muted-foreground"}`}>
+                            {i === 0 && <Trophy className="h-3 w-3 text-warning" />}
+                            {c.name}
+                          </span>
+                          <span className="text-xs font-semibold">{pct}%</span>
+                        </div>
+                        <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
+                          <div className={`h-full ${i === 0 ? "bg-gradient-accent" : "bg-muted-foreground/40"}`} style={{ width: `${pct}%` }} />
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
-              <ul className="mt-5 space-y-3">
-                {sorted.map((c, i) => {
-                  const pct = total ? Math.round((c.votes / total) * 100) : 0;
-                  return (
-                    <li key={c.name}>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className={`flex items-center gap-1.5 font-medium ${i === 0 ? "text-foreground" : "text-muted-foreground"}`}>
-                          {i === 0 && <Trophy className="h-3 w-3 text-warning" />}
-                          {c.name}
-                        </span>
-                        <span className="text-xs font-semibold">{pct}%</span>
-                      </div>
-                      <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
-                        <div className={`h-full ${i === 0 ? "bg-gradient-accent" : "bg-muted-foreground/40"}`} style={{ width: `${pct}%` }} />
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
-      {/* Action bar — hide Edit candidates while live */}
-      <div className="flex flex-wrap gap-2">
-        {!isLive && (
-          <button
-            onClick={() => setShowEditCandidates(true)}
-            className="rounded-full bg-secondary px-4 py-2 text-sm font-semibold"
-          >
-            Edit candidates
-          </button>
-        )}
-        {isLive ? (
-          <button
-            onClick={handleEndElection}
-            className="rounded-full border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm font-semibold text-destructive transition hover:bg-destructive/10"
-          >
-            End election
-          </button>
-        ) : (
-          <button
-            onClick={handleRestartElection}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary px-4 py-2 text-sm font-semibold transition hover:bg-secondary/80"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Restart election
-          </button>
-        )}
-      </div>
+      {election && (
+        <div className="flex flex-wrap gap-2">
+          {!isLive && (
+            <button onClick={() => setShowEditCandidates(true)} className="rounded-full bg-secondary px-4 py-2 text-sm font-semibold">
+              Edit candidates
+            </button>
+          )}
+          {isLive ? (
+            <button
+              onClick={handleEndElection}
+              className="rounded-full border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm font-semibold text-destructive transition hover:bg-destructive/10"
+            >
+              End election
+            </button>
+          ) : (
+            <button
+              onClick={handleRestartElection}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary px-4 py-2 text-sm font-semibold transition hover:bg-secondary/80"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Restart election
+            </button>
+          )}
+        </div>
+      )}
 
-      {/* Current executives */}
       <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
         <div className="mb-4 flex items-center gap-2">
           <Crown className="h-4 w-4 text-warning" />
@@ -227,7 +226,6 @@ function Elections() {
         )}
       </section>
 
-      {/* Roles open for election */}
       <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
         <div className="mb-4 flex items-center gap-2">
           <Users className="h-4 w-4 text-accent" />
@@ -261,7 +259,6 @@ function Elections() {
         </div>
       </section>
 
-      {/* Election history */}
       <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
         <div className="mb-4 flex items-center gap-2">
           <History className="h-4 w-4 text-muted-foreground" />
@@ -272,7 +269,7 @@ function Elections() {
         ) : (
           <div className="space-y-4">
             {history.map((h) => (
-              <div key={h.year} className="rounded-xl border border-border bg-background p-4">
+              <div key={h.id} className="rounded-xl border border-border bg-background p-4">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
                     <p className="font-display text-lg font-semibold">{h.year} Executive Council</p>
@@ -287,7 +284,7 @@ function Elections() {
                     const total = p.candidates.reduce((s, c) => s + c.votes, 0);
                     const w = [...p.candidates].sort((a, b) => b.votes - a.votes)[0];
                     return (
-                      <div key={p.role} className="rounded-lg border border-border/50 bg-card px-3 py-2 text-sm">
+                      <div key={p.id} className="rounded-lg border border-border/50 bg-card px-3 py-2 text-sm">
                         <p className="text-xs uppercase tracking-wider text-muted-foreground">{p.role}</p>
                         <p className="font-semibold">{w?.name ?? "—"}</p>
                         <p className="text-xs text-muted-foreground">
@@ -306,20 +303,21 @@ function Elections() {
       {showNewCycle && (
         <NewCycleModal
           roles={roles}
-          memberOptions={members.filter((m) => m.status === "active").map((m) => m.name)}
+          memberOptions={memberOptions}
           onClose={() => setShowNewCycle(false)}
           onCreate={startNewCycle}
         />
       )}
 
-      {showEditCandidates && !isLive && (
+      {showEditCandidates && election && !isLive && (
         <EditCandidatesModal
           election={election}
-          memberOptions={members.filter((m) => m.status === "active").map((m) => m.name)}
+          memberOptions={memberOptions}
           onClose={() => setShowEditCandidates(false)}
-          onSave={(positions) => {
-            setElection((prev) => ({ ...prev, positions }));
+          onSave={async (positions) => {
+            await updateCandidates({ data: { electionId: election.id, positions } });
             setShowEditCandidates(false);
+            refresh();
             toast.success("Candidates updated.");
           }}
         />
@@ -335,9 +333,9 @@ function NewCycleModal({
   onCreate,
 }: {
   roles: string[];
-  memberOptions: string[];
+  memberOptions: MemberOption[];
   onClose: () => void;
-  onCreate: (year: number, endsAt: string, positions: Position[]) => void;
+  onCreate: (year: number, endsAt: string, positions: { role: string; memberIds: string[] }[]) => void;
 }) {
   const [year, setYear] = useState(new Date().getFullYear() + 1);
   const [endsAt, setEndsAt] = useState("");
@@ -352,21 +350,21 @@ function NewCycleModal({
     });
   };
 
-  const toggleCandidate = (role: string, name: string) => {
+  const toggleCandidate = (role: string, memberId: string) => {
     setSelected((prev) => {
       const list = prev[role] ?? [];
       return {
         ...prev,
-        [role]: list.includes(name) ? list.filter((n) => n !== name) : [...list, name],
+        [role]: list.includes(memberId) ? list.filter((n) => n !== memberId) : [...list, memberId],
       };
     });
   };
 
   const submit = () => {
     if (!endsAt) return toast.error("Pick an end date.");
-    const positions: Position[] = Object.entries(selected)
-      .filter(([, names]) => names.length > 0)
-      .map(([role, names]) => ({ role, candidates: names.map((n) => ({ name: n, votes: 0 })) }));
+    const positions = Object.entries(selected)
+      .filter(([, ids]) => ids.length > 0)
+      .map(([role, memberIds]) => ({ role, memberIds }));
     if (positions.length === 0) return toast.error("Select at least one role with candidates.");
     onCreate(year, endsAt, positions);
   };
@@ -414,7 +412,7 @@ function NewCycleModal({
                     <CandidatePicker
                       memberOptions={memberOptions}
                       selected={selected[role] ?? []}
-                      onToggle={(name) => toggleCandidate(role, name)}
+                      onToggle={(id) => toggleCandidate(role, id)}
                     />
                   )}
                 </div>
@@ -444,25 +442,22 @@ function EditCandidatesModal({
   onSave,
 }: {
   election: ElectionRecord;
-  memberOptions: string[];
+  memberOptions: MemberOption[];
   onClose: () => void;
-  onSave: (positions: Position[]) => void;
+  onSave: (positions: { positionId: string; memberIds: string[] }[]) => void;
 }) {
-  const [positions, setPositions] = useState<Position[]>(
-    election.positions.map((p) => ({ ...p, candidates: p.candidates.map((c) => ({ ...c })) }))
+  const [byPosition, setByPosition] = useState<Record<string, string[]>>(
+    Object.fromEntries(election.positions.map((p) => [p.id, p.candidates.map((c) => c.memberId)])),
   );
 
-  const toggle = (role: string, name: string) => {
-    setPositions((prev) =>
-      prev.map((p) => {
-        if (p.role !== role) return p;
-        const exists = p.candidates.find((c) => c.name === name);
-        return {
-          ...p,
-          candidates: exists ? p.candidates.filter((c) => c.name !== name) : [...p.candidates, { name, votes: 0 }],
-        };
-      })
-    );
+  const toggle = (positionId: string, memberId: string) => {
+    setByPosition((prev) => {
+      const list = prev[positionId] ?? [];
+      return {
+        ...prev,
+        [positionId]: list.includes(memberId) ? list.filter((id) => id !== memberId) : [...list, memberId],
+      };
+    });
   };
 
   return (
@@ -476,20 +471,23 @@ function EditCandidatesModal({
           <button onClick={onClose} className="rounded-full p-1.5 hover:bg-muted"><X className="h-4 w-4" /></button>
         </div>
         <div className="space-y-3">
-          {positions.map((p) => (
-            <div key={p.role} className="rounded-xl border border-border bg-background p-3">
+          {election.positions.map((p) => (
+            <div key={p.id} className="rounded-xl border border-border bg-background p-3">
               <p className="mb-2 text-sm font-semibold">{p.role}</p>
               <CandidatePicker
                 memberOptions={memberOptions}
-                selected={p.candidates.map((c) => c.name)}
-                onToggle={(name) => toggle(p.role, name)}
+                selected={byPosition[p.id] ?? []}
+                onToggle={(id) => toggle(p.id, id)}
               />
             </div>
           ))}
         </div>
         <div className="mt-6 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-full border border-border bg-secondary px-4 py-2 text-sm font-semibold">Cancel</button>
-          <button onClick={() => onSave(positions)} className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">
+          <button
+            onClick={() => onSave(Object.entries(byPosition).map(([positionId, memberIds]) => ({ positionId, memberIds })))}
+            className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+          >
             Save changes
           </button>
         </div>
@@ -503,25 +501,26 @@ function CandidatePicker({
   selected,
   onToggle,
 }: {
-  memberOptions: string[];
+  memberOptions: MemberOption[];
   selected: string[];
-  onToggle: (name: string) => void;
+  onToggle: (memberId: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
+  const nameById = useMemo(() => new Map(memberOptions.map((m) => [m.id, m.name])), [memberOptions]);
   const q = query.trim().toLowerCase();
   const matches = q
-    ? memberOptions.filter((n) => n.toLowerCase().includes(q) && !selected.includes(n)).slice(0, 6)
+    ? memberOptions.filter((m) => m.name.toLowerCase().includes(q) && !selected.includes(m.id)).slice(0, 6)
     : [];
 
   return (
     <div className="mt-3 space-y-2">
       {selected.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {selected.map((name) => (
-            <span key={name} className="inline-flex items-center gap-1 rounded-full border border-primary bg-primary/10 px-2.5 py-1 text-xs font-medium">
-              {name}
-              <button type="button" onClick={() => onToggle(name)} className="text-muted-foreground hover:text-destructive">
+          {selected.map((id) => (
+            <span key={id} className="inline-flex items-center gap-1 rounded-full border border-primary bg-primary/10 px-2.5 py-1 text-xs font-medium">
+              {nameById.get(id) ?? "Unknown member"}
+              <button type="button" onClick={() => onToggle(id)} className="text-muted-foreground hover:text-destructive">
                 <X className="h-3 w-3" />
               </button>
             </span>
@@ -543,18 +542,18 @@ function CandidatePicker({
             {matches.length === 0 ? (
               <p className="px-3 py-2 text-xs text-muted-foreground">No matches</p>
             ) : (
-              matches.map((name) => (
+              matches.map((m) => (
                 <button
-                  key={name}
+                  key={m.id}
                   type="button"
                   onMouseDown={(e) => {
                     e.preventDefault();
-                    onToggle(name);
+                    onToggle(m.id);
                     setQuery("");
                   }}
                   className="flex w-full items-center justify-between px-3 py-2 text-left text-xs hover:bg-muted"
                 >
-                  <span>{name}</span>
+                  <span>{m.name}</span>
                   <Check className="h-3 w-3 text-primary opacity-0" />
                 </button>
               ))

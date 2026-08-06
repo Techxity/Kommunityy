@@ -1,25 +1,18 @@
 // Authorization helpers for payment/payout server functions.
-// These run inside server function handlers using the caller's own
-// (RLS-scoped) Supabase client, so a client cannot spoof its role.
-import type { SupabaseClient } from "@supabase/supabase-js";
+// Login/identity comes from the Neon-backed session (see requireAuth in
+// @/lib/auth/require-auth, which verifies the caller's session cookie and
+// gives us a trusted userId). The actual permission check runs as a plain
+// query against Neon — there is no database-level RLS doing this for us,
+// so every server function that touches sensitive data must call one of
+// these first.
+import { sql } from "@/lib/db/client";
 
-type Client = SupabaseClient<any, any, any>;
-
-export async function assertCommunityAdmin(
-  supabase: Client,
-  userId: string,
-  communityId: string,
-): Promise<void> {
-  const { data, error } = await supabase.rpc("is_community_admin", {
-    _user_id: userId,
-    _community_id: communityId,
-  });
-  if (error) throw new Error("Not authorized");
-  if (data !== true) throw new Error("Not authorized for this community");
+export async function assertCommunityAdmin(userId: string, communityId: string): Promise<void> {
+  const rows = await sql`SELECT public.is_community_admin(${userId}::uuid, ${communityId}::uuid) AS ok`;
+  if (rows[0]?.ok !== true) throw new Error("Not authorized for this community");
 }
 
-export async function assertSuperAdmin(supabase: Client, userId: string): Promise<void> {
-  const { data, error } = await supabase.rpc("is_super_admin", { _user_id: userId });
-  if (error) throw new Error("Not authorized");
-  if (data !== true) throw new Error("Super admin access required");
+export async function assertSuperAdmin(userId: string): Promise<void> {
+  const rows = await sql`SELECT public.is_super_admin(${userId}::uuid) AS ok`;
+  if (rows[0]?.ok !== true) throw new Error("Super admin access required");
 }

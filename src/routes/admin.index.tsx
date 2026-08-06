@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { stats, community, donations, members } from "@/lib/mock-data";
+import { useEffect, useState } from "react";
+import { stats, donations, members } from "@/lib/mock-data";
+import { getMyCommunity } from "@/lib/payments/communities.functions";
 import {
   Users,
   Cake,
@@ -17,17 +19,25 @@ export const Route = createFileRoute("/admin/")({
 
 function Dashboard() {
   const upcomingBirthdays = members.slice(0, 4);
+  const [community, setCommunity] = useState<{ id: string; name: string; trialDaysLeft: number } | null>(null);
+
+  useEffect(() => {
+    getMyCommunity().then(setCommunity).catch(() => setCommunity(null));
+  }, []);
+
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">Welcome back, Adaeze</p>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">Welcome back</p>
           <h1 className="font-display text-3xl font-bold tracking-tight">Here's how your community is doing.</h1>
         </div>
-        <div className="rounded-full border border-warning/40 bg-warning/10 px-4 py-1.5 text-xs font-semibold text-warning-foreground">
-          <Sparkles className="-mt-0.5 mr-1 inline h-3 w-3" />
-          {community.trialDaysLeft} days left in your Enterprise trial
-        </div>
+        {community && (
+          <div className="rounded-full border border-warning/40 bg-warning/10 px-4 py-1.5 text-xs font-semibold text-warning-foreground">
+            <Sparkles className="-mt-0.5 mr-1 inline h-3 w-3" />
+            {community.trialDaysLeft} days left in your Enterprise trial
+          </div>
+        )}
       </header>
 
       {/* Bento grid */}

@@ -1,25 +1,46 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { GripVertical, Plus, Trash2, Link2, Copy, Settings2, ExternalLink, Check } from "lucide-react";
-import { useChapters } from "@/lib/chapters-store";
-import { FIELD_LIBRARY, onboardingStore, useOnboardingFields, type FieldName } from "@/lib/onboarding-store";
-import { community } from "@/lib/mock-data";
+import { listMyChapters } from "@/lib/membership/chapters.functions";
+import { getMyOnboardingFields, saveOnboardingFields, getMyCommunity } from "@/lib/payments/communities.functions";
+import { FIELD_LIBRARY, type FieldName } from "@/lib/onboarding-fields";
 
 export const Route = createFileRoute("/admin/onboarding")({
   component: OnboardingForm,
 });
 
 function OnboardingForm() {
-  const active = useOnboardingFields();
-  const chapters = useChapters();
+  const [active, setActive] = useState<FieldName[]>([]);
+  const [communityId, setCommunityId] = useState("");
+  const [communityName, setCommunityName] = useState("");
+  const [chapters, setChapters] = useState<{ id: string; name: string }[]>([]);
   const [copied, setCopied] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    Promise.all([getMyOnboardingFields(), getMyCommunity(), listMyChapters()])
+      .then(([fields, community, chaptersList]) => {
+        setActive((fields.fields as FieldName[]) ?? []);
+        setCommunityId(fields.communityId ?? community?.id ?? "");
+        setCommunityName(community?.name ?? "");
+        setChapters(chaptersList);
+      })
+      .finally(() => setLoaded(true));
+  }, []);
 
   const formUrl =
     (typeof window !== "undefined" ? window.location.origin : "https://kinfolk.app") +
-    `/join/${community.id}`;
+    `/join/${communityId}`;
 
   function toggle(f: FieldName) {
-    onboardingStore.toggle(f);
+    setActive((prev) => {
+      const next = prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f];
+      saveOnboardingFields({ data: { fields: next } }).catch(() => {
+        // Revert locally if the save fails, so the UI doesn't lie about what's saved.
+        setActive(prev);
+      });
+      return next;
+    });
   }
 
   function copyLink() {
@@ -45,7 +66,7 @@ function OnboardingForm() {
         <div className="md:col-span-2 space-y-4">
           <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
             <h2 className="font-display text-lg font-semibold">Form fields</h2>
-            <p className="mt-1 text-xs text-muted-foreground">Drag to reorder. Click to remove.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Click to remove.</p>
             <ul className="mt-4 space-y-2">
               {active.map((f) => (
                 <li key={f} className="flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2.5">
@@ -64,7 +85,7 @@ function OnboardingForm() {
                   </button>
                 </li>
               ))}
-              {active.length === 0 && (
+              {loaded && active.length === 0 && (
                 <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                   No fields yet — add some from the library →
                 </p>
@@ -92,28 +113,31 @@ function OnboardingForm() {
           <div className="rounded-2xl border border-border bg-gradient-hero p-6 text-primary-foreground shadow-elegant">
             <Link2 className="h-5 w-5 opacity-80" />
             <p className="mt-3 text-xs uppercase tracking-wider text-primary-foreground/70">Shareable form link</p>
-            <p className="mt-2 break-all rounded-lg bg-primary-foreground/10 p-3 text-xs">{formUrl}</p>
+            <p className="mt-2 break-all rounded-lg bg-primary-foreground/10 p-3 text-xs">{communityId ? formUrl : "Loading…"}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 onClick={copyLink}
-                className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground"
+                disabled={!communityId}
+                className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground disabled:opacity-50"
               >
                 {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                 {copied ? "Copied!" : "Copy link"}
               </button>
-              <Link
-                to="/join/$communityId"
-                params={{ communityId: community.id }}
-                target="_blank"
-                className="inline-flex items-center gap-1.5 rounded-full bg-primary-foreground/10 px-3 py-1.5 text-xs font-semibold text-primary-foreground ring-1 ring-primary-foreground/20"
-              >
-                <ExternalLink className="h-3 w-3" /> Open public page
-              </Link>
+              {communityId && (
+                <Link
+                  to="/join/$communityId"
+                  params={{ communityId }}
+                  target="_blank"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-primary-foreground/10 px-3 py-1.5 text-xs font-semibold text-primary-foreground ring-1 ring-primary-foreground/20"
+                >
+                  <ExternalLink className="h-3 w-3" /> Open public page
+                </Link>
+              )}
             </div>
           </div>
           <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
             <p className="text-xs uppercase tracking-wider text-muted-foreground">Preview</p>
-            <h3 className="mt-1 font-display text-lg font-bold">Join {community.name}</h3>
+            <h3 className="mt-1 font-display text-lg font-bold">Join {communityName || "your community"}</h3>
             <div className="mt-4 space-y-3">
               {active.map((f) => (
                 <div key={f}>

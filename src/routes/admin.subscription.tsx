@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { community } from "@/lib/mock-data";
+import { getMyCommunity } from "@/lib/payments/communities.functions";
 import { Check, CreditCard, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/admin/subscription")({
   component: Subscription,
@@ -15,16 +15,30 @@ const plans = [
 
 function Subscription() {
   const [currency, setCurrency] = useState<"USD" | "NGN">("NGN");
-  const current = community.plan;
+  const [community, setCommunity] = useState<{ id: string; name: string; trialDaysLeft: number } | null>(null);
+  // No plan/subscription is actually assigned yet (that's a separate,
+  // not-yet-built billing flow) — so nothing shows as "Current" for now.
+  const current: string | null = null;
+
+  useEffect(() => {
+    getMyCommunity().then(setCommunity).catch(() => setCommunity(null));
+  }, []);
+
   return (
     <div className="space-y-6">
       <header>
         <h1 className="font-display text-3xl font-bold">Subscription</h1>
-        <p className="text-sm text-muted-foreground">You're on a {community.trialDaysLeft}-day Enterprise trial. Pick a plan to keep your full feature set.</p>
+        <p className="text-sm text-muted-foreground">
+          {community ? `You're on a ${community.trialDaysLeft}-day Enterprise trial. Pick a plan to keep your full feature set.` : "Pick a plan to keep your full feature set."}
+        </p>
       </header>
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-warning/40 bg-warning/10 p-4 text-warning-foreground">
-        <p className="flex items-center gap-2 text-sm font-semibold"><Sparkles className="h-4 w-4" /> Trial ends in {community.trialDaysLeft} days — choose a plan to avoid interruption.</p>
+        {community ? (
+          <p className="flex items-center gap-2 text-sm font-semibold"><Sparkles className="h-4 w-4" /> Trial ends in {community.trialDaysLeft} days — choose a plan to avoid interruption.</p>
+        ) : (
+          <p className="flex items-center gap-2 text-sm font-semibold"><Sparkles className="h-4 w-4" /> Choose a plan to get started.</p>
+        )}
         <div className="inline-flex rounded-full border border-border bg-card p-1 text-xs">
           {(["USD", "NGN"] as const).map((c) => (
             <button key={c} onClick={() => setCurrency(c)} className={`rounded-full px-3 py-1 font-semibold ${currency === c ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>

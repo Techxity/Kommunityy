@@ -1,31 +1,15 @@
 import { useState } from "react";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { supabase } from "@/integrations/supabase/client";
-import { startDonationCheckout } from "@/lib/payments/donations.functions";
+import { getDonationBySlug, startDonationCheckout } from "@/lib/payments/donations.functions";
 import { Button } from "@/components/ui/button";
 import { HeartHandshake } from "lucide-react";
 
 export const Route = createFileRoute("/donate/$slug")({
   loader: async ({ params }) => {
-    const { data, error } = await supabase
-      .from("donations")
-      .select("id, purpose, status, target_ngn, target_usd, deadline, shareable_slug")
-      .eq("shareable_slug", params.slug)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    if (!data) throw notFound();
-
-    // Public aggregate view — individual donor rows are admin-only.
-    const { data: totals } = await supabase
-      .from("donation_totals")
-      .select("collected_ngn, collected_usd")
-      .eq("donation_id", data.id)
-      .maybeSingle();
-    const collected_ngn = Number(totals?.collected_ngn ?? 0);
-    const collected_usd = Number(totals?.collected_usd ?? 0);
-    return { donation: data, collected_ngn, collected_usd };
-
+    const result = await getDonationBySlug({ data: { slug: params.slug } });
+    if (!result) throw notFound();
+    return result;
   },
   component: DonatePage,
   notFoundComponent: () => (

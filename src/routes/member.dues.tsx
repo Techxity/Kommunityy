@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { supabase } from "@/integrations/supabase/client";
+import { getActiveDuesPlanId } from "@/lib/payments/dues.functions";
 import { dues, duesHistory } from "@/lib/mock-data";
 import { AlertTriangle, Banknote, Loader2 } from "lucide-react";
 
@@ -12,23 +12,16 @@ function MemberDues() {
   const navigate = useNavigate();
   const [paying, setPaying] = useState(false);
   const [payErr, setPayErr] = useState<string | null>(null);
-  const myHistory = duesHistory.filter((d) => d.member === "Adaeze Okafor" || true).slice(0, 5);
+  const myHistory = duesHistory.slice(0, 5);
   const missed = myHistory.filter((d) => d.status === "Missed").length;
 
   const payNow = async () => {
     setPayErr(null);
     setPaying(true);
     try {
-      const { data, error } = await supabase
-        .from("dues_plans")
-        .select("id")
-        .eq("active", true)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error) throw new Error(error.message);
-      if (!data) throw new Error("No active dues plan yet — ask your admin to set one up.");
-      navigate({ to: "/pay-dues/$planId", params: { planId: data.id } });
+      const planId = await getActiveDuesPlanId();
+      if (!planId) throw new Error("No active dues plan yet — ask your admin to set one up.");
+      navigate({ to: "/pay-dues/$planId", params: { planId } });
     } catch (e: any) {
       setPayErr(e.message ?? "Could not start payment");
       setPaying(false);

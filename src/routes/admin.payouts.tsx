@@ -1,14 +1,18 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { supabase } from "@/integrations/supabase/client";
+import { getDefaultCommunity } from "@/lib/payments/communities.functions";
 import {
   getCommunityBank,
   listBanks,
   resolveAccount,
   saveCommunityBank,
 } from "@/lib/payments/bank.functions";
-import { requestPayout } from "@/lib/payments/payouts.functions";
+import {
+  getCommunityBalances,
+  listCommunityPayouts,
+  requestPayout,
+} from "@/lib/payments/payouts.functions";
 import { Button } from "@/components/ui/button";
 import { Banknote, Landmark, Clock, CheckCircle2, XCircle } from "lucide-react";
 
@@ -52,12 +56,7 @@ function PayoutsPage() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const { data: c } = await supabase
-        .from("communities")
-        .select("id, name")
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
+      const c = await getDefaultCommunity();
       if (!c) return setLoading(false);
 
       // Bank details are not client-readable; fetch via authorized server fn.
@@ -77,13 +76,9 @@ function PayoutsPage() {
         paystack_recipient_code: bank.paystack_recipient_code ?? null,
       });
 
-      const [{ data: bal }, { data: pos }] = await Promise.all([
-        supabase.from("community_balances_by_source").select("*").eq("community_id", c.id),
-        supabase
-          .from("payouts")
-          .select("id, amount, currency, source, status, method, requested_at, paid_at, notes, failed_reason")
-          .eq("community_id", c.id)
-          .order("requested_at", { ascending: false }),
+      const [bal, pos] = await Promise.all([
+        getCommunityBalances({ data: { community_id: c.id } }).catch(() => []),
+        listCommunityPayouts({ data: { community_id: c.id } }).catch(() => []),
       ]);
       setBalances((bal ?? []) as Balance[]);
       setPayouts((pos ?? []) as Payout[]);

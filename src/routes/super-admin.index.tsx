@@ -39,19 +39,22 @@ function Overview() {
               <p className="text-xs uppercase tracking-wider text-muted-foreground">Revenue</p>
               <p className="font-display text-xl font-bold">Last 6 months</p>
             </div>
-            <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600">+33% YoY</span>
           </div>
-          <div className="mt-6 flex h-48 items-end gap-3">
-            {revenueByMonth.map((r) => (
-              <div key={r.month} className="flex flex-1 flex-col items-center gap-2">
-                <div
-                  className="w-full rounded-t-lg bg-gradient-to-t from-primary to-accent"
-                  style={{ height: `${(r.usd / max) * 100}%` }}
-                />
-                <span className="text-[11px] text-muted-foreground">{r.month}</span>
-              </div>
-            ))}
-          </div>
+          {revenueByMonth.length === 0 ? (
+            <p className="mt-6 text-sm text-muted-foreground">No revenue data yet.</p>
+          ) : (
+            <div className="mt-6 flex h-48 items-end gap-3">
+              {revenueByMonth.map((r) => (
+                <div key={r.month} className="flex flex-1 flex-col items-center gap-2">
+                  <div
+                    className="w-full rounded-t-lg bg-gradient-to-t from-primary to-accent"
+                    style={{ height: `${(r.usd / max) * 100}%` }}
+                  />
+                  <span className="text-[11px] text-muted-foreground">{r.month}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
@@ -60,7 +63,7 @@ function Overview() {
           <div className="mt-6 space-y-4">
             {plans.map((p) => {
               const total = plans.reduce((s, x) => s + x.activeSubscriptions, 0);
-              const pct = Math.round((p.activeSubscriptions / total) * 100);
+              const pct = total > 0 ? Math.round((p.activeSubscriptions / total) * 100) : 0;
               return (
                 <div key={p.tier}>
                   <div className="flex justify-between text-sm">
@@ -89,8 +92,8 @@ function Overview() {
           <ul className="space-y-3 text-sm">
             <li className="flex justify-between"><span>Past due accounts</span><span className="font-semibold">{pastDue}</span></li>
             <li className="flex justify-between"><span>Open support tickets</span><span className="font-semibold">{openTickets}</span></li>
-            <li className="flex justify-between"><span>Trials ending in 7 days</span><span className="font-semibold">6</span></li>
-            <li className="flex justify-between"><span>Failed payments (24h)</span><span className="font-semibold">2</span></li>
+            <li className="flex justify-between"><span>Trials ending in 7 days</span><span className="font-semibold">0</span></li>
+            <li className="flex justify-between"><span>Failed payments (24h)</span><span className="font-semibold">0</span></li>
           </ul>
         </div>
 
@@ -103,6 +106,9 @@ function Overview() {
             <Activity className="h-5 w-5 text-muted-foreground" />
           </div>
           <ul className="space-y-3">
+            {auditLog.length === 0 && (
+              <p className="text-sm text-muted-foreground">No activity yet.</p>
+            )}
             {auditLog.slice(0, 5).map((a) => (
               <li key={a.id} className="flex items-start gap-3 rounded-lg border border-border bg-background/60 p-3 text-sm">
                 <Sparkles className="mt-0.5 h-4 w-4 text-accent" />

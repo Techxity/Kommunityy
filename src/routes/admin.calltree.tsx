@@ -1,11 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Play, Shuffle, Download, Mail, Trash2, ArrowLeft, PhoneCall, MessageCircle,
   CheckCircle2, AlertTriangle, HelpCircle, Phone, RefreshCw, Lock, Plus,
 } from "lucide-react";
 import { members } from "@/lib/mock-data";
-import { useChapters } from "@/lib/chapters-store";
+import { listMyChapters } from "@/lib/membership/chapters.functions";
 import {
   callTreeStore,
   useCallTreeSessions,
@@ -143,7 +143,10 @@ function StatusBadge({ status }: { status: CallTreeSession["status"] }) {
 }
 
 function CreateSessionModal({ onClose }: { onClose: () => void }) {
-  const chapters = useChapters();
+  const [chapters, setChapters] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    listMyChapters().then((rows) => setChapters(rows.map((c) => ({ id: c.id, name: c.name }))));
+  }, []);
   const [name, setName] = useState(
     `Call tree — ${new Date().toLocaleDateString(undefined, { month: "short", year: "numeric" })}`,
   );

@@ -1,5 +1,7 @@
-import { Link, Outlet, useLocation } from "@tanstack/react-router";
-import { useState } from "react";
+import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { logout } from "@/lib/auth/auth.functions";
+import { getMyCommunity } from "@/lib/payments/communities.functions";
 import {
   LayoutDashboard,
   Users,
@@ -16,7 +18,6 @@ import {
   Users2,
   ChevronDown,
 } from "lucide-react";
-import { community } from "@/lib/mock-data";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 type SubItem = { to: string; label: string };
@@ -137,6 +138,17 @@ function GroupItem({
 export function AdminShell() {
   const location = useLocation();
   const pathname = location.pathname;
+  const navigate = useNavigate();
+  const [community, setCommunity] = useState<{ id: string; name: string; trialDaysLeft: number } | null>(null);
+
+  useEffect(() => {
+    getMyCommunity().then(setCommunity).catch(() => setCommunity(null));
+  }, []);
+
+  async function handleSignOut() {
+    await logout();
+    navigate({ to: "/login" });
+  }
 
   return (
     <div className="flex min-h-screen bg-muted/40">
@@ -153,12 +165,11 @@ export function AdminShell() {
         <div className="px-4 py-4">
           <div className="rounded-xl bg-sidebar-accent/60 p-3">
             <p className="text-xs text-sidebar-foreground/60">Community</p>
-            <p className="mt-0.5 truncate text-sm font-semibold">{community.name}</p>
+            <p className="mt-0.5 truncate text-sm font-semibold">{community?.name || "—"}</p>
             <div className="mt-2 flex items-center gap-2">
-              <span className="rounded-full bg-sidebar-primary/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-sidebar-primary-foreground">
-                {community.plan}
+              <span className="text-[10px] text-sidebar-foreground/60">
+                {community ? `Trial: ${community.trialDaysLeft}d left` : ""}
               </span>
-              <span className="text-[10px] text-sidebar-foreground/60">Trial: {community.trialDaysLeft}d left</span>
             </div>
           </div>
         </div>
@@ -168,28 +179,29 @@ export function AdminShell() {
           ))}
         </nav>
         <div className="border-t border-sidebar-border p-4">
-          <Link
-            to="/login"
+          <button
+            type="button"
+            onClick={handleSignOut}
             className="flex items-center gap-2 text-xs text-sidebar-foreground/70 hover:text-sidebar-foreground"
           >
             <LogOut className="h-3.5 w-3.5" /> Sign out
-          </Link>
+          </button>
         </div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/85 px-6 backdrop-blur">
           <div>
             <p className="text-xs uppercase tracking-wider text-muted-foreground">Workspace</p>
-            <p className="font-display text-lg font-semibold">{community.name}</p>
+            <p className="font-display text-lg font-semibold">{community?.name || "—"}</p>
           </div>
           <div className="flex items-center gap-3">
             <button className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground">
               <Bell className="h-4 w-4" />
             </button>
             <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5">
-              <div className="grid h-7 w-7 place-items-center rounded-full bg-gradient-accent text-xs font-bold text-primary-foreground">AO</div>
+              <div className="grid h-7 w-7 place-items-center rounded-full bg-gradient-accent text-xs font-bold text-primary-foreground">A</div>
               <div className="hidden sm:block">
-                <p className="text-xs font-semibold leading-none">Adaeze Okafor</p>
+                <p className="text-xs font-semibold leading-none">Admin</p>
                 <p className="mt-0.5 text-[10px] text-muted-foreground">Community Admin</p>
               </div>
             </div>

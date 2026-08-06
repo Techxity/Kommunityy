@@ -1,17 +1,28 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MapPin, Plus, Trash2, Users, Pencil, X, Check } from "lucide-react";
-import { useChapters, chaptersStore } from "@/lib/chapters-store";
+import { listMyChapters, createChapter, updateChapter, deleteChapter } from "@/lib/membership/chapters.functions";
 
 export const Route = createFileRoute("/admin/chapters")({
   component: ChaptersPage,
 });
 
+type Chapter = { id: string; name: string; region: string; coordinator: string; memberCount: number };
+
 function ChaptersPage() {
-  const chapters = useChapters();
+  const [chapters, setChapters] = useState<Chapter[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", region: "", coordinator: "" });
+  const [saving, setSaving] = useState(false);
+
+  function refresh() {
+    listMyChapters().then(setChapters);
+  }
+
+  useEffect(() => {
+    refresh();
+  }, []);
 
   function resetForm() {
     setForm({ name: "", region: "", coordinator: "" });
@@ -19,14 +30,20 @@ function ChaptersPage() {
     setShowForm(false);
   }
 
-  function submit() {
+  async function submit() {
     if (!form.name.trim()) return;
-    if (editingId) {
-      chaptersStore.update(editingId, form);
-    } else {
-      chaptersStore.add(form);
+    setSaving(true);
+    try {
+      if (editingId) {
+        await updateChapter({ data: { id: editingId, name: form.name, region: form.region, coordinator: form.coordinator } });
+      } else {
+        await createChapter({ data: { name: form.name, region: form.region, coordinator: form.coordinator } });
+      }
+      resetForm();
+      refresh();
+    } finally {
+      setSaving(false);
     }
-    resetForm();
   }
 
   function startEdit(id: string) {
@@ -35,6 +52,11 @@ function ChaptersPage() {
     setForm({ name: c.name, region: c.region, coordinator: c.coordinator });
     setEditingId(id);
     setShowForm(true);
+  }
+
+  async function remove(id: string) {
+    await deleteChapter({ data: { id } });
+    refresh();
   }
 
   const totalMembers = chapters.reduce((s, c) => s + c.memberCount, 0);
@@ -122,7 +144,8 @@ function ChaptersPage() {
             </button>
             <button
               onClick={submit}
-              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+              disabled={saving}
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60"
             >
               <Check className="h-3.5 w-3.5" /> {editingId ? "Save changes" : "Create chapter"}
             </button>
@@ -166,7 +189,7 @@ function ChaptersPage() {
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                     <button
-                      onClick={() => chaptersStore.remove(c.id)}
+                      onClick={() => remove(c.id)}
                       className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
