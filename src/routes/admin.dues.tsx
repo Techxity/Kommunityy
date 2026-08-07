@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { dues, duesHistory } from "@/lib/mock-data";
+import { getMyDuesPlan, saveDuesPlan, listDuesPayments } from "@/lib/payments/dues.functions";
+import { getDashboardStats } from "@/lib/payments/communities.functions";
 import {
   Dialog,
   DialogContent,
@@ -9,18 +10,83 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Banknote, Calendar, Bell, Settings } from "lucide-react";
+import { Banknote, Calendar, Users, Settings } from "lucide-react";
+import { requireModule } from "@/lib/module-gate";
 
 export const Route = createFileRoute("/admin/dues")({
+  beforeLoad: () => requireModule("Dues"),
   component: Dues,
 });
 
+type Plan = Awaited<ReturnType<typeof getMyDuesPlan>>;
+type Payment = Awaited<ReturnType<typeof listDuesPayments>>[number];
+
 function Dues() {
   const [open, setOpen] = useState(false);
+  const [plan, setPlan] = useState<Plan>(null);
+  const [history, setHistory] = useState<Payment[]>([]);
+  const [activeMembers, setActiveMembers] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
-  const totalCollected = duesHistory
-    .filter((d) => d.status === "Paid")
-    .reduce((sum, d) => sum + d.amount, 0);
+  const [name, setName] = useState("Membership dues");
+  const [interval, setInterval] = useState<"monthly" | "quarterly" | "yearly">("monthly");
+  const [amountNgn, setAmountNgn] = useState("");
+  const [amountUsd, setAmountUsd] = useState("");
+
+  function refresh() {
+    getMyDuesPlan().then(setPlan);
+    listDuesPayments().then(setHistory);
+    getDashboardStats().then((s) => setActiveMembers(s.activeMembers));
+  }
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      setName(plan?.name ?? "Membership dues");
+      setInterval(plan?.interval ?? "monthly");
+      setAmountNgn(plan?.amountNgn ? String(plan.amountNgn) : "");
+      setAmountUsd(plan?.amountUsd ? String(plan.amountUsd) : "");
+      setError("");
+    }
+  }, [open, plan]);
+
+  async function save() {
+    if (!amountNgn && !amountUsd) {
+      setError("Set an amount in at least one currency.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await saveDuesPlan({
+        data: {
+          name,
+          interval,
+          amountNgn: amountNgn ? Number(amountNgn) : null,
+          amountUsd: amountUsd ? Number(amountUsd) : null,
+        },
+      });
+      setOpen(false);
+      refresh();
+    } catch (err: any) {
+      setError(err?.message ?? "Couldn't save dues setup.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const totalCollectedNgn = history.filter((h) => h.status === "paid" && h.currency === "NGN").reduce((s, h) => s + h.amount, 0);
+  const totalCollectedUsd = history.filter((h) => h.status === "paid" && h.currency === "USD").reduce((s, h) => s + h.amount, 0);
+
+  const currentDuesValue = plan
+    ? [plan.amountNgn ? `₦${plan.amountNgn.toLocaleString()}` : null, plan.amountUsd ? `$${plan.amountUsd.toLocaleString()}` : null]
+        .filter(Boolean)
+        .join(" / ")
+    : "Not set up";
 
   return (
     <div className="space-y-6">
@@ -43,40 +109,53 @@ function Dues() {
               <DialogTitle className="font-display">Recurring dues setup</DialogTitle>
             </DialogHeader>
             <div className="mt-2 grid gap-4 md:grid-cols-2">
-              <Field label="Amount">
-                <div className="flex">
-                  <select className="rounded-l-lg border border-r-0 border-border bg-secondary px-3 text-sm">
-                    <option>NGN ₦</option>
-                    <option>USD $</option>
-                  </select>
+              <div className="md:col-span-2">
+                <Field label="Plan name">
                   <input
-                    defaultValue={dues.amount}
-                    type="number"
-                    className="w-full rounded-r-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-ring"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-ring"
                   />
-                </div>
-              </Field>
-              <Field label="Frequency">
-                <select className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
-                  <option>Monthly</option>
-                  <option>Quarterly</option>
-                  <option>Bi-annually</option>
-                  <option>Yearly</option>
-                </select>
-              </Field>
-              <Field label="Start date">
+                </Field>
+              </div>
+              <Field label="Amount (₦ NGN)">
                 <input
-                  type="date"
-                  defaultValue={dues.startDate}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                  value={amountNgn}
+                  onChange={(e) => setAmountNgn(e.target.value)}
+                  type="number"
+                  placeholder="5000"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-ring"
                 />
               </Field>
+              <Field label="Amount ($ USD)">
+                <input
+                  value={amountUsd}
+                  onChange={(e) => setAmountUsd(e.target.value)}
+                  type="number"
+                  placeholder="10"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-ring"
+                />
+              </Field>
+              <div className="md:col-span-2">
+                <Field label="Frequency">
+                  <select
+                    value={interval}
+                    onChange={(e) => setInterval(e.target.value as typeof interval)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
+                </Field>
+              </div>
             </div>
-            <div className="mt-4 flex items-center justify-between">
-              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Bell className="h-3 w-3" /> Auto reminders (3, 2, 1 days before)
-              </p>
-              <Button onClick={() => setOpen(false)}>Save dues setup</Button>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Leave a currency blank to not accept dues in it. Saving replaces your current plan — past payment history stays intact.
+            </p>
+            {error && <p className="mt-2 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>}
+            <div className="mt-4 flex items-center justify-end">
+              <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save dues setup"}</Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -86,33 +165,33 @@ function Dues() {
         <Tile
           icon={Banknote}
           label="Current dues"
-          value={`₦${dues.amount.toLocaleString()}`}
-          sub={`${dues.frequency} • Next: ${dues.nextDue}`}
+          value={currentDuesValue}
+          sub={plan ? `${plan.interval.charAt(0).toUpperCase()}${plan.interval.slice(1)}` : "Set up your plan"}
         />
         <Tile
           icon={Calendar}
           label="Total collected"
-          value={`₦${totalCollected.toLocaleString()}`}
+          value={[totalCollectedNgn ? `₦${totalCollectedNgn.toLocaleString()}` : null, totalCollectedUsd ? `$${totalCollectedUsd.toLocaleString()}` : null].filter(Boolean).join(" / ") || "₦0"}
           sub="till date"
         />
         <Tile
-          icon={Banknote}
+          icon={Users}
           label="Active members"
-          value={`${duesHistory.length}`}
-          sub="on dues roster"
+          value={`${activeMembers}`}
+          sub="in your community"
         />
         <Tile
           icon={Calendar}
-          label="Overdue"
-          value={`${duesHistory.filter((d) => d.status === "Missed").length}`}
-          sub="members"
+          label="Payments recorded"
+          value={`${history.length}`}
+          sub="all time"
         />
       </div>
 
       <div className="rounded-2xl border border-border bg-card shadow-soft">
         <div className="flex items-center justify-between border-b border-border p-4">
           <h2 className="font-display text-lg font-semibold">Payment history</h2>
-          <span className="text-xs text-muted-foreground">{duesHistory.length} records</span>
+          <span className="text-xs text-muted-foreground">{history.length} records</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -125,15 +204,15 @@ function Dues() {
               </tr>
             </thead>
             <tbody>
-              {duesHistory.map((d) => (
+              {history.map((d) => (
                 <tr key={d.id} className="border-t border-border">
                   <td className="px-4 py-3 font-medium">{d.member}</td>
-                  <td className="px-4 py-3">₦{d.amount.toLocaleString()}</td>
+                  <td className="px-4 py-3">{d.currency === "NGN" ? "₦" : "$"}{d.amount.toLocaleString()}</td>
                   <td className="px-4 py-3 text-muted-foreground">{d.date}</td>
                   <td className="px-4 py-3">
                     <span
                       className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                        d.status === "Paid"
+                        d.status === "paid"
                           ? "bg-success/15 text-success"
                           : "bg-destructive/15 text-destructive"
                       }`}
@@ -143,6 +222,13 @@ function Dues() {
                   </td>
                 </tr>
               ))}
+              {history.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                    No payments recorded yet.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

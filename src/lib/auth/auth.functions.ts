@@ -6,6 +6,7 @@ import { createSession, revokeAllSessionsForUser, revokeSessionToken } from "./s
 import { setSessionCookie, clearSessionCookie, readSessionToken } from "./session-cookie.server";
 import { assertNotRateLimited, recordAttempt, clientIp } from "./rate-limit.server";
 import { getSessionUser } from "./require-auth.server";
+import { uniqueCommunitySlug } from "@/lib/slug.server";
 
 async function rolesFor(userId: string) {
   const rows = await sql`
@@ -19,6 +20,15 @@ async function rolesFor(userId: string) {
 
 // Creates a brand-new community together with its first (community_admin)
 // user account, then logs them in.
+//
+// Plan handling: if `tierId` is omitted, the community defaults to the
+// platform's configured free trial (platform_settings) — trial_tier_id's
+// modules apply immediately, trial_ends_at counts down from trial_days.
+// If `tierId` IS given, the community is created with NO tier and NO trial
+// — the caller is expected to immediately kick off a Paystack checkout
+// (startPlanCheckout) for that tier. The tier only actually gets applied
+// once the paystack-webhook confirms payment, so an abandoned checkout
+// never grants paid access for free.
 export const signup = createServerFn({ method: "POST" })
   .inputValidator((i) =>
     z
@@ -28,6 +38,7 @@ export const signup = createServerFn({ method: "POST" })
         name: z.string().min(1).max(120),
         email: z.string().email().max(200),
         password: z.string().min(8).max(200),
+        tierId: z.string().uuid().optional(),
       })
       .parse(i),
   )
@@ -40,17 +51,33 @@ export const signup = createServerFn({ method: "POST" })
     const existing = await sql`SELECT id FROM public.users WHERE email = ${email} LIMIT 1`;
     if (existing[0]) throw new Error("An account with that email already exists.");
 
+    let tierId: string | null = null;
+    let trialEndsAt: string | null = null;
+
+    if (data.tierId) {
+      const tiers = await sql`SELECT id, active FROM public.subscription_tiers WHERE id = ${data.tierId}::uuid`;
+      if (!tiers[0]) throw new Error("Selected plan not found.");
+      if (!tiers[0].active) throw new Error("Selected plan is no longer available.");
+      // tierId stays null here on purpose — applied only after payment.
+    } else {
+      const settings = await sql`SELECT trial_enabled, trial_days, trial_tier_id FROM public.platform_settings WHERE id = true`;
+      const trialEnabled = settings[0]?.trial_enabled !== false;
+      if (!trialEnabled) throw new Error("Free trials aren't available right now — please select a plan.");
+      const trialDays = Number(settings[0]?.trial_days ?? 14);
+      tierId = (settings[0]?.trial_tier_id as string | null) ?? null;
+      trialEndsAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString();
+    }
+
     const passwordHash = await hashPassword(data.password);
     const userId = crypto.randomUUID();
     const communityId = crypto.randomUUID();
-    // Matches the "14-day Enterprise trial" promised on the signup page.
-    const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+    const slug = await uniqueCommunitySlug(data.communityName);
 
     const rawSql = getSql();
     try {
       await rawSql.transaction([
         rawSql`INSERT INTO public.users (id, email, password_hash, name) VALUES (${userId}::uuid, ${email}, ${passwordHash}, ${data.name})`,
-        rawSql`INSERT INTO public.communities (id, name, type, trial_ends_at) VALUES (${communityId}::uuid, ${data.communityName}, ${data.communityType ?? null}, ${trialEndsAt})`,
+        rawSql`INSERT INTO public.communities (id, name, slug, type, tier_id, trial_ends_at) VALUES (${communityId}::uuid, ${data.communityName}, ${slug}, ${data.communityType ?? null}, ${tierId}, ${trialEndsAt})`,
         rawSql`INSERT INTO public.user_roles (user_id, role, community_id) VALUES (${userId}::uuid, 'community_admin', ${communityId}::uuid)`,
       ]);
     } catch (e: any) {
@@ -62,7 +89,7 @@ export const signup = createServerFn({ method: "POST" })
 
     const token = await createSession(userId);
     setSessionCookie(token);
-    return { ok: true, communityId };
+    return { ok: true, communityId, needsPayment: !!data.tierId };
   });
 
 export const login = createServerFn({ method: "POST" })
@@ -89,12 +116,23 @@ export const login = createServerFn({ method: "POST" })
       throw new Error("Invalid email or password.");
     }
 
+    const roles = await rolesFor(user.id as string);
+
+    // A super admin can suspend a community from the platform console —
+    // that blocks its admin and members from signing in until re-enabled.
+    if (!roles.isSuperAdmin && (roles.communityAdminOf || roles.memberOf)) {
+      const communityId = roles.communityAdminOf ?? roles.memberOf;
+      const rows = await sql`SELECT suspended FROM public.communities WHERE id = ${communityId}::uuid`;
+      if (rows[0]?.suspended) {
+        throw new Error("This community has been suspended. Contact support for help.");
+      }
+    }
+
     // Session rotation: kill any pre-existing sessions, issue a fresh one.
     await revokeAllSessionsForUser(user.id as string);
     const token = await createSession(user.id as string);
     setSessionCookie(token);
 
-    const roles = await rolesFor(user.id as string);
     return { ok: true, ...roles };
   });
 

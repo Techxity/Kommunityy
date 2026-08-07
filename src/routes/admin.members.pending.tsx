@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Check, X, Clock, MapPin, Inbox, CheckSquare, Square, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, Check, X, Clock, MapPin, Inbox, CheckSquare, Square, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { listMembers, setMembersStatus } from "@/lib/membership/members.functions";
 import { listMyChapters } from "@/lib/membership/chapters.functions";
@@ -70,6 +70,12 @@ function PendingApprovalsPage() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
+          <Link
+            to="/admin/members"
+            className="mb-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-3 w-3" /> Back to members
+          </Link>
           <p className="text-xs uppercase tracking-wider text-muted-foreground">Member Management</p>
           <h1 className="font-display text-3xl font-bold">Pending approvals</h1>
           <p className="mt-1 text-sm text-muted-foreground">

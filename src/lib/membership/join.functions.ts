@@ -61,8 +61,9 @@ export const submitApplication = createServerFn({ method: "POST" })
     await assertNotRateLimited(`join:${ip}`, 10, 60 * 60 * 1000);
     await recordAttempt(`join:${ip}`);
 
-    const communities = await sql`SELECT id FROM public.communities WHERE id = ${data.communityId}::uuid LIMIT 1`;
+    const communities = await sql`SELECT id, suspended FROM public.communities WHERE id = ${data.communityId}::uuid LIMIT 1`;
     if (!communities[0]) throw new Error("This community doesn't exist or is no longer accepting applications.");
+    if (communities[0].suspended) throw new Error("This community isn't accepting applications right now.");
 
     if (data.chapterId) {
       const chapters = await sql`

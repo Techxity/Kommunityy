@@ -2,6 +2,7 @@ import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { logout } from "@/lib/auth/auth.functions";
 import { getMyCommunity } from "@/lib/payments/communities.functions";
+import { getMyModules } from "@/lib/payments/tiers.functions";
 import {
   LayoutDashboard,
   Users,
@@ -17,15 +18,20 @@ import {
   LogOut,
   Users2,
   ChevronDown,
+  Lock,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
-type SubItem = { to: string; label: string };
+// `module`, when set, ties a nav entry to a plan module (see
+// src/lib/module-gate.ts) — the item still shows, but locked/disabled with
+// a tooltip, if the community's current plan doesn't include it.
+type SubItem = { to: string; label: string; module?: string };
 type NavGroup = {
   label: string;
   icon: typeof LayoutDashboard;
   exact?: boolean;
   to?: string;
+  module?: string;
   children?: SubItem[];
 };
 
@@ -35,24 +41,25 @@ const nav: NavGroup[] = [
     label: "Member Management",
     icon: Users,
     children: [
-      { to: "/admin/members", label: "Members" },
-      { to: "/admin/chapters", label: "Chapters" },
-      { to: "/admin/calltree", label: "Call Tree" },
-      { to: "/admin/birthdays", label: "Birthdays" },
+      { to: "/admin/members", label: "Members", module: "Membership" },
+      { to: "/admin/chapters", label: "Chapters", module: "Membership" },
+      { to: "/admin/calltree", label: "Call Tree", module: "Call Tree" },
+      { to: "/admin/birthdays", label: "Birthdays", module: "Birthdays" },
     ],
   },
   {
     label: "Funds Management",
     icon: Banknote,
     children: [
-      { to: "/admin/dues", label: "Dues" },
-      { to: "/admin/donations", label: "Donations" },
+      { to: "/admin/dues", label: "Dues", module: "Dues" },
+      { to: "/admin/donations", label: "Donations", module: "Donations" },
       { to: "/admin/payouts", label: "Payouts" },
     ],
   },
-  { to: "/admin/elections", label: "Elections", icon: Vote },
-  { to: "/admin/broadcast", label: "Broadcasts", icon: Megaphone },
+  { to: "/admin/elections", label: "Elections", icon: Vote, module: "Elections" },
+  { to: "/admin/broadcast", label: "Broadcasts", icon: Megaphone, module: "Broadcasts" },
   { to: "/admin/subscription", label: "Subscription", icon: CreditCard },
+  { to: "/admin/settings", label: "Settings", icon: Settings2 },
 ];
 
 function isActive(path: string, exact?: boolean, locationPathname?: string) {
@@ -60,18 +67,40 @@ function isActive(path: string, exact?: boolean, locationPathname?: string) {
   return exact ? locationPathname === path : locationPathname === path || locationPathname.startsWith(path + "/");
 }
 
+function LockedItem({ label, indent }: { label: string; indent?: boolean }) {
+  return (
+    <Link
+      to="/admin/subscription"
+      title={`${label} isn't included in your current plan — upgrade to unlock it.`}
+      className={`flex items-center gap-2 rounded-md text-sidebar-foreground/40 hover:text-sidebar-foreground/60 ${
+        indent ? "px-3 py-1.5 text-sm" : "px-3 py-2 text-sm font-medium"
+      }`}
+    >
+      <Lock className="h-3 w-3 shrink-0" />
+      {label}
+    </Link>
+  );
+}
+
 function GroupItem({
   group,
   pathname,
+  modules,
 }: {
   group: NavGroup;
   pathname: string;
+  modules: string[] | null;
 }) {
   const [open, setOpen] = useState(() =>
     group.children ? group.children.some((c) => isActive(c.to, false, pathname)) : false
   );
 
+  // Until modules have loaded, don't lock anything (avoids a flash of
+  // locked items on every page load).
+  const locked = (m?: string) => !!m && !!modules && !modules.includes(m);
+
   if (group.to) {
+    if (locked(group.module)) return <LockedItem label={group.label} />;
     const Icon = group.icon;
     const active = isActive(group.to, group.exact, pathname);
     return (
@@ -114,6 +143,7 @@ function GroupItem({
       <CollapsibleContent>
         <div className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
           {group.children?.map((child) => {
+            if (locked(child.module)) return <LockedItem key={child.to} label={child.label} indent />;
             const childActive = isActive(child.to, false, pathname);
             return (
               <Link
@@ -139,10 +169,12 @@ export function AdminShell() {
   const location = useLocation();
   const pathname = location.pathname;
   const navigate = useNavigate();
-  const [community, setCommunity] = useState<{ id: string; name: string; trialDaysLeft: number } | null>(null);
+  const [community, setCommunity] = useState<{ id: string; name: string; trialDaysLeft: number; onTrial: boolean; tierName: string | null } | null>(null);
+  const [modules, setModules] = useState<string[] | null>(null);
 
   useEffect(() => {
     getMyCommunity().then(setCommunity).catch(() => setCommunity(null));
+    getMyModules().then(setModules).catch(() => setModules([]));
   }, []);
 
   async function handleSignOut() {
@@ -168,14 +200,14 @@ export function AdminShell() {
             <p className="mt-0.5 truncate text-sm font-semibold">{community?.name || "—"}</p>
             <div className="mt-2 flex items-center gap-2">
               <span className="text-[10px] text-sidebar-foreground/60">
-                {community ? `Trial: ${community.trialDaysLeft}d left` : ""}
+                {community?.onTrial ? `Trial: ${community.trialDaysLeft}d left` : community?.tierName ? `${community.tierName} plan` : ""}
               </span>
             </div>
           </div>
         </div>
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-3">
           {nav.map((group) => (
-            <GroupItem key={group.label} group={group} pathname={pathname} />
+            <GroupItem key={group.label} group={group} pathname={pathname} modules={modules} />
           ))}
         </nav>
         <div className="border-t border-sidebar-border p-4">

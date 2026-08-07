@@ -24,12 +24,14 @@ export async function sendEmail({
   html,
   fromName,
   replyTo,
+  cc,
 }: {
   to: string;
   subject: string;
   html: string;
   fromName?: string;
   replyTo?: string;
+  cc?: string | string[];
 }): Promise<{ ok: boolean; error?: string }> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
@@ -37,12 +39,23 @@ export async function sendEmail({
   }
   const address = resolveFromAddress();
   const from = `${fromName ?? "Kinfolk"} <${address}>`;
+  // Drop any cc address that's identical to the recipient — Resend accepts
+  // duplicates fine, but there's no reason to double-send to the same inbox
+  // (e.g. a community admin emailing themselves their own birthday).
+  const ccList = cc ? (Array.isArray(cc) ? cc : [cc]).filter((c) => c && c.toLowerCase() !== to.toLowerCase()) : [];
 
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to: [to], subject, html, ...(replyTo ? { reply_to: replyTo } : {}) }),
+      body: JSON.stringify({
+        from,
+        to: [to],
+        subject,
+        html,
+        ...(replyTo ? { reply_to: replyTo } : {}),
+        ...(ccList.length > 0 ? { cc: ccList } : {}),
+      }),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");

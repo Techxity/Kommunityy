@@ -4,6 +4,7 @@ import { sql } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth/require-auth.server";
 import { communityIdForAdmin } from "@/lib/payments/communities.functions";
 import { sendEmail } from "@/lib/email";
+import { broadcastEmail } from "@/lib/email-templates";
 
 export const listBroadcasts = createServerFn({ method: "POST" })
   .middleware([requireAuth])
@@ -40,12 +41,7 @@ export const sendBroadcast = createServerFn({ method: "POST" })
       WHERE community_id = ${communityId}::uuid AND status = 'active' AND email IS NOT NULL
     `;
 
-    const html = `
-      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; color: #111827;">
-        <p style="white-space: pre-wrap;">${data.body}</p>
-        <p style="color:#6b7280;font-size:13px; margin-top: 24px;">— ${communityName}</p>
-      </div>
-    `;
+    const html = broadcastEmail({ communityName, bodyText: data.body });
 
     const results = await Promise.all(
       members.map((m) => sendEmail({ to: m.email as string, subject: data.subject, html, fromName: communityName })),

@@ -10,8 +10,10 @@ import {
   restartElection,
   updateCandidates,
 } from "@/lib/membership/elections.functions";
+import { requireModule } from "@/lib/module-gate";
 
 export const Route = createFileRoute("/admin/elections")({
+  beforeLoad: () => requireModule("Elections"),
   component: Elections,
 });
 

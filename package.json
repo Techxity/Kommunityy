@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "cron:birthdays": "node scripts/send-birthday-emails.mjs"
+    "cron:birthdays": "node scripts/send-birthday-emails.mjs",
+    "cron:trials": "node scripts/trial-lifecycle.mjs"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",

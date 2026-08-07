@@ -84,13 +84,23 @@ CREATE TABLE IF NOT EXISTS public.subscription_tiers (
   monthly_price_usd numeric DEFAULT 0,
   sort_order int NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  max_members int,
+  modules jsonb NOT NULL DEFAULT '[]'::jsonb,
+  active boolean NOT NULL DEFAULT true
+);
+
+CREATE TABLE IF NOT EXISTS public.platform_modules (
+  name text PRIMARY KEY,
+  sort_order int NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
 -- ── Communities ─────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.communities (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
+  slug text NOT NULL UNIQUE,
   type text,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -120,7 +130,33 @@ CREATE TABLE IF NOT EXISTS public.communities (
     "December": "Ending the year celebrating you. Happy birthday!"
   }'::jsonb,
   election_roles jsonb NOT NULL
-    DEFAULT '["President","Secretary","Treasurer","PRO","Welfare Officer"]'::jsonb
+    DEFAULT '["President","Secretary","Treasurer","PRO","Welfare Officer"]'::jsonb,
+  suspended boolean NOT NULL DEFAULT false,
+  trial_warned_2_at timestamptz,
+  trial_warned_1_at timestamptz
+);
+
+CREATE TABLE IF NOT EXISTS public.platform_settings (
+  id boolean PRIMARY KEY DEFAULT true,
+  trial_enabled boolean NOT NULL DEFAULT true,
+  trial_days int NOT NULL DEFAULT 14,
+  trial_tier_id uuid REFERENCES public.subscription_tiers(id),
+  require_card boolean NOT NULL DEFAULT false,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT platform_settings_singleton CHECK (id)
+);
+
+CREATE TABLE IF NOT EXISTS public.plan_payments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  community_id uuid NOT NULL REFERENCES public.communities(id) ON DELETE CASCADE,
+  tier_id uuid NOT NULL REFERENCES public.subscription_tiers(id),
+  amount numeric(12,2) NOT NULL,
+  currency public.payment_currency NOT NULL,
+  provider public.payment_provider NOT NULL,
+  provider_ref text NOT NULL,
+  status public.payment_status NOT NULL DEFAULT 'paid',
+  paid_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (provider, provider_ref)
 );
 
 CREATE TABLE IF NOT EXISTS public.broadcasts (
@@ -163,7 +199,9 @@ CREATE TABLE IF NOT EXISTS public.members (
   applied_at timestamptz NOT NULL DEFAULT now(),
   joined_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  last_birthday_sent_year int,
+  last_birthday_sent_at timestamptz
 );
 CREATE INDEX IF NOT EXISTS members_community_id_idx ON public.members(community_id);
 CREATE INDEX IF NOT EXISTS members_status_idx ON public.members(community_id, status);

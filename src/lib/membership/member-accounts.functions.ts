@@ -33,7 +33,7 @@ export const getInviteInfo = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const tokenHash = await hashInviteToken(data.token);
     const rows = await sql`
-      SELECT m.name, m.email, c.name AS community_name
+      SELECT m.name, m.email, c.name AS community_name, c.slug AS community_slug
       FROM public.member_invites mi
       JOIN public.members m ON m.id = mi.member_id
       JOIN public.communities c ON c.id = m.community_id
@@ -42,7 +42,12 @@ export const getInviteInfo = createServerFn({ method: "POST" })
     `;
     const row = rows[0];
     if (!row) return null;
-    return { name: row.name as string, email: (row.email as string | null) ?? "", communityName: row.community_name as string };
+    return {
+      name: row.name as string,
+      email: (row.email as string | null) ?? "",
+      communityName: row.community_name as string,
+      communitySlug: row.community_slug as string,
+    };
   });
 
 // Public: sets a password, creates (or links to) a login account for this

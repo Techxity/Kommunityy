@@ -2,8 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { MapPin, Plus, Trash2, Users, Pencil, X, Check } from "lucide-react";
 import { listMyChapters, createChapter, updateChapter, deleteChapter } from "@/lib/membership/chapters.functions";
+import { requireModule } from "@/lib/module-gate";
 
 export const Route = createFileRoute("/admin/chapters")({
+  beforeLoad: () => requireModule("Membership"),
   component: ChaptersPage,
 });
 

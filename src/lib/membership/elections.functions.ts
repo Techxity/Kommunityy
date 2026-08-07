@@ -209,6 +209,13 @@ async function activeMemberFor(userId: string): Promise<{ memberId: string; comm
   return row ? { memberId: row.id as string, communityId: row.community_id as string } : null;
 }
 
+type BallotPosition = {
+  id: string;
+  role: string;
+  candidates: { id: string; name: string }[];
+  myVote: string | null;
+};
+
 export const getMyBallot = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
@@ -221,7 +228,7 @@ export const getMyBallot = createServerFn({ method: "POST" })
       ORDER BY created_at DESC LIMIT 1
     `;
     const election = elections[0];
-    if (!election) return { election: null, positions: [] as unknown[] };
+    if (!election) return { election: null, positions: [] as BallotPosition[] };
 
     const positions = await sql`
       SELECT id, role, sort_order FROM public.election_positions WHERE election_id = ${election.id}::uuid ORDER BY sort_order ASC

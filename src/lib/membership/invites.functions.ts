@@ -5,6 +5,7 @@ import { requireAuth } from "@/lib/auth/require-auth.server";
 import { sql } from "@/lib/db/client";
 import { communityIdForAdmin } from "@/lib/payments/communities.functions";
 import { sendEmail } from "@/lib/email";
+import { joinInviteEmail } from "@/lib/email-templates";
 
 // Wrapped for the same reason as session-cookie.server.ts's helpers — this
 // file is reachable from the client via `.middleware([requireAuth])`, so
@@ -34,18 +35,7 @@ export const sendInvites = createServerFn({ method: "POST" })
           to: email,
           subject: `You're invited to join ${communityName}`,
           fromName: communityName,
-          html: `
-            <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; color: #111827;">
-              <p>Hi,</p>
-              <p><strong>${communityName}</strong> has invited you to join their community.</p>
-              <p style="margin: 24px 0;">
-                <a href="${joinUrl}" style="background:#111827;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:600;display:inline-block;">
-                  Fill out the join form
-                </a>
-              </p>
-              <p style="color:#6b7280;font-size:13px;">Or copy this link into your browser: ${joinUrl}</p>
-            </div>
-          `,
+          html: joinInviteEmail({ communityName, joinUrl }),
         }),
       ),
     );

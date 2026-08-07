@@ -8,6 +8,7 @@ import { createServerOnlyFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { sql } from "@/lib/db/client";
 import { sendEmail } from "@/lib/email";
+import { memberAccountReadyEmail } from "@/lib/email-templates";
 
 const getOrigin = createServerOnlyFn((): string => new URL(getRequest().url).origin);
 
@@ -63,19 +64,11 @@ export async function ensureMemberInvite(
     to: member.email as string,
     subject: `You're in! Set your password for ${member.community_name}`,
     fromName: member.community_name as string,
-    html: `
-      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; color: #111827;">
-        <p>Hi ${member.name},</p>
-        <p>Your membership at <strong>${member.community_name}</strong> has been approved. Set a password to access your member portal.</p>
-        <p style="margin: 24px 0;">
-          <a href="${link}" style="background:#111827;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:600;display:inline-block;">
-            Set your password
-          </a>
-        </p>
-        <p style="color:#6b7280;font-size:13px;">Or copy this link into your browser: ${link}</p>
-        <p style="color:#6b7280;font-size:12px;">This link expires in 7 days.</p>
-      </div>
-    `,
+    html: memberAccountReadyEmail({
+      memberName: member.name as string,
+      communityName: member.community_name as string,
+      setupUrl: link,
+    }),
   });
 
   return { created: true, emailSent: result.ok, link };

@@ -4,8 +4,10 @@ import { GripVertical, Plus, Trash2, Link2, Copy, Settings2, ExternalLink, Check
 import { listMyChapters } from "@/lib/membership/chapters.functions";
 import { getMyOnboardingFields, saveOnboardingFields, getMyCommunity } from "@/lib/payments/communities.functions";
 import { FIELD_LIBRARY, type FieldName } from "@/lib/onboarding-fields";
+import { requireModule } from "@/lib/module-gate";
 
 export const Route = createFileRoute("/admin/onboarding")({
+  beforeLoad: () => requireModule("Onboarding Form"),
   component: OnboardingForm,
 });
 

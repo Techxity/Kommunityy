@@ -1,8 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { MarketingNav } from "@/components/marketing-nav";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { signup } from "@/lib/auth/auth.functions";
+import { listSubscriptionTiers, getTrialSettings, startPlanCheckout } from "@/lib/payments/tiers.functions";
 
 export const Route = createFileRoute("/signup")({
   head: () => ({
@@ -25,11 +26,17 @@ const DIAL = [
   { c: "ZA", code: "+27" },
 ];
 
+type Tier = Awaited<ReturnType<typeof listSubscriptionTiers>>[number];
+type TrialSettings = Awaited<ReturnType<typeof getTrialSettings>>;
+
 function Signup() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [type, setType] = useState("Estate");
-  const [pricingPlan, setPricingPlan] = useState("");
+  const [pricingPlan, setPricingPlan] = useState(""); // "trial" or a tier id
+  const [currency, setCurrency] = useState<"NGN" | "USD">("NGN");
+  const [tiers, setTiers] = useState<Tier[]>([]);
+  const [trial, setTrial] = useState<TrialSettings | null>(null);
   const [generatedId, setGeneratedId] = useState("");
   const [communityId, setCommunityId] = useState("");
   const [contactName, setContactName] = useState("");
@@ -38,6 +45,14 @@ function Signup() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    listSubscriptionTiers().then((rows) => setTiers(rows.filter((t) => t.active)));
+    getTrialSettings().then((s) => {
+      setTrial(s);
+      if (s.enabled) setPricingPlan("trial");
+    });
+  }, []);
 
   const nameValid = /^[A-Za-z0-9\-&' ]+$/.test(name) && name.trim().length >= 5;
   const showNameError = name.length > 0 && !nameValid;
@@ -60,16 +75,25 @@ function Signup() {
     if (!nameValid || !pricingValid || !passwordValid || !contactName || !contactEmail) return;
     setError("");
     setLoading(true);
+    const chosenTierId = pricingPlan === "trial" ? undefined : pricingPlan;
     try {
-      await signup({
+      const res = await signup({
         data: {
           communityName: name,
           communityType: type,
           name: contactName,
           email: contactEmail,
           password,
+          tierId: chosenTierId,
         },
       });
+      if (res.needsPayment && chosenTierId) {
+        // Account exists, but the plan only takes effect once Paystack
+        // confirms payment — send them straight into checkout for it.
+        const checkout = await startPlanCheckout({ data: { tierId: chosenTierId, currency } });
+        window.location.href = checkout.authorization_url;
+        return;
+      }
       navigate({ to: "/admin" });
     } catch (err: any) {
       setError(err?.message ?? "Could not create your community. Please try again.");
@@ -86,7 +110,9 @@ function Signup() {
         </Link>
         <h1 className="mt-6 font-display text-4xl font-bold tracking-tight">Create your community</h1>
         <p className="mt-2 text-muted-foreground">
-          Start a 14-day Enterprise trial. No credit card required.
+          {trial?.enabled
+            ? `Start a ${trial.days}-day${trial.tierName ? ` ${trial.tierName}` : ""} trial. No credit card required.`
+            : "Select a plan to get started."}
         </p>
 
         <form onSubmit={handleSubmit} className="mt-10 space-y-6 rounded-3xl border border-border bg-card p-8 shadow-soft">
@@ -212,17 +238,35 @@ function Signup() {
 
 
 
-          <Field label="Select Pricing Plan *" hint="You'll only be charged after your 14-day trial ends">
+          <Field
+            label="Select a Plan *"
+            hint={
+              pricingPlan === "trial"
+                ? `Free for ${trial?.days ?? 14} days, no card required. You'll be prompted to pick a paid plan when the trial ends.`
+                : pricingPlan
+                  ? "You'll be taken to a secure Paystack checkout to pay for this plan after creating your account."
+                  : undefined
+            }
+          >
+            <div className="mb-3 flex justify-end">
+              <div className="inline-flex rounded-full border border-border bg-secondary p-1 text-xs">
+                {(["NGN", "USD"] as const).map((c) => (
+                  <button
+                    type="button"
+                    key={c}
+                    onClick={() => setCurrency(c)}
+                    className={`rounded-full px-3 py-1 font-semibold ${currency === c ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+                  >
+                    {c === "NGN" ? "₦ NGN" : "$ USD"}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="grid gap-3 sm:grid-cols-3">
-              {[
-                { key: "free", name: "Free", price: "$0/mo", desc: "Up to 50 members" },
-                { key: "basic", name: "Basic", price: "$29/mo", desc: "Up to 500 members" },
-                { key: "enterprise", name: "Enterprise", price: "$99/mo", desc: "Unlimited members" },
-              ].map((plan) => (
+              {trial?.enabled && (
                 <label
-                  key={plan.key}
                   className={`cursor-pointer rounded-xl border p-4 transition ${
-                    pricingPlan === plan.key
+                    pricingPlan === "trial"
                       ? "border-primary bg-primary/5 ring-1 ring-primary"
                       : "border-border bg-background hover:bg-muted"
                   }`}
@@ -230,14 +274,40 @@ function Signup() {
                   <input
                     type="radio"
                     name="pricing"
-                    value={plan.key}
-                    checked={pricingPlan === plan.key}
-                    onChange={() => setPricingPlan(plan.key)}
+                    value="trial"
+                    checked={pricingPlan === "trial"}
+                    onChange={() => setPricingPlan("trial")}
                     className="sr-only"
                   />
-                  <p className="text-sm font-semibold text-foreground">{plan.name}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{plan.desc}</p>
-                  <p className="mt-2 text-sm font-bold text-primary">{plan.price}</p>
+                  <p className="text-sm font-semibold text-foreground">Free trial</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{trial.days} days{trial.tierName ? ` · ${trial.tierName} features` : ""}</p>
+                  <p className="mt-2 text-sm font-bold text-primary">$0</p>
+                </label>
+              )}
+              {tiers.map((t) => (
+                <label
+                  key={t.id}
+                  className={`cursor-pointer rounded-xl border p-4 transition ${
+                    pricingPlan === t.id
+                      ? "border-primary bg-primary/5 ring-1 ring-primary"
+                      : "border-border bg-background hover:bg-muted"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="pricing"
+                    value={t.id}
+                    checked={pricingPlan === t.id}
+                    onChange={() => setPricingPlan(t.id)}
+                    className="sr-only"
+                  />
+                  <p className="text-sm font-semibold text-foreground">{t.name}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Up to {t.maxMembers == null ? "unlimited" : t.maxMembers.toLocaleString()} members
+                  </p>
+                  <p className="mt-2 text-sm font-bold text-primary">
+                    {currency === "NGN" ? `₦${t.monthly_price_ngn.toLocaleString()}` : `$${t.monthly_price_usd.toLocaleString()}`}/mo
+                  </p>
                 </label>
               ))}
             </div>
@@ -255,7 +325,11 @@ function Signup() {
               className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-soft transition hover:opacity-90 disabled:opacity-40"
             >
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              {loading ? "Creating…" : "Create community & start trial"}
+              {loading
+                ? "Creating…"
+                : pricingPlan === "trial"
+                  ? "Create community & start trial"
+                  : "Create community & continue to payment"}
             </button>
           </div>
         </form>

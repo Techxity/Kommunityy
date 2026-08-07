@@ -3,8 +3,10 @@ import { useEffect, useState } from "react";
 import { Megaphone, Send } from "lucide-react";
 import { listBroadcasts, sendBroadcast } from "@/lib/membership/broadcasts.functions";
 import { listMembers } from "@/lib/membership/members.functions";
+import { requireModule } from "@/lib/module-gate";
 
 export const Route = createFileRoute("/admin/broadcast")({
+  beforeLoad: () => requireModule("Broadcasts"),
   component: Broadcast,
 });
 

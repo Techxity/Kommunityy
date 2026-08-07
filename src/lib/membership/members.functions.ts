@@ -5,10 +5,38 @@ import { requireAuth } from "@/lib/auth/require-auth.server";
 import { communityIdForAdmin } from "@/lib/payments/communities.functions";
 import { ensureMemberInvite } from "./member-invite.server";
 
+// Enforces the community's plan member cap (subscription_tiers.max_members)
+// when activating members — otherwise "member limit" would just be a
+// cosmetic number on the plan that nothing ever checks.
+async function assertMemberCapacity(communityId: string, incoming: number): Promise<void> {
+  if (incoming <= 0) return;
+  const rows = await sql`
+    SELECT t.max_members
+    FROM public.communities c
+    LEFT JOIN public.subscription_tiers t ON t.id = c.tier_id
+    WHERE c.id = ${communityId}::uuid
+  `;
+  const maxMembers = rows[0]?.max_members as number | null | undefined;
+  if (maxMembers == null) return;
+  const countRows = await sql`SELECT count(*) AS n FROM public.members WHERE community_id = ${communityId}::uuid AND status = 'active'`;
+  const current = Number(countRows[0]?.n ?? 0);
+  if (current + incoming > Number(maxMembers)) {
+    throw new Error(`This would exceed your plan's member limit (${maxMembers} active members). Upgrade your plan or free up a slot first.`);
+  }
+}
+
+// Deliberately string-only — no `new Date(...)` round trip. A bare "date"
+// column (dob) with no time component parses as UTC per spec, but if the
+// driver ever hands back something not in that exact bare-date shape, the
+// JS engine falls back to local-time parsing instead, which silently shifts
+// the calendar day by the local timezone offset (e.g. a member born on the
+// 7th shows as the 6th for anyone west of UTC). Postgres always puts
+// YYYY-MM-DD first in its text output for both `date` and `timestamp(tz)`
+// columns, so slicing the string directly sidesteps that whole class of bug.
 function toDateString(v: unknown): string {
   if (!v) return "";
-  const d = new Date(v as string);
-  return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+  const s = String(v);
+  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : "";
 }
 
 function mapRow(r: Record<string, unknown>) {
@@ -25,6 +53,7 @@ function mapRow(r: Record<string, unknown>) {
     chapter: (r.chapter_name as string | null) ?? "",
     chapterId: (r.chapter_id as string | null) ?? "",
     country: (r.country as string | null) ?? "",
+    address: (r.address as string | null) ?? "",
     extra: (r.extra as Record<string, string> | null) ?? {},
     hasAccount: !!r.user_id,
   };
@@ -77,6 +106,12 @@ export const updateMember = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const communityId = await communityIdForAdmin(context.userId);
     if (!communityId) throw new Error("You don't manage a community yet.");
+
+    if (data.status === "active") {
+      const prevRows = await sql`SELECT status FROM public.members WHERE id = ${data.id}::uuid AND community_id = ${communityId}::uuid`;
+      if (prevRows[0]?.status !== "active") await assertMemberCapacity(communityId, 1);
+    }
+
     await sql`
       UPDATE public.members
       SET
@@ -112,6 +147,15 @@ export const setMembersStatus = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const communityId = await communityIdForAdmin(context.userId);
     if (!communityId) throw new Error("You don't manage a community yet.");
+
+    if (data.status === "active") {
+      const notYetActive = await sql`
+        SELECT count(*) AS n FROM public.members
+        WHERE community_id = ${communityId}::uuid AND id = ANY(${data.ids}::uuid[]) AND status <> 'active'
+      `;
+      await assertMemberCapacity(communityId, Number(notYetActive[0]?.n ?? 0));
+    }
+
     await sql`
       UPDATE public.members
       SET

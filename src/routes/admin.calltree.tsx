@@ -13,8 +13,10 @@ import {
   type Pairing,
   type FeedbackStatus,
 } from "@/lib/call-tree-store";
+import { requireModule } from "@/lib/module-gate";
 
 export const Route = createFileRoute("/admin/calltree")({
+  beforeLoad: () => requireModule("Call Tree"),
   component: CallTreePage,
 });
 

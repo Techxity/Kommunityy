@@ -28,11 +28,13 @@ import { Route as AdminElectionsRouteImport } from './routes/admin.elections'
 import { Route as AdminMembersRouteImport } from './routes/admin.members'
 import { Route as AdminOnboardingRouteImport } from './routes/admin.onboarding'
 import { Route as AdminPayoutsRouteImport } from './routes/admin.payouts'
+import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminSubscriptionRouteImport } from './routes/admin.subscription'
 import { Route as DonateSlugRouteImport } from './routes/donate.$slug'
 import { Route as FeedbackTokenRouteImport } from './routes/feedback.$token'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as JoinCommunityIdRouteImport } from './routes/join.$communityId'
+import { Route as LSlugRouteImport } from './routes/l.$slug'
 import { Route as MemberIndexRouteImport } from './routes/member.index'
 import { Route as MemberCalltreeRouteImport } from './routes/member.calltree'
 import { Route as MemberDuesRouteImport } from './routes/member.dues'
@@ -148,6 +150,11 @@ const AdminPayoutsRoute = AdminPayoutsRouteImport.update({
   path: '/payouts',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminSettingsRoute = AdminSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminSubscriptionRoute = AdminSubscriptionRouteImport.update({
   id: '/subscription',
   path: '/subscription',
@@ -171,6 +178,11 @@ const InviteTokenRoute = InviteTokenRouteImport.update({
 const JoinCommunityIdRoute = JoinCommunityIdRouteImport.update({
   id: '/join/$communityId',
   path: '/join/$communityId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LSlugRoute = LSlugRouteImport.update({
+  id: '/l/$slug',
+  path: '/l/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MemberIndexRoute = MemberIndexRouteImport.update({
@@ -289,11 +301,13 @@ export interface FileRoutesByFullPath {
   '/admin/members': typeof AdminMembersRouteWithChildren
   '/admin/onboarding': typeof AdminOnboardingRoute
   '/admin/payouts': typeof AdminPayoutsRoute
+  '/admin/settings': typeof AdminSettingsRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
   '/donate/$slug': typeof DonateSlugRoute
   '/feedback/$token': typeof FeedbackTokenRoute
   '/invite/$token': typeof InviteTokenRoute
   '/join/$communityId': typeof JoinCommunityIdRoute
+  '/l/$slug': typeof LSlugRoute
   '/member/calltree': typeof MemberCalltreeRoute
   '/member/dues': typeof MemberDuesRoute
   '/member/elections': typeof MemberElectionsRoute
@@ -330,11 +344,13 @@ export interface FileRoutesByTo {
   '/admin/elections': typeof AdminElectionsRoute
   '/admin/onboarding': typeof AdminOnboardingRoute
   '/admin/payouts': typeof AdminPayoutsRoute
+  '/admin/settings': typeof AdminSettingsRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
   '/donate/$slug': typeof DonateSlugRoute
   '/feedback/$token': typeof FeedbackTokenRoute
   '/invite/$token': typeof InviteTokenRoute
   '/join/$communityId': typeof JoinCommunityIdRoute
+  '/l/$slug': typeof LSlugRoute
   '/member/calltree': typeof MemberCalltreeRoute
   '/member/dues': typeof MemberDuesRoute
   '/member/elections': typeof MemberElectionsRoute
@@ -376,11 +392,13 @@ export interface FileRoutesById {
   '/admin/members': typeof AdminMembersRouteWithChildren
   '/admin/onboarding': typeof AdminOnboardingRoute
   '/admin/payouts': typeof AdminPayoutsRoute
+  '/admin/settings': typeof AdminSettingsRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
   '/donate/$slug': typeof DonateSlugRoute
   '/feedback/$token': typeof FeedbackTokenRoute
   '/invite/$token': typeof InviteTokenRoute
   '/join/$communityId': typeof JoinCommunityIdRoute
+  '/l/$slug': typeof LSlugRoute
   '/member/calltree': typeof MemberCalltreeRoute
   '/member/dues': typeof MemberDuesRoute
   '/member/elections': typeof MemberElectionsRoute
@@ -423,11 +441,13 @@ export interface FileRouteTypes {
     | '/admin/members'
     | '/admin/onboarding'
     | '/admin/payouts'
+    | '/admin/settings'
     | '/admin/subscription'
     | '/donate/$slug'
     | '/feedback/$token'
     | '/invite/$token'
     | '/join/$communityId'
+    | '/l/$slug'
     | '/member/calltree'
     | '/member/dues'
     | '/member/elections'
@@ -464,11 +484,13 @@ export interface FileRouteTypes {
     | '/admin/elections'
     | '/admin/onboarding'
     | '/admin/payouts'
+    | '/admin/settings'
     | '/admin/subscription'
     | '/donate/$slug'
     | '/feedback/$token'
     | '/invite/$token'
     | '/join/$communityId'
+    | '/l/$slug'
     | '/member/calltree'
     | '/member/dues'
     | '/member/elections'
@@ -509,11 +531,13 @@ export interface FileRouteTypes {
     | '/admin/members'
     | '/admin/onboarding'
     | '/admin/payouts'
+    | '/admin/settings'
     | '/admin/subscription'
     | '/donate/$slug'
     | '/feedback/$token'
     | '/invite/$token'
     | '/join/$communityId'
+    | '/l/$slug'
     | '/member/calltree'
     | '/member/dues'
     | '/member/elections'
@@ -549,6 +573,7 @@ export interface RootRouteChildren {
   FeedbackTokenRoute: typeof FeedbackTokenRoute
   InviteTokenRoute: typeof InviteTokenRoute
   JoinCommunityIdRoute: typeof JoinCommunityIdRoute
+  LSlugRoute: typeof LSlugRoute
   PayDuesPlanIdRoute: typeof PayDuesPlanIdRoute
   ApiPublicPaystackWebhookRoute: typeof ApiPublicPaystackWebhookRoute
 }
@@ -688,6 +713,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPayoutsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/settings': {
+      id: '/admin/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AdminSettingsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/subscription': {
       id: '/admin/subscription'
       path: '/subscription'
@@ -721,6 +753,13 @@ declare module '@tanstack/react-router' {
       path: '/join/$communityId'
       fullPath: '/join/$communityId'
       preLoaderRoute: typeof JoinCommunityIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/l/$slug': {
+      id: '/l/$slug'
+      path: '/l/$slug'
+      fullPath: '/l/$slug'
+      preLoaderRoute: typeof LSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/member/': {
@@ -884,6 +923,7 @@ interface AdminRouteChildren {
   AdminMembersRoute: typeof AdminMembersRouteWithChildren
   AdminOnboardingRoute: typeof AdminOnboardingRoute
   AdminPayoutsRoute: typeof AdminPayoutsRoute
+  AdminSettingsRoute: typeof AdminSettingsRoute
   AdminSubscriptionRoute: typeof AdminSubscriptionRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
@@ -899,6 +939,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminMembersRoute: AdminMembersRouteWithChildren,
   AdminOnboardingRoute: AdminOnboardingRoute,
   AdminPayoutsRoute: AdminPayoutsRoute,
+  AdminSettingsRoute: AdminSettingsRoute,
   AdminSubscriptionRoute: AdminSubscriptionRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
@@ -967,6 +1008,7 @@ const rootRouteChildren: RootRouteChildren = {
   FeedbackTokenRoute: FeedbackTokenRoute,
   InviteTokenRoute: InviteTokenRoute,
   JoinCommunityIdRoute: JoinCommunityIdRoute,
+  LSlugRoute: LSlugRoute,
   PayDuesPlanIdRoute: PayDuesPlanIdRoute,
   ApiPublicPaystackWebhookRoute: ApiPublicPaystackWebhookRoute,
 }

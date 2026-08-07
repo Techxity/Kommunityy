@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { getDefaultCommunity } from "@/lib/payments/communities.functions";
+import { getMyCommunity } from "@/lib/payments/communities.functions";
 import {
   getCommunityBank,
   listBanks,
@@ -56,7 +56,7 @@ function PayoutsPage() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const c = await getDefaultCommunity();
+      const c = await getMyCommunity();
       if (!c) return setLoading(false);
 
       // Bank details are not client-readable; fetch via authorized server fn.

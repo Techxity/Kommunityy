@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { stats, donations, members } from "@/lib/mock-data";
-import { getMyCommunity } from "@/lib/payments/communities.functions";
+import { getMyCommunity, getDashboardStats } from "@/lib/payments/communities.functions";
+import { listMyDonations } from "@/lib/payments/donations.functions";
+import { listDuesPayments } from "@/lib/payments/dues.functions";
 import {
   Users,
   Cake,
@@ -17,13 +18,37 @@ export const Route = createFileRoute("/admin/")({
   component: Dashboard,
 });
 
+const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// Formats a "YYYY-MM-DD" dob string directly from its parts instead of
+// through `new Date(...)` — parsing a bare date and re-formatting it can
+// silently shift the day by one depending on the viewer's local timezone.
+function formatDob(dob: string): string {
+  const [, month, day] = dob.split("-").map(Number);
+  if (!month || !day) return "";
+  return `${SHORT_MONTHS[month - 1]} ${day}`;
+}
+
 function Dashboard() {
-  const upcomingBirthdays = members.slice(0, 4);
-  const [community, setCommunity] = useState<{ id: string; name: string; trialDaysLeft: number } | null>(null);
+  const [community, setCommunity] = useState<{ id: string; name: string; trialDaysLeft: number; onTrial: boolean; tierName: string | null } | null>(null);
+  const [memberStats, setMemberStats] = useState({ activeMembers: 0, totalMembers: 0, birthdaysThisMonth: [] as { id: string; name: string; dob: string }[], messagesSent30d: 0 });
+  const [activeDonations, setActiveDonations] = useState<Awaited<ReturnType<typeof listMyDonations>>>([]);
+  const [duesCollectedMtdNgn, setDuesCollectedMtdNgn] = useState(0);
 
   useEffect(() => {
     getMyCommunity().then(setCommunity).catch(() => setCommunity(null));
+    getDashboardStats().then(setMemberStats).catch(() => {});
+    listMyDonations().then((rows) => setActiveDonations(rows.filter((d) => d.status === "active"))).catch(() => {});
+    listDuesPayments().then((rows) => {
+      const now = new Date();
+      const mtd = rows
+        .filter((r) => r.status === "paid" && r.currency === "NGN" && new Date(r.paidAt).getMonth() === now.getMonth() && new Date(r.paidAt).getFullYear() === now.getFullYear())
+        .reduce((sum, r) => sum + r.amount, 0);
+      setDuesCollectedMtdNgn(mtd);
+    }).catch(() => {});
   }, []);
+
+  const upcomingBirthdays = memberStats.birthdaysThisMonth.slice(0, 4);
 
   return (
     <div className="space-y-6">
@@ -32,20 +57,20 @@ function Dashboard() {
           <p className="text-xs uppercase tracking-wider text-muted-foreground">Welcome back</p>
           <h1 className="font-display text-3xl font-bold tracking-tight">Here's how your community is doing.</h1>
         </div>
-        {community && (
+        {community?.onTrial && (
           <div className="rounded-full border border-warning/40 bg-warning/10 px-4 py-1.5 text-xs font-semibold text-warning-foreground">
             <Sparkles className="-mt-0.5 mr-1 inline h-3 w-3" />
-            {community.trialDaysLeft} days left in your Enterprise trial
+            {community.trialDaysLeft} days left in your {community.tierName ?? ""} trial
           </div>
         )}
       </header>
 
       {/* Bento grid */}
       <div className="grid grid-cols-12 gap-4">
-        <Tile className="col-span-12 md:col-span-3" tone="primary" label="Active members" value={stats.activeMembers} sub={`of ${stats.totalMembers} total`} icon={Users} link="/admin/members" />
-        <Tile className="col-span-6 md:col-span-3" label="Birthdays this month" value={stats.birthdaysThisMonth} sub="Auto messages on" icon={Cake} link="/admin/birthdays" />
-        <Tile className="col-span-6 md:col-span-3" label="Messages sent (30d)" value={stats.messagesSentThisMonth} sub="Broadcasts + birthdays" icon={Megaphone} link="/admin/broadcast" />
-        <Tile className="col-span-12 md:col-span-3" tone="accent" label="Dues collected MTD" value={`₦${(stats.duesCollectedMTD / 1000).toFixed(0)}k`} sub="May 2026" icon={Banknote} link="/admin/dues" />
+        <Tile className="col-span-12 md:col-span-3" tone="primary" label="Active members" value={memberStats.activeMembers} sub={`of ${memberStats.totalMembers} total`} icon={Users} link="/admin/members" />
+        <Tile className="col-span-6 md:col-span-3" label="Birthdays this month" value={memberStats.birthdaysThisMonth.length} sub="Auto messages on" icon={Cake} link="/admin/birthdays" />
+        <Tile className="col-span-6 md:col-span-3" label="Messages sent (30d)" value={memberStats.messagesSent30d} sub="Broadcasts + birthdays" icon={Megaphone} link="/admin/broadcast" />
+        <Tile className="col-span-12 md:col-span-3" tone="accent" label="Dues collected MTD" value={`₦${duesCollectedMtdNgn.toLocaleString()}`} sub={new Date().toLocaleDateString(undefined, { month: "long", year: "numeric" })} icon={Banknote} link="/admin/dues" />
 
         <div className="col-span-12 rounded-2xl border border-border bg-card p-6 shadow-soft md:col-span-5">
           <div className="flex items-center justify-between">
@@ -63,7 +88,7 @@ function Dashboard() {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-semibold">{m.name}</p>
-                  <p className="text-xs text-muted-foreground">{new Date(m.dob).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</p>
+                  <p className="text-xs text-muted-foreground">{formatDob(m.dob)}</p>
                 </div>
                 <span className="rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-semibold text-success">Scheduled</span>
               </li>
@@ -78,17 +103,25 @@ function Dashboard() {
             <Link to="/admin/donations" className="text-xs font-semibold text-accent">View all →</Link>
           </div>
           <div className="mt-4 space-y-3">
-            {donations.filter((d) => d.status === "Active").map((d) => {
-              const pct = Math.round((d.collected / d.target) * 100);
+            {activeDonations.length === 0 && (
+              <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                No active donation campaigns yet.
+              </p>
+            )}
+            {activeDonations.map((d) => {
+              const target = d.targetNgn || d.targetUsd;
+              const collected = d.targetNgn ? d.collectedNgn : d.collectedUsd;
+              const symbol = d.targetNgn ? "₦" : "$";
+              const pct = target > 0 ? Math.round((collected / target) * 100) : 0;
               return (
                 <div key={d.id} className="rounded-xl border border-border p-4">
                   <div className="flex items-center justify-between text-sm">
                     <span className="font-semibold">{d.purpose}</span>
-                    <span className="text-muted-foreground">Ends {d.deadline}</span>
+                    <span className="text-muted-foreground">{d.deadline ? `Ends ${d.deadline}` : "No end date"}</span>
                   </div>
                   <div className="mt-2 flex items-baseline gap-2">
-                    <span className="font-display text-xl font-bold">₦{d.collected.toLocaleString()}</span>
-                    <span className="text-xs text-muted-foreground">/ ₦{d.target.toLocaleString()}</span>
+                    <span className="font-display text-xl font-bold">{symbol}{collected.toLocaleString()}</span>
+                    <span className="text-xs text-muted-foreground">/ {symbol}{target.toLocaleString()}</span>
                     <span className="ml-auto text-xs font-semibold text-success">{pct}%</span>
                   </div>
                   <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">

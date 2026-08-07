@@ -1,6 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { donations as seedDonations } from "@/lib/mock-data";
+import {
+  listMyDonations,
+  createDonation,
+  updateDonation,
+  endDonation,
+  listDonationPayers,
+} from "@/lib/payments/donations.functions";
 import {
   Dialog,
   DialogContent,
@@ -9,10 +15,15 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { HeartHandshake, Plus, Pencil } from "lucide-react";
+import { requireModule } from "@/lib/module-gate";
 
 export const Route = createFileRoute("/admin/donations")({
+  beforeLoad: () => requireModule("Donations"),
   component: Donations,
 });
+
+type Donation = Awaited<ReturnType<typeof listMyDonations>>[number];
+type Payer = Awaited<ReturnType<typeof listDonationPayers>>[number];
 
 interface DonationFormData {
   purpose: string;
@@ -21,33 +32,10 @@ interface DonationFormData {
   deadline: string;
 }
 
-interface Payer {
-  member: string;
-  amount: number;
-  currency: "NGN" | "USD";
-  date: string;
-}
-
-interface Donation {
-  id: string;
-  purpose: string;
-  target_ngn: number;
-  target_usd: number;
-  collected_ngn: number;
-  collected_usd: number;
-  deadline: string;
-  status: string;
-  payers?: Payer[];
-}
-
 const fmt = (amount: number, currency: "NGN" | "USD") =>
   currency === "NGN"
     ? `₦${amount.toLocaleString()}`
     : `$${amount.toLocaleString()}`;
-
-// Community-level accepted currencies (would come from communities table).
-const ACCEPT_NGN = true;
-const ACCEPT_USD = true;
 
 function DonationModal({
   open,
@@ -55,12 +43,16 @@ function DonationModal({
   title,
   initial,
   onSave,
+  saving,
+  error,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   title: string;
   initial: DonationFormData;
   onSave: (data: DonationFormData) => void;
+  saving: boolean;
+  error: string;
 }) {
   const [form, setForm] = useState(initial);
   const [lastInitial, setLastInitial] = useState(initial);
@@ -86,28 +78,24 @@ function DonationModal({
               />
             </Field>
           </div>
-          {ACCEPT_NGN && (
-            <Field label="Target (₦ NGN)">
-              <input
-                className="input"
-                type="number"
-                placeholder="500000"
-                value={form.target_ngn}
-                onChange={(e) => setForm((f) => ({ ...f, target_ngn: e.target.value }))}
-              />
-            </Field>
-          )}
-          {ACCEPT_USD && (
-            <Field label="Target ($ USD)">
-              <input
-                className="input"
-                type="number"
-                placeholder="1000"
-                value={form.target_usd}
-                onChange={(e) => setForm((f) => ({ ...f, target_usd: e.target.value }))}
-              />
-            </Field>
-          )}
+          <Field label="Target (₦ NGN)">
+            <input
+              className="input"
+              type="number"
+              placeholder="500000"
+              value={form.target_ngn}
+              onChange={(e) => setForm((f) => ({ ...f, target_ngn: e.target.value }))}
+            />
+          </Field>
+          <Field label="Target ($ USD)">
+            <input
+              className="input"
+              type="number"
+              placeholder="1000"
+              value={form.target_usd}
+              onChange={(e) => setForm((f) => ({ ...f, target_usd: e.target.value }))}
+            />
+          </Field>
           <div className="md:col-span-2">
             <Field label="Closing date">
               <input
@@ -122,16 +110,17 @@ function DonationModal({
         <p className="mt-3 text-xs text-muted-foreground">
           Leave a currency blank to not accept donations in it. Members choose ₦ or $ when they pay.
         </p>
+        {error && <p className="mt-2 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>}
         <div className="mt-5 flex justify-end">
           <Button
+            disabled={saving}
             onClick={() => {
-              if (!form.purpose || !form.deadline) return;
+              if (!form.purpose) return;
               if (!form.target_ngn && !form.target_usd) return;
               onSave(form);
-              onOpenChange(false);
             }}
           >
-            Save
+            {saving ? "Saving…" : "Save"}
           </Button>
         </div>
       </DialogContent>
@@ -140,88 +129,95 @@ function DonationModal({
 }
 
 function Donations() {
-  const [list, setList] = useState<Donation[]>(
-    seedDonations.map((d) => ({
-      id: d.id,
-      purpose: d.purpose,
-      target_ngn: d.target,
-      target_usd: 0,
-      collected_ngn: d.collected,
-      collected_usd: 0,
-      deadline: d.deadline,
-      status: d.status,
-      payers: [],
-    })),
-  );
+  const [list, setList] = useState<Donation[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<DonationFormData>({
-    purpose: "",
-    target_ngn: "",
-    target_usd: "",
-    deadline: "",
-  });
+  const [editForm, setEditForm] = useState<DonationFormData>({ purpose: "", target_ngn: "", target_usd: "", deadline: "" });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const [payersFor, setPayersFor] = useState<Donation | null>(null);
+  const [payers, setPayers] = useState<Payer[]>([]);
 
-  const emptyForm: DonationFormData = {
-    purpose: "",
-    target_ngn: "",
-    target_usd: "",
-    deadline: "",
-  };
+  function refresh() {
+    listMyDonations().then(setList);
+  }
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  useEffect(() => {
+    if (payersFor) {
+      listDonationPayers({ data: { donationId: payersFor.id } }).then(setPayers);
+    } else {
+      setPayers([]);
+    }
+  }, [payersFor]);
+
+  const emptyForm: DonationFormData = { purpose: "", target_ngn: "", target_usd: "", deadline: "" };
 
   const handleEdit = (d: Donation) => {
     setEditingId(d.id);
+    setError("");
     setEditForm({
       purpose: d.purpose,
-      target_ngn: d.target_ngn ? String(d.target_ngn) : "",
-      target_usd: d.target_usd ? String(d.target_usd) : "",
+      target_ngn: d.targetNgn ? String(d.targetNgn) : "",
+      target_usd: d.targetUsd ? String(d.targetUsd) : "",
       deadline: d.deadline,
     });
     setEditOpen(true);
   };
 
-  const handleEndDonation = (id: string) => {
-    setList((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, status: "Closed" } : d)),
-    );
-  };
+  async function handleEndDonation(id: string) {
+    await endDonation({ data: { id } });
+    refresh();
+  }
 
-  const handleCreate = (data: DonationFormData) => {
-    setList((prev) => [
-      ...prev,
-      {
-        id: `d${Date.now()}`,
-        purpose: data.purpose,
-        target_ngn: Number(data.target_ngn) || 0,
-        target_usd: Number(data.target_usd) || 0,
-        collected_ngn: 0,
-        collected_usd: 0,
-        deadline: data.deadline,
-        status: "Active",
-        payers: [],
-      },
-    ]);
-  };
+  async function handleCreate(data: DonationFormData) {
+    setSaving(true);
+    setError("");
+    try {
+      await createDonation({
+        data: {
+          purpose: data.purpose,
+          targetNgn: data.target_ngn ? Number(data.target_ngn) : null,
+          targetUsd: data.target_usd ? Number(data.target_usd) : null,
+          deadline: data.deadline || undefined,
+        },
+      });
+      setCreateOpen(false);
+      refresh();
+    } catch (err: any) {
+      setError(err?.message ?? "Couldn't create donation.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
-  const handleSaveEdit = (data: DonationFormData) => {
+  async function handleSaveEdit(data: DonationFormData) {
     if (!editingId) return;
-    setList((prev) =>
-      prev.map((d) =>
-        d.id === editingId
-          ? {
-              ...d,
-              purpose: data.purpose,
-              target_ngn: Number(data.target_ngn) || 0,
-              target_usd: Number(data.target_usd) || 0,
-              deadline: data.deadline,
-            }
-          : d,
-      ),
-    );
-    setEditingId(null);
-  };
+    setSaving(true);
+    setError("");
+    try {
+      await updateDonation({
+        data: {
+          id: editingId,
+          purpose: data.purpose,
+          targetNgn: data.target_ngn ? Number(data.target_ngn) : null,
+          targetUsd: data.target_usd ? Number(data.target_usd) : null,
+          deadline: data.deadline || undefined,
+        },
+      });
+      setEditOpen(false);
+      setEditingId(null);
+      refresh();
+    } catch (err: any) {
+      setError(err?.message ?? "Couldn't save changes.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -233,80 +229,63 @@ function Donations() {
           </p>
         </div>
         <Button
-          onClick={() => setCreateOpen(true)}
+          onClick={() => { setError(""); setCreateOpen(true); }}
           className="gap-2 rounded-full px-4 py-2 text-sm font-semibold shadow-soft"
         >
           <Plus className="h-4 w-4" /> New donation
         </Button>
       </header>
 
+      {list.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
+          <HeartHandshake className="mx-auto h-8 w-8 text-muted-foreground" />
+          <p className="mt-3 font-display text-lg font-semibold">No donation campaigns yet</p>
+          <p className="mt-1 text-sm text-muted-foreground">Start one to raise funds for a cause — members get a shareable pay link.</p>
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2">
         {list.map((d) => {
-          const pctNgn =
-            d.target_ngn > 0
-              ? Math.min(100, Math.round((d.collected_ngn / d.target_ngn) * 100))
-              : 0;
-          const pctUsd =
-            d.target_usd > 0
-              ? Math.min(100, Math.round((d.collected_usd / d.target_usd) * 100))
-              : 0;
+          const pctNgn = d.targetNgn > 0 ? Math.min(100, Math.round((d.collectedNgn / d.targetNgn) * 100)) : 0;
+          const pctUsd = d.targetUsd > 0 ? Math.min(100, Math.round((d.collectedUsd / d.targetUsd) * 100)) : 0;
           return (
-            <div
-              key={d.id}
-              className="rounded-2xl border border-border bg-card p-6 shadow-soft"
-            >
+            <div key={d.id} className="rounded-2xl border border-border bg-card p-6 shadow-soft">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                    {d.status}
-                  </p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground capitalize">{d.status}</p>
                   <h3 className="mt-1 font-display text-xl font-bold">{d.purpose}</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">Closes {d.deadline}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{d.deadline ? `Closes ${d.deadline}` : "No closing date"}</p>
                 </div>
                 <HeartHandshake className="h-5 w-5 text-accent" />
               </div>
 
               <div className="mt-5 space-y-3">
-                {d.target_ngn > 0 && (
+                {d.targetNgn > 0 && (
                   <div>
                     <div className="flex items-baseline gap-2">
-                      <span className="font-display text-2xl font-bold">
-                        ₦{d.collected_ngn.toLocaleString()}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        / ₦{d.target_ngn.toLocaleString()}
-                      </span>
+                      <span className="font-display text-2xl font-bold">₦{d.collectedNgn.toLocaleString()}</span>
+                      <span className="text-xs text-muted-foreground">/ ₦{d.targetNgn.toLocaleString()}</span>
                     </div>
                     <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full bg-gradient-accent"
-                        style={{ width: `${pctNgn}%` }}
-                      />
+                      <div className="h-full bg-gradient-accent" style={{ width: `${pctNgn}%` }} />
                     </div>
                   </div>
                 )}
-                {d.target_usd > 0 && (
+                {d.targetUsd > 0 && (
                   <div>
                     <div className="flex items-baseline gap-2">
-                      <span className="font-display text-2xl font-bold">
-                        ${d.collected_usd.toLocaleString()}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        / ${d.target_usd.toLocaleString()}
-                      </span>
+                      <span className="font-display text-2xl font-bold">${d.collectedUsd.toLocaleString()}</span>
+                      <span className="text-xs text-muted-foreground">/ ${d.targetUsd.toLocaleString()}</span>
                     </div>
                     <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full bg-gradient-accent"
-                        style={{ width: `${pctUsd}%` }}
-                      />
+                      <div className="h-full bg-gradient-accent" style={{ width: `${pctUsd}%` }} />
                     </div>
                   </div>
                 )}
               </div>
 
               <div className="mt-5 flex gap-2">
-                {d.status === "Active" ? (
+                {d.status === "active" ? (
                   <button
                     onClick={() => handleEndDonation(d.id)}
                     className="flex-1 rounded-full bg-secondary py-2 text-xs font-semibold"
@@ -343,6 +322,8 @@ function Donations() {
         title="Create donation"
         initial={emptyForm}
         onSave={handleCreate}
+        saving={saving}
+        error={error}
       />
 
       <DonationModal
@@ -351,6 +332,8 @@ function Donations() {
         title="Edit donation"
         initial={editForm}
         onSave={handleSaveEdit}
+        saving={saving}
+        error={error}
       />
 
       <Dialog open={!!payersFor} onOpenChange={(v) => !v && setPayersFor(null)}>
@@ -361,9 +344,9 @@ function Donations() {
             </DialogTitle>
           </DialogHeader>
           <div className="mt-2">
-            {payersFor && payersFor.payers && payersFor.payers.length > 0 ? (
+            {payers.length > 0 ? (
               <div className="divide-y divide-border rounded-xl border border-border">
-                {payersFor.payers.map((p, i) => (
+                {payers.map((p, i) => (
                   <div key={i} className="flex items-center justify-between px-4 py-3">
                     <div>
                       <p className="text-sm font-semibold">{p.member}</p>
@@ -378,12 +361,8 @@ function Donations() {
                   <div className="text-sm font-semibold">Totals</div>
                   <div className="font-display text-sm font-bold space-x-3">
                     {(() => {
-                      const ngn = payersFor.payers
-                        .filter((p) => p.currency === "NGN")
-                        .reduce((s, p) => s + p.amount, 0);
-                      const usd = payersFor.payers
-                        .filter((p) => p.currency === "USD")
-                        .reduce((s, p) => s + p.amount, 0);
+                      const ngn = payers.filter((p) => p.currency === "NGN").reduce((s, p) => s + p.amount, 0);
+                      const usd = payers.filter((p) => p.currency === "USD").reduce((s, p) => s + p.amount, 0);
                       return (
                         <>
                           {ngn > 0 && <span>₦{ngn.toLocaleString()}</span>}

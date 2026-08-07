@@ -1,21 +1,48 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Cake, Send, Sparkles, Check } from "lucide-react";
+import { Cake, Send, Sparkles, Check, Mail, MessageCircle } from "lucide-react";
 import { getMyCommunity } from "@/lib/payments/communities.functions";
-import { getBirthdayMessages, saveBirthdayMessage, listMembersWithBirthdays, sendBirthdayEmails } from "@/lib/membership/birthdays.functions";
+import { getBirthdayMessages, saveBirthdayMessage, listMembersWithBirthdays, sendBirthdayMessages } from "@/lib/membership/birthdays.functions";
+import { requireModule } from "@/lib/module-gate";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 export const Route = createFileRoute("/admin/birthdays")({
+  beforeLoad: () => requireModule("Birthdays"),
   component: Birthdays,
 });
 
-type Member = { id: string; name: string; email: string; dob: string };
+type Member = { id: string; name: string; email: string; whatsapp: string; dob: string };
+type SendResult = { emailSent: number; emailTotal: number; whatsappSent: number; whatsappTotal: number; whatsappConfigured: boolean };
+
+function resultSummary(r: SendResult): string {
+  const parts: string[] = [];
+  if (r.emailTotal > 0) parts.push(`${r.emailSent}/${r.emailTotal} email`);
+  if (r.whatsappTotal > 0) parts.push(`${r.whatsappSent}/${r.whatsappTotal} WhatsApp`);
+  return parts.length > 0 ? `Sent ${parts.join(", ")}.` : "Nothing to send.";
+}
+
+// dob comes in as a plain "YYYY-MM-DD" string — parse the month/day
+// straight out of it rather than through `new Date(dob)`. A bare date
+// string parses as UTC midnight, but re-reading it with local accessors (or
+// formatting without forcing UTC) can shift the calendar day by one
+// depending on the viewer's timezone — which is exactly why a member born
+// on the 7th could show up as the 6th.
+function dobParts(dob: string): { month: number; day: number } {
+  const [, month, day] = dob.split("-").map(Number);
+  return { month: month || 0, day: day || 0 };
+}
 
 function isTodayBirthday(dob: string) {
-  const d = new Date(dob);
+  const { month, day } = dobParts(dob);
   const now = new Date();
-  return d.getUTCDate() === now.getDate() && d.getUTCMonth() === now.getMonth();
+  return day === now.getDate() && month === now.getMonth() + 1;
+}
+
+function formatDob(dob: string): string {
+  const { month, day } = dobParts(dob);
+  if (!month || !day) return "";
+  return `${MONTHS[month - 1]} ${day}`;
 }
 
 function Birthdays() {
@@ -24,31 +51,56 @@ function Birthdays() {
   const [communityName, setCommunityName] = useState("");
   const [active, setActive] = useState(MONTHS[new Date().getMonth()]);
   const [lastRun, setLastRun] = useState<string | null>(null);
+  const [lastResult, setLastResult] = useState<SendResult | null>(null);
   const [sending, setSending] = useState(false);
   const [justSent, setJustSent] = useState(false);
   const [savingMessage, setSavingMessage] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [resentId, setResentId] = useState<string | null>(null);
+
+  function refreshMembers() {
+    listMembersWithBirthdays().then(setMembers);
+  }
 
   useEffect(() => {
-    listMembersWithBirthdays().then(setMembers);
+    refreshMembers();
     getBirthdayMessages().then(setMessages);
     getMyCommunity().then((c) => setCommunityName(c?.name ?? ""));
   }, []);
 
-  const thisMonth = members.filter((m) => new Date(m.dob).getUTCMonth() === MONTHS.indexOf(active));
-  const today = members.filter((m) => isTodayBirthday(m.dob) && m.email);
+  const thisMonth = members.filter((m) => dobParts(m.dob).month === MONTHS.indexOf(active) + 1);
+  const today = members.filter((m) => isTodayBirthday(m.dob) && (m.email || m.whatsapp));
 
   async function sendToday() {
     if (today.length === 0) return;
     setSending(true);
     try {
-      await sendBirthdayEmails({ data: { memberIds: today.map((m) => m.id) } });
+      const result = await sendBirthdayMessages({ data: { memberIds: today.map((m) => m.id) } });
       setLastRun(new Date().toISOString());
+      setLastResult(result);
       setJustSent(true);
       setTimeout(() => setJustSent(false), 2200);
     } catch (err: any) {
-      alert(err?.message ?? "Couldn't send birthday emails.");
+      alert(err?.message ?? "Couldn't send birthday messages.");
     } finally {
       setSending(false);
+    }
+  }
+
+  // Lets the admin resend to one specific person — e.g. their birthday's
+  // already past "today" for the bulk button, or the first send just didn't
+  // land — without needing to wait for the automated job. Sends on every
+  // channel the member has on file (email and/or WhatsApp).
+  async function resendTo(memberId: string) {
+    setResendingId(memberId);
+    try {
+      await sendBirthdayMessages({ data: { memberIds: [memberId] } });
+      setResentId(memberId);
+      setTimeout(() => setResentId(null), 2200);
+    } catch (err: any) {
+      alert(err?.message ?? "Couldn't send that birthday message.");
+    } finally {
+      setResendingId(null);
     }
   }
 
@@ -77,11 +129,12 @@ function Birthdays() {
             className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-soft hover:opacity-90 disabled:opacity-40"
           >
             {justSent ? <Check className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
-            {sending ? "Sending…" : justSent ? "Sent" : `Send today's emails (${today.length})`}
+            {sending ? "Sending…" : justSent ? "Sent" : `Send today's messages (${today.length})`}
           </button>
           {lastRun && (
             <p className="text-[11px] text-muted-foreground">
               Last manual run: {new Date(lastRun).toLocaleString()}
+              {lastResult && ` — ${resultSummary(lastResult)}`}
             </p>
           )}
         </div>
@@ -103,7 +156,10 @@ function Birthdays() {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-semibold">{m.name}</p>
-                  <p className="text-xs text-primary-foreground/70">{m.email}</p>
+                  <p className="flex items-center gap-2 text-xs text-primary-foreground/70">
+                    {m.email && <span className="inline-flex items-center gap-1"><Mail className="h-3 w-3" />{m.email}</span>}
+                    {m.whatsapp && <span className="inline-flex items-center gap-1"><MessageCircle className="h-3 w-3" />WhatsApp</span>}
+                  </p>
                 </div>
                 <Cake className="h-4 w-4 text-primary-foreground/80" />
               </li>
@@ -171,9 +227,21 @@ function Birthdays() {
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-semibold">{m.name}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(m.dob).toLocaleDateString(undefined, { month: "long", day: "numeric", timeZone: "UTC" })}</p>
+                      <p className="text-xs text-muted-foreground">{formatDob(m.dob)}</p>
                     </div>
-                    <span className="text-xs text-muted-foreground">{m.email}</span>
+                    <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
+                      {m.email && <span title={m.email}><Mail className="h-3.5 w-3.5" /></span>}
+                      {m.whatsapp && <span title={m.whatsapp}><MessageCircle className="h-3.5 w-3.5" /></span>}
+                    </span>
+                    <button
+                      onClick={() => resendTo(m.id)}
+                      disabled={(!m.email && !m.whatsapp) || resendingId === m.id}
+                      title={m.email || m.whatsapp ? "Send this member their birthday message now" : "No email or WhatsApp number on file"}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:bg-muted disabled:opacity-40"
+                    >
+                      {resentId === m.id ? <Check className="h-3 w-3" /> : <Send className="h-3 w-3" />}
+                      {resendingId === m.id ? "Sending…" : resentId === m.id ? "Sent" : "Send"}
+                    </button>
                   </li>
                 ))}
               </ul>

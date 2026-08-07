@@ -3,6 +3,14 @@ import { z } from "zod";
 import { getRequestHost } from "@tanstack/react-start/server";
 import { sql } from "@/lib/db/client";
 import { initializeTransaction } from "./paystack.server";
+import { requireAuth } from "@/lib/auth/require-auth.server";
+import { communityIdForAdmin } from "./communities.functions";
+
+function slugify(text: string): string {
+  const base = text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-+|-+$)/g, "").slice(0, 60);
+  const suffix = crypto.randomUUID().slice(0, 6);
+  return `${base || "fund"}-${suffix}`;
+}
 
 const StartDonationInput = z.object({
   slug: z.string().min(1).max(128),
@@ -44,6 +52,120 @@ export const startDonationCheckout = createServerFn({ method: "POST" })
     });
 
     return { authorization_url: tx.authorization_url, reference: tx.reference };
+  });
+
+// ── Admin: donation campaigns ────────────────────────────────────────────
+
+export const listMyDonations = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const communityId = await communityIdForAdmin(context.userId);
+    if (!communityId) return [];
+    const rows = await sql`
+      SELECT
+        d.id, d.purpose, d.target_ngn, d.target_usd, d.deadline, d.status, d.shareable_slug,
+        COALESCE(t.collected_ngn, 0) AS collected_ngn,
+        COALESCE(t.collected_usd, 0) AS collected_usd
+      FROM public.donations d
+      LEFT JOIN public.donation_totals t ON t.donation_id = d.id
+      WHERE d.community_id = ${communityId}::uuid
+      ORDER BY d.created_at DESC
+    `;
+    return rows.map((r) => ({
+      id: r.id as string,
+      purpose: r.purpose as string,
+      targetNgn: r.target_ngn != null ? Number(r.target_ngn) : 0,
+      targetUsd: r.target_usd != null ? Number(r.target_usd) : 0,
+      collectedNgn: Number(r.collected_ngn),
+      collectedUsd: Number(r.collected_usd),
+      deadline: r.deadline ? new Date(r.deadline as string).toISOString().slice(0, 10) : "",
+      status: r.status as "active" | "closed",
+      slug: r.shareable_slug as string,
+    }));
+  });
+
+export const createDonation = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) =>
+    z
+      .object({
+        purpose: z.string().min(1).max(200),
+        targetNgn: z.number().positive().nullable().optional(),
+        targetUsd: z.number().positive().nullable().optional(),
+        deadline: z.string().optional(),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    if (!data.targetNgn && !data.targetUsd) throw new Error("Set a target in at least one currency.");
+    const communityId = await communityIdForAdmin(context.userId);
+    if (!communityId) throw new Error("You don't manage a community yet.");
+    const slug = slugify(data.purpose);
+    await sql`
+      INSERT INTO public.donations (community_id, purpose, target_ngn, target_usd, deadline, shareable_slug)
+      VALUES (${communityId}::uuid, ${data.purpose}, ${data.targetNgn ?? null}, ${data.targetUsd ?? null}, ${data.deadline || null}::date, ${slug})
+    `;
+    return { ok: true };
+  });
+
+export const updateDonation = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        purpose: z.string().min(1).max(200),
+        targetNgn: z.number().positive().nullable().optional(),
+        targetUsd: z.number().positive().nullable().optional(),
+        deadline: z.string().optional(),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    if (!data.targetNgn && !data.targetUsd) throw new Error("Set a target in at least one currency.");
+    const communityId = await communityIdForAdmin(context.userId);
+    if (!communityId) throw new Error("You don't manage a community yet.");
+    await sql`
+      UPDATE public.donations
+      SET purpose = ${data.purpose}, target_ngn = ${data.targetNgn ?? null}, target_usd = ${data.targetUsd ?? null},
+          deadline = ${data.deadline || null}::date, updated_at = now()
+      WHERE id = ${data.id}::uuid AND community_id = ${communityId}::uuid
+    `;
+    return { ok: true };
+  });
+
+export const endDonation = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => z.object({ id: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId);
+    if (!communityId) throw new Error("You don't manage a community yet.");
+    await sql`
+      UPDATE public.donations SET status = 'closed', updated_at = now()
+      WHERE id = ${data.id}::uuid AND community_id = ${communityId}::uuid
+    `;
+    return { ok: true };
+  });
+
+export const listDonationPayers = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => z.object({ donationId: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId);
+    if (!communityId) return [];
+    const rows = await sql`
+      SELECT dp.payer_name, dp.amount, dp.currency, dp.paid_at
+      FROM public.donation_payments dp
+      JOIN public.donations d ON d.id = dp.donation_id
+      WHERE dp.donation_id = ${data.donationId}::uuid AND d.community_id = ${communityId}::uuid AND dp.status = 'paid'
+      ORDER BY dp.paid_at DESC
+    `;
+    return rows.map((r) => ({
+      member: r.payer_name as string,
+      amount: Number(r.amount),
+      currency: r.currency as "NGN" | "USD",
+      date: new Date(r.paid_at as string).toLocaleDateString(),
+    }));
   });
 
 // Public: a donation campaign's share page — details + aggregate totals only
