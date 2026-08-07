@@ -4,11 +4,12 @@ import { sql } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth/require-auth.server";
 import { communityIdForAdmin } from "@/lib/payments/communities.functions";
 import { ensureMemberInvite } from "./member-invite.server";
+import { toDateOnlyString, toTimestampIso } from "@/lib/date-only";
 
 // Enforces the community's plan member cap (subscription_tiers.max_members)
 // when activating members — otherwise "member limit" would just be a
 // cosmetic number on the plan that nothing ever checks.
-async function assertMemberCapacity(communityId: string, incoming: number): Promise<void> {
+export async function assertMemberCapacity(communityId: string, incoming: number): Promise<void> {
   if (incoming <= 0) return;
   const rows = await sql`
     SELECT t.max_members
@@ -25,20 +26,6 @@ async function assertMemberCapacity(communityId: string, incoming: number): Prom
   }
 }
 
-// Deliberately string-only — no `new Date(...)` round trip. A bare "date"
-// column (dob) with no time component parses as UTC per spec, but if the
-// driver ever hands back something not in that exact bare-date shape, the
-// JS engine falls back to local-time parsing instead, which silently shifts
-// the calendar day by the local timezone offset (e.g. a member born on the
-// 7th shows as the 6th for anyone west of UTC). Postgres always puts
-// YYYY-MM-DD first in its text output for both `date` and `timestamp(tz)`
-// columns, so slicing the string directly sidesteps that whole class of bug.
-function toDateString(v: unknown): string {
-  if (!v) return "";
-  const s = String(v);
-  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : "";
-}
-
 function mapRow(r: Record<string, unknown>) {
   return {
     id: r.id as string,
@@ -46,9 +33,14 @@ function mapRow(r: Record<string, unknown>) {
     email: (r.email as string | null) ?? "",
     phone: (r.phone as string | null) ?? "",
     whatsapp: (r.whatsapp as string | null) ?? "",
-    dob: toDateString(r.dob),
+    dob: toDateOnlyString(r.dob),
     status: r.status as string,
-    joined: toDateString(r.joined_at ?? r.applied_at),
+    joined: toDateOnlyString(r.joined_at ?? r.applied_at),
+    // Full-precision timestamp for relative-time display ("20h ago") — the
+    // bare `joined` field above is date-only and would make every
+    // just-submitted application look like it happened at midnight UTC,
+    // which is why "less than a minute ago" was rendering as "20h ago".
+    appliedAt: toTimestampIso(r.applied_at),
     role: (r.role as string | null) ?? "",
     chapter: (r.chapter_name as string | null) ?? "",
     chapterId: (r.chapter_id as string | null) ?? "",
@@ -58,6 +50,48 @@ function mapRow(r: Record<string, unknown>) {
     hasAccount: !!r.user_id,
   };
 }
+
+// Member: the logged-in member's own profile, read via their linked
+// members.user_id row rather than an admin-scoped community lookup.
+export const getMyProfile = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const rows = await sql`
+      SELECT m.*, c.name AS chapter_name
+      FROM public.members m
+      LEFT JOIN public.chapters c ON c.id = m.chapter_id
+      WHERE m.user_id = ${context.userId}::uuid
+      LIMIT 1
+    `;
+    const row = rows[0];
+    return row ? mapRow(row) : null;
+  });
+
+// Member: fellow active members who hold a named role (executive/officer
+// positions) in the logged-in member's own community — powers the "Current
+// executive members" widget on the member dashboard. Deliberately narrow:
+// only name/role/email/phone, no dob/address/whatsapp, since this is
+// visible to any regular member, not just admins.
+export const listMyExecutives = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const rows = await sql`
+      SELECT m2.id, m2.name, m2.role, m2.email, m2.phone
+      FROM public.members me
+      JOIN public.members m2 ON m2.community_id = me.community_id
+      WHERE me.user_id = ${context.userId}::uuid AND me.status = 'active'
+        AND m2.status = 'active' AND m2.role IS NOT NULL AND m2.role <> ''
+      ORDER BY m2.role ASC, m2.name ASC
+      LIMIT 12
+    `;
+    return rows.map((r) => ({
+      id: r.id as string,
+      name: r.name as string,
+      role: r.role as string,
+      email: (r.email as string | null) ?? "",
+      phone: (r.phone as string | null) ?? "",
+    }));
+  });
 
 // Admin: members (any status) for the logged-in admin's own community.
 export const listMembers = createServerFn({ method: "POST" })
@@ -135,6 +169,95 @@ export const updateMember = createServerFn({ method: "POST" })
       await ensureMemberInvite(data.id).catch(() => {});
     }
     return { ok: true };
+  });
+
+// Admin-driven bulk import: unlike sendInvites (which emails a link to the
+// public join form and leaves them in "pending" until approved), this
+// creates fully-formed member records as 'active' immediately and sends
+// each one the same account-setup email a normally-approved member gets
+// (ensureMemberInvite — a secure one-time link, never a shared/default
+// password). Meant for admins who already have a member roster in a
+// spreadsheet and don't want everyone re-entering their own details through
+// the join form.
+export const bulkCreateMembers = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) =>
+    z
+      .object({
+        rows: z
+          .array(
+            z.object({
+              name: z.string().min(1).max(120),
+              email: z.string().email().max(200),
+              phone: z.string().max(60).optional(),
+              whatsapp: z.string().max(60).optional(),
+              dob: z.string().max(20).optional(),
+              role: z.string().max(60).optional(),
+              chapter: z.string().max(120).optional(),
+            }),
+          )
+          .min(1)
+          .max(500),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId);
+    if (!communityId) throw new Error("You don't manage a community yet.");
+
+    // De-dupe the incoming batch itself (e.g. the same person listed twice
+    // in the sheet) before touching the database.
+    const seen = new Set<string>();
+    const rows = data.rows.filter((r) => {
+      const key = r.email.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    await assertMemberCapacity(communityId, rows.length);
+
+    const emails = rows.map((r) => r.email.toLowerCase());
+    const existingRows = await sql`
+      SELECT lower(email) AS email FROM public.members
+      WHERE community_id = ${communityId}::uuid AND lower(email) = ANY(${emails}::text[])
+    `;
+    const existingSet = new Set(existingRows.map((r) => r.email as string));
+
+    const chapterRows = await sql`SELECT id, name FROM public.chapters WHERE community_id = ${communityId}::uuid`;
+    const chapterByName = new Map(chapterRows.map((c) => [String(c.name).toLowerCase(), c.id as string]));
+
+    const results: { email: string; name: string; status: "created" | "skipped_duplicate"; emailSent?: boolean }[] = [];
+
+    for (const r of rows) {
+      const key = r.email.toLowerCase();
+      if (existingSet.has(key)) {
+        results.push({ email: r.email, name: r.name, status: "skipped_duplicate" });
+        continue;
+      }
+      const chapterId = r.chapter ? (chapterByName.get(r.chapter.toLowerCase()) ?? null) : null;
+      // Bare "YYYY-MM-DD" only — anything else from a messy spreadsheet cell
+      // is dropped rather than guessed at (ambiguous MM/DD vs DD/MM date
+      // formats have burned this app before; better to leave it blank and
+      // let the admin fix it via Edit member than silently store the wrong day).
+      const dob = r.dob && /^\d{4}-\d{2}-\d{2}$/.test(r.dob) ? r.dob : null;
+
+      const inserted = await sql`
+        INSERT INTO public.members (community_id, name, email, phone, whatsapp, dob, role, chapter_id, status, joined_at)
+        VALUES (${communityId}::uuid, ${r.name}, ${r.email}, ${r.phone ?? null}, ${r.whatsapp ?? null}, ${dob}::date, ${r.role ?? null}, ${chapterId}, 'active', now())
+        RETURNING id
+      `;
+      const memberId = inserted[0]?.id as string | undefined;
+      const invite = memberId ? await ensureMemberInvite(memberId).catch(() => ({ created: false, emailSent: false })) : { created: false, emailSent: false };
+      results.push({ email: r.email, name: r.name, status: "created", emailSent: !!invite.emailSent });
+    }
+
+    return {
+      created: results.filter((r) => r.status === "created").length,
+      skipped: results.filter((r) => r.status === "skipped_duplicate").length,
+      emailsSent: results.filter((r) => r.emailSent).length,
+      results,
+    };
   });
 
 // Bulk status change — covers approve/reject on the pending queue and

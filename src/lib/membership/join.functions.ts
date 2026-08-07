@@ -3,6 +3,8 @@ import { z } from "zod";
 import { sql } from "@/lib/db/client";
 import { assertNotRateLimited, recordAttempt, clientIp } from "@/lib/auth/rate-limit.server";
 import { FIELD_LIBRARY } from "@/lib/onboarding-fields";
+import { ensureMemberInvite } from "./member-invite.server";
+import { assertMemberCapacity } from "./members.functions";
 
 // Fields that map straight onto a members column. Everything else in
 // FIELD_LIBRARY (Year of Graduation, Matriculation number, etc.) gets
@@ -84,8 +86,37 @@ export const submitApplication = createServerFn({ method: "POST" })
 
     if (!columns.name) throw new Error("Name is required.");
 
-    await sql`
-      INSERT INTO public.members (community_id, chapter_id, name, email, phone, whatsapp, dob, address, extra, status)
+    // If this address was personally invited by the admin (sendInvites), and
+    // the community still has room on its plan, skip the pending-approval
+    // queue entirely: go active immediately and send the password-setup
+    // email right away. An admin already vouched for this specific person
+    // by inviting them — making them wait in the same review queue as an
+    // anonymous public submission was the actual bug being fixed here.
+    // Organic submissions (no matching invite) keep the original behavior.
+    let autoApproved = false;
+    if (columns.email) {
+      const invite = await sql`
+        SELECT id FROM public.member_email_invites
+        WHERE community_id = ${data.communityId}::uuid
+          AND lower(email) = lower(${columns.email})
+          AND expires_at > now()
+          AND consumed_at IS NULL
+        LIMIT 1
+      `;
+      if (invite[0]) {
+        try {
+          await assertMemberCapacity(data.communityId, 1);
+          autoApproved = true;
+        } catch {
+          // Plan's full — fall back to a normal pending application rather
+          // than blocking the applicant with an error.
+        }
+      }
+    }
+
+    const joinedAt = autoApproved ? new Date().toISOString() : null;
+    const inserted = await sql`
+      INSERT INTO public.members (community_id, chapter_id, name, email, phone, whatsapp, dob, address, extra, status, joined_at)
       VALUES (
         ${data.communityId}::uuid,
         ${data.chapterId ?? null},
@@ -96,9 +127,20 @@ export const submitApplication = createServerFn({ method: "POST" })
         ${columns.dob ? columns.dob : null}::date,
         ${columns.address},
         ${JSON.stringify(extra)}::jsonb,
-        'pending'
+        ${autoApproved ? "active" : "pending"},
+        ${joinedAt}::timestamptz
       )
+      RETURNING id
     `;
 
-    return { ok: true };
+    if (autoApproved) {
+      const memberId = inserted[0]?.id as string | undefined;
+      await sql`
+        UPDATE public.member_email_invites SET consumed_at = now()
+        WHERE community_id = ${data.communityId}::uuid AND lower(email) = lower(${columns.email})
+      `;
+      if (memberId) await ensureMemberInvite(memberId).catch(() => {});
+    }
+
+    return { ok: true, autoApproved };
   });

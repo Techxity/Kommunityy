@@ -3,6 +3,7 @@ import { z } from "zod";
 import { sql } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth/require-auth.server";
 import { FIELD_LIBRARY } from "@/lib/onboarding-fields";
+import { toDateOnlyString } from "@/lib/date-only";
 
 // Shared by other server-function files that need to resolve "which
 // community does this logged-in admin manage" without duplicating the
@@ -212,10 +213,9 @@ export const getDashboardStats = createServerFn({ method: "POST" })
       birthdaysThisMonth: birthdays.map((r) => ({
         id: r.id as string,
         name: r.name as string,
-        // String-sliced, not Date-parsed — see toDateString's note in
-        // members.functions.ts: round-tripping a bare date through `new
-        // Date()` can shift it by a day depending on local timezone.
-        dob: String(r.dob).slice(0, 10),
+        // See src/lib/date-only.ts — handles both the raw-text and
+        // Date-object shapes the driver can hand back for a `date` column.
+        dob: toDateOnlyString(r.dob),
       })),
       messagesSent30d,
     };

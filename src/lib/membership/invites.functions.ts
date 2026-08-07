@@ -13,9 +13,20 @@ import { joinInviteEmail } from "@/lib/email-templates";
 // createServerOnlyFn transform to get stripped from the client bundle.
 const getOrigin = createServerOnlyFn((): string => new URL(getRequest().url).origin);
 
+// How long a personally-invited email is trusted to auto-approve on
+// submission — after this, if they finally get around to filling the form,
+// it lands as a normal pending application instead (matches ordinary invite
+// hygiene: an invite from months ago shouldn't silently bypass review).
+const INVITE_EMAIL_DAYS = 30;
+
 // Emails the join-form link to a list of addresses. Requires RESEND_API_KEY
 // in the environment; throws a clear, actionable error if it isn't set
 // rather than failing silently.
+//
+// Also records each address in member_email_invites — this is what lets
+// submitApplication (join.functions.ts) tell "this person was personally
+// invited by the admin" apart from an organic public-link submission, so
+// invited applicants can skip the pending-approval queue entirely.
 export const sendInvites = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i) => z.object({ emails: z.array(z.string().email()).min(1).max(200) }).parse(i))
@@ -28,6 +39,18 @@ export const sendInvites = createServerFn({ method: "POST" })
 
     const origin = getOrigin();
     const joinUrl = `${origin}/join/${communityId}`;
+
+    const expiresAt = new Date(Date.now() + INVITE_EMAIL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    await Promise.all(
+      data.emails.map((email) =>
+        sql`
+          INSERT INTO public.member_email_invites (community_id, email, expires_at)
+          VALUES (${communityId}::uuid, ${email}, ${expiresAt})
+          ON CONFLICT (community_id, lower(email))
+          DO UPDATE SET expires_at = EXCLUDED.expires_at, consumed_at = NULL, created_at = now()
+        `,
+      ),
+    );
 
     const results = await Promise.all(
       data.emails.map((email) =>

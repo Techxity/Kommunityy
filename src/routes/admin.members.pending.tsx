@@ -210,7 +210,7 @@ function PendingApprovalsPage() {
                     </p>
                     <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                       <span className="inline-flex items-center gap-1">
-                        <Clock className="h-3 w-3" /> {timeAgo(s.joined)}
+                        <Clock className="h-3 w-3" /> {timeAgo(s.appliedAt)}
                       </span>
                       {s.chapter && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5">

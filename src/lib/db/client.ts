@@ -57,33 +57,57 @@ function wrapNeonClient<T extends (...args: any[]) => any>(client: T): T {
   }) as T;
 }
 
-function createSql() {
+function createRawSql() {
   const DATABASE_URL = process.env.DATABASE_URL;
   if (!DATABASE_URL) {
     throw new Error(
       "Missing DATABASE_URL environment variable. Add your Neon connection string to .env.",
     );
   }
-  return wrapNeonClient(neon(DATABASE_URL));
+  return neon(DATABASE_URL);
 }
 
-let _sql: ReturnType<typeof createSql> | undefined;
+let _rawSql: ReturnType<typeof createRawSql> | undefined;
+
+// The genuinely unwrapped Neon client — needed for `.transaction([...])`.
+// Tagging a template literal against it (`rawSql\`...\``) returns Neon's
+// internal query-builder object, not a plain Promise; `.transaction()`
+// inspects that object's internal shape to batch the statements into one
+// request, and rejects anything else with "transaction() expects an array
+// of queries...". Going through the wrapped `sql`/`getSql()` below breaks
+// this, because wrapNeonClient's Proxy `apply` trap re-wraps every tagged
+// template call's result through `.then()` (to attach the friendly
+// network-error normalization) — which returns a plain native Promise,
+// stripping the special shape `.transaction()` needs before it's ever
+// awaited. There's no way to have both on the same client, so: use this
+// raw client specifically when building a `.transaction([...])` array, and
+// wrap the `.transaction(...)` call itself in `try { } catch (e) { throw
+// normalizeDbError(e); }` if you want the same friendly error message.
+export function getRawSql() {
+  if (!_rawSql) _rawSql = createRawSql();
+  return _rawSql;
+}
+
+export { normalizeDbError };
+
+let _sql: ReturnType<typeof wrapNeonClient<ReturnType<typeof createRawSql>>> | undefined;
 
 // Tagged-template SQL client for Neon. Import like:
 //   import { sql } from "@/lib/db/client";
 //   const rows = await sql`SELECT * FROM communities WHERE id = ${id}`;
+// Do NOT use this for `.transaction([...])` — see getRawSql() above.
 export function getSql() {
-  if (!_sql) _sql = createSql();
+  if (!_sql) _sql = wrapNeonClient(getRawSql());
   return _sql;
 }
 
 // Proxy so `sql` can be imported and used directly as a tagged template,
 // mirroring the ergonomics of the old `supabaseAdmin` export.
-export const sql = new Proxy((() => {}) as unknown as ReturnType<typeof createSql>, {
-  apply(_target, _thisArg, args: Parameters<ReturnType<typeof createSql>>) {
+export const sql = new Proxy((() => {}) as unknown as ReturnType<typeof getSql>, {
+  apply(_target, _thisArg, args: Parameters<ReturnType<typeof getSql>>) {
     return getSql()(...args);
   },
   get(_target, prop, receiver) {
     return Reflect.get(getSql(), prop, receiver);
   },
-}) as ReturnType<typeof createSql>;
+}) as ReturnType<typeof getSql>;

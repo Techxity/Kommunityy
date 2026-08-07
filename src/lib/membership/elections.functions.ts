@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { sql, getSql } from "@/lib/db/client";
+import { sql, getRawSql, normalizeDbError } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth/require-auth.server";
 import { communityIdForAdmin } from "@/lib/payments/communities.functions";
 
@@ -122,7 +122,7 @@ export const startElectionCycle = createServerFn({ method: "POST" })
     const live = await sql`SELECT id FROM public.elections WHERE community_id = ${communityId}::uuid AND status = 'live' LIMIT 1`;
     if (live[0]) throw new Error("End the current election before starting a new cycle.");
 
-    const rawSql = getSql();
+    const rawSql = getRawSql();
     const electionId = crypto.randomUUID();
     const statements = [
       rawSql`INSERT INTO public.elections (id, community_id, year, status, ends_at) VALUES (${electionId}::uuid, ${communityId}::uuid, ${data.year}, 'live', ${data.endsAt}::date)`,
@@ -138,7 +138,11 @@ export const startElectionCycle = createServerFn({ method: "POST" })
         );
       }
     });
-    await rawSql.transaction(statements);
+    try {
+      await rawSql.transaction(statements);
+    } catch (e) {
+      throw normalizeDbError(e);
+    }
     return { ok: true, electionId };
   });
 

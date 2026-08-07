@@ -57,15 +57,25 @@ function Birthdays() {
   const [savingMessage, setSavingMessage] = useState(false);
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [resentId, setResentId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Previously these calls had no .catch() — if the request failed for any
+  // reason (session hiccup, network blip), `members` silently stayed `[]`
+  // forever with no visible error, which looked exactly like "no birthdays
+  // this month" even when the dashboard's own count showed otherwise.
   function refreshMembers() {
-    listMembersWithBirthdays().then(setMembers);
+    listMembersWithBirthdays()
+      .then((rows) => {
+        setMembers(rows);
+        setLoadError(null);
+      })
+      .catch((err: any) => setLoadError(err?.message ?? "Couldn't load members."));
   }
 
   useEffect(() => {
     refreshMembers();
-    getBirthdayMessages().then(setMessages);
-    getMyCommunity().then((c) => setCommunityName(c?.name ?? ""));
+    getBirthdayMessages().then(setMessages).catch(() => {});
+    getMyCommunity().then((c) => setCommunityName(c?.name ?? "")).catch(() => {});
   }, []);
 
   const thisMonth = members.filter((m) => dobParts(m.dob).month === MONTHS.indexOf(active) + 1);
@@ -139,6 +149,15 @@ function Birthdays() {
           )}
         </div>
       </header>
+
+      {loadError && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          <span>Couldn't load members: {loadError}</span>
+          <button onClick={refreshMembers} className="rounded-full border border-destructive/30 px-3 py-1 text-xs font-semibold hover:bg-destructive/10">
+            Retry
+          </button>
+        </div>
+      )}
 
       <section className="rounded-2xl border border-primary/30 bg-gradient-hero p-5 text-primary-foreground shadow-elegant">
         <div className="flex items-center gap-2">

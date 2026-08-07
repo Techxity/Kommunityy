@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { sql, getSql } from "@/lib/db/client";
+import { sql, getRawSql, normalizeDbError } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth/require-auth.server";
 import { communityIdForAdmin } from "@/lib/payments/communities.functions";
 import { hashPassword } from "@/lib/auth/password";
@@ -82,12 +82,16 @@ export const acceptMemberInvite = createServerFn({ method: "POST" })
       await sql`INSERT INTO public.users (id, email, password_hash) VALUES (${userId}::uuid, ${email}, ${passwordHash})`;
     }
 
-    const rawSql = getSql();
-    await rawSql.transaction([
-      rawSql`UPDATE public.members SET user_id = ${userId}::uuid WHERE id = ${invite.member_id}::uuid`,
-      rawSql`INSERT INTO public.user_roles (user_id, role, community_id) VALUES (${userId}::uuid, 'member', ${invite.community_id}::uuid) ON CONFLICT DO NOTHING`,
-      rawSql`DELETE FROM public.member_invites WHERE id = ${invite.invite_id}::uuid`,
-    ]);
+    const rawSql = getRawSql();
+    try {
+      await rawSql.transaction([
+        rawSql`UPDATE public.members SET user_id = ${userId}::uuid WHERE id = ${invite.member_id}::uuid`,
+        rawSql`INSERT INTO public.user_roles (user_id, role, community_id) VALUES (${userId}::uuid, 'member', ${invite.community_id}::uuid) ON CONFLICT DO NOTHING`,
+        rawSql`DELETE FROM public.member_invites WHERE id = ${invite.invite_id}::uuid`,
+      ]);
+    } catch (e) {
+      throw normalizeDbError(e);
+    }
 
     const token = await createSession(userId);
     setSessionCookie(token);

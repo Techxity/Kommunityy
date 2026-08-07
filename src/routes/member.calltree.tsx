@@ -1,8 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CheckCircle2, HelpCircle, AlertTriangle, PhoneCall } from "lucide-react";
-import { members } from "@/lib/mock-data";
-import { useCallTreeSessions, type FeedbackStatus } from "@/lib/call-tree-store";
+import { CheckCircle2, HelpCircle, AlertTriangle, PhoneCall, Loader2 } from "lucide-react";
+import { getMyCallTreeHistory } from "@/lib/membership/calltree.functions";
 
 export const Route = createFileRoute("/member/calltree")({
   component: MemberCallTree,
@@ -18,6 +17,8 @@ export const Route = createFileRoute("/member/calltree")({
   }),
 });
 
+type FeedbackStatus = "doing_great" | "not_sure" | "needs_help";
+
 const STATUS_META: Record<FeedbackStatus, { label: string; Icon: typeof CheckCircle2; tone: string }> = {
   doing_great: { label: "Doing Great", Icon: CheckCircle2, tone: "bg-success/10 text-success" },
   not_sure: { label: "Not Sure", Icon: HelpCircle, tone: "bg-warning/15 text-warning-foreground" },
@@ -25,27 +26,19 @@ const STATUS_META: Record<FeedbackStatus, { label: string; Icon: typeof CheckCir
 };
 
 function MemberCallTree() {
-  const me = members[0]; // simulated logged-in member
-  const sessions = useCallTreeSessions();
-  const [hydrated, setHydrated] = useState(false);
-  useEffect(() => setHydrated(true), []);
+  const [rows, setRows] = useState<Awaited<ReturnType<typeof getMyCallTreeHistory>> | null>(null);
 
-  const rows = hydrated && me
-    ? sessions.flatMap((s) =>
-        s.pairings.flatMap((p) => {
-          const slot =
-            p.memberAId === me.id ? "A" : p.memberBId === me.id ? "B" : p.memberCId === me.id ? "C" : null;
-          if (!slot) return [];
-          const token = slot === "A" ? p.tokenA : slot === "B" ? p.tokenB : p.tokenC;
-          const feedback = slot === "A" ? p.feedbackA : slot === "B" ? p.feedbackB : p.feedbackC;
-          const partners = [p.memberAId, p.memberBId, p.memberCId]
-            .filter((id): id is string => !!id && id !== me.id)
-            .map((id) => members.find((m) => m.id === id))
-            .filter(Boolean) as typeof members;
-          return [{ session: s, token, feedback, partners }];
-        }),
-      )
-    : [];
+  useEffect(() => {
+    getMyCallTreeHistory().then(setRows);
+  }, []);
+
+  if (rows === null) {
+    return (
+      <div className="flex items-center justify-center py-24 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -70,18 +63,18 @@ function MemberCallTree() {
         </div>
       ) : (
         <ul className="space-y-3">
-          {rows.map((r, i) => {
-            const meta = r.feedback ? STATUS_META[r.feedback.status] : null;
+          {rows.map((r) => {
+            const meta = r.feedback ? STATUS_META[r.feedback.status as FeedbackStatus] : null;
             return (
-              <li key={`${r.session.id}-${i}`} className="rounded-2xl border border-border bg-card p-5 shadow-soft">
+              <li key={r.pairingId} className="rounded-2xl border border-border bg-card p-5 shadow-soft">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                      {r.session.status === "active" ? "Active round" : r.session.status === "closed" ? "Closed round" : "Draft round"}
+                      {r.sessionStatus === "active" ? "Active round" : r.sessionStatus === "closed" ? "Closed round" : "Draft round"}
                     </p>
-                    <h2 className="mt-0.5 font-display text-lg font-bold">{r.session.name}</h2>
+                    <h2 className="mt-0.5 font-display text-lg font-bold">{r.sessionName}</h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Paired with {r.partners.map((p) => p.name).join(", ") || "—"}
+                      Paired with {r.partners.join(", ") || "—"}
                     </p>
                   </div>
                   {meta ? (
@@ -89,7 +82,7 @@ function MemberCallTree() {
                       <meta.Icon className="h-3.5 w-3.5" />
                       {meta.label}
                     </span>
-                  ) : r.token && r.session.status === "active" ? (
+                  ) : r.token && r.sessionStatus === "active" ? (
                     <Link
                       to="/feedback/$token"
                       params={{ token: r.token }}
@@ -104,9 +97,9 @@ function MemberCallTree() {
                   )}
                 </div>
                 {r.feedback?.notes && (
-                  <p className="mt-3 rounded-xl bg-muted/50 p-3 text-sm text-muted-foreground">“{r.feedback.notes}”</p>
+                  <p className="mt-3 rounded-xl bg-muted/50 p-3 text-sm text-muted-foreground">"{r.feedback.notes}"</p>
                 )}
-                {r.feedback && (
+                {r.feedback?.submittedAt && (
                   <p className="mt-2 text-xs text-muted-foreground">
                     Shared on {new Date(r.feedback.submittedAt).toLocaleDateString()}
                   </p>

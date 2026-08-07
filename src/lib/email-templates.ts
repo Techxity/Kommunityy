@@ -156,6 +156,35 @@ export function memberAccountReadyEmail({
   });
 }
 
+export function callTreePairingEmail({
+  memberName,
+  communityName,
+  partnerNames,
+  feedbackUrl,
+}: {
+  memberName: string;
+  communityName: string;
+  partnerNames: string[];
+  feedbackUrl: string;
+}): string {
+  const partnerList = partnerNames.map((n) => escapeHtml(n)).join(" and ");
+  return shell({
+    accentColor: "#0891b2",
+    badge: "📞 Call tree",
+    heading: `You're paired with ${partnerList}`,
+    bodyHtml: `
+      <p style="margin:0 0 12px;">Hi ${escapeHtml(memberName.split(" ")[0])},</p>
+      <p style="margin:0;">
+        You've been paired for this round of ${escapeHtml(communityName)}'s call tree — a quick check-in call with
+        ${partnerNames.length > 1 ? "your partners" : "your partner"}. Once you've talked, let us know how it went.
+      </p>
+    `,
+    ctaText: "Share how the call went",
+    ctaUrl: feedbackUrl,
+    footerNote: `Sent by ${escapeHtml(communityName)} via Kinfolk.`,
+  });
+}
+
 export function trialReminderEmail({
   adminName,
   communityName,

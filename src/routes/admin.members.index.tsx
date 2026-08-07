@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { listMembers, updateMember, setMembersStatus } from "@/lib/membership/members.functions";
+import { listMembers, updateMember, setMembersStatus, bulkCreateMembers } from "@/lib/membership/members.functions";
 import { listMyChapters } from "@/lib/membership/chapters.functions";
 import { sendInvites } from "@/lib/membership/invites.functions";
 import { resendMemberInvite } from "@/lib/membership/member-accounts.functions";
@@ -18,6 +18,9 @@ import {
   Inbox,
   Save,
   KeyRound,
+  FileUp,
+  Check,
+  AlertTriangle,
 } from "lucide-react";
 
 export const Route = createFileRoute("/admin/members/")({
@@ -33,6 +36,7 @@ function MembersPage() {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [query, setQuery] = useState("");
   const [showInvite, setShowInvite] = useState(false);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [chapterFilter, setChapterFilter] = useState("");
   const [countryFilter, setCountryFilter] = useState("");
@@ -172,6 +176,9 @@ function MembersPage() {
           >
             <ClipboardList className="h-4 w-4" /> Onboarding form
           </Link>
+          <button onClick={() => setShowBulkUpload(true)} className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground shadow-soft hover:bg-muted">
+            <FileUp className="h-4 w-4" /> Bulk upload
+          </button>
           <button onClick={() => setShowInvite(true)} className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-soft hover:opacity-90">
             <Plus className="h-4 w-4" /> Invite members
           </button>
@@ -401,6 +408,242 @@ function MembersPage() {
       )}
 
       {showInvite && <InviteModal onClose={() => setShowInvite(false)} />}
+      {showBulkUpload && (
+        <BulkUploadModal
+          onClose={() => setShowBulkUpload(false)}
+          onDone={() => {
+            setShowBulkUpload(false);
+            refresh();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Minimal CSV parser — handles quoted fields containing commas (the common
+// case when exporting a roster from Excel/Sheets), no external dependency.
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else inQuotes = false;
+      } else field += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === ",") {
+      row.push(field);
+      field = "";
+    } else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(field);
+      field = "";
+      if (row.some((f) => f.trim() !== "")) rows.push(row);
+      row = [];
+    } else field += c;
+  }
+  if (field || row.length) {
+    row.push(field);
+    if (row.some((f) => f.trim() !== "")) rows.push(row);
+  }
+  return rows;
+}
+
+const COLUMN_ALIASES: Record<string, string[]> = {
+  name: ["name", "full name", "member name"],
+  email: ["email", "email address"],
+  phone: ["phone", "phone number"],
+  whatsapp: ["whatsapp", "whatsapp number"],
+  role: ["role", "position"],
+  chapter: ["chapter"],
+  dob: ["dob", "date of birth", "birthday"],
+};
+
+type BulkRow = { name: string; email: string; phone?: string; whatsapp?: string; role?: string; chapter?: string; dob?: string };
+
+function parseBulkCsv(text: string): { rows: BulkRow[]; invalidCount: number; headerError: string | null } {
+  const table = parseCsv(text);
+  if (table.length === 0) return { rows: [], invalidCount: 0, headerError: "The file looks empty." };
+
+  const header = table[0].map((h) => h.trim().toLowerCase());
+  const colIndex: Partial<Record<keyof typeof COLUMN_ALIASES, number>> = {};
+  for (const [key, aliases] of Object.entries(COLUMN_ALIASES)) {
+    const idx = header.findIndex((h) => aliases.includes(h));
+    if (idx !== -1) (colIndex as any)[key] = idx;
+  }
+  if (colIndex.name == null || colIndex.email == null) {
+    return {
+      rows: [],
+      invalidCount: 0,
+      headerError: 'First row must be a header with at least "Name" and "Email" columns.',
+    };
+  }
+
+  let invalidCount = 0;
+  const rows: BulkRow[] = [];
+  for (const line of table.slice(1)) {
+    const get = (key: keyof typeof COLUMN_ALIASES) => {
+      const idx = (colIndex as any)[key];
+      return idx == null ? "" : (line[idx] ?? "").trim();
+    };
+    const name = get("name");
+    const email = get("email");
+    if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      invalidCount++;
+      continue;
+    }
+    const dobRaw = get("dob");
+    rows.push({
+      name,
+      email,
+      phone: get("phone") || undefined,
+      whatsapp: get("whatsapp") || undefined,
+      role: get("role") || undefined,
+      chapter: get("chapter") || undefined,
+      dob: /^\d{4}-\d{2}-\d{2}$/.test(dobRaw) ? dobRaw : undefined,
+    });
+  }
+  return { rows, invalidCount, headerError: null };
+}
+
+function BulkUploadModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [rows, setRows] = useState<BulkRow[]>([]);
+  const [invalidCount, setInvalidCount] = useState(0);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [fileName, setFileName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<Awaited<ReturnType<typeof bulkCreateMembers>> | null>(null);
+  const [error, setError] = useState("");
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    setResult(null);
+    setError("");
+    file.text().then((content) => {
+      const parsed = parseBulkCsv(content);
+      setRows(parsed.rows);
+      setInvalidCount(parsed.invalidCount);
+      setParseError(parsed.headerError);
+    });
+    e.target.value = "";
+  }
+
+  async function submit() {
+    if (rows.length === 0) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await bulkCreateMembers({ data: { rows } });
+      setResult(res);
+    } catch (err: any) {
+      setError(err?.message ?? "Couldn't create members. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-foreground/40 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-2xl rounded-3xl border border-border bg-card p-7 shadow-elegant">
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 className="font-display text-xl font-bold">Bulk upload members</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Upload a CSV with a header row (Name, Email required — Phone, WhatsApp, Role, Chapter, Date of Birth optional).
+              Everyone's added as an active member right away and gets an email to set up their login — no join form, no approval step.
+            </p>
+          </div>
+          <button onClick={onClose} className="rounded-full p-1 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
+        </div>
+
+        <div className="mt-5 space-y-4">
+          {!result && (
+            <>
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-background py-6 text-sm text-muted-foreground hover:bg-muted/40">
+                <Upload className="h-4 w-4" /> {fileName || "Upload a .csv file"}
+                <input type="file" accept=".csv" className="hidden" onChange={handleFile} />
+              </label>
+
+              {parseError && (
+                <p className="flex items-center gap-1.5 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  <AlertTriangle className="h-3.5 w-3.5" /> {parseError}
+                </p>
+              )}
+
+              {rows.length > 0 && (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    {rows.length} member{rows.length === 1 ? "" : "s"} ready to create.
+                    {invalidCount > 0 && ` ${invalidCount} row${invalidCount === 1 ? "" : "s"} skipped (missing name or a valid email).`}
+                  </p>
+                  <div className="max-h-56 overflow-y-auto rounded-lg border border-border">
+                    <table className="w-full text-xs">
+                      <thead className="sticky top-0 bg-muted/70 text-left uppercase tracking-wider text-muted-foreground">
+                        <tr>
+                          <th className="px-3 py-2 font-medium">Name</th>
+                          <th className="px-3 py-2 font-medium">Email</th>
+                          <th className="px-3 py-2 font-medium">Chapter</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.slice(0, 50).map((r, i) => (
+                          <tr key={i} className="border-t border-border">
+                            <td className="px-3 py-1.5">{r.name}</td>
+                            <td className="px-3 py-1.5 text-muted-foreground">{r.email}</td>
+                            <td className="px-3 py-1.5 text-muted-foreground">{r.chapter || "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {rows.length > 50 && (
+                      <p className="border-t border-border px-3 py-1.5 text-[11px] text-muted-foreground">
+                        + {rows.length - 50} more not shown
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={onClose} className="rounded-full border border-border px-4 py-2 text-sm font-semibold hover:bg-muted">Cancel</button>
+                <button
+                  onClick={submit}
+                  disabled={rows.length === 0 || submitting}
+                  className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                >
+                  <Send className="h-3.5 w-3.5" /> {submitting ? "Creating…" : `Create ${rows.length || ""} member${rows.length === 1 ? "" : "s"}`}
+                </button>
+              </div>
+            </>
+          )}
+
+          {result && (
+            <>
+              <div className="rounded-lg bg-success/10 px-3 py-2 text-sm text-success">
+                <p className="flex items-center gap-1.5 font-semibold"><Check className="h-4 w-4" /> Created {result.created} member{result.created === 1 ? "" : "s"}.</p>
+                <p className="mt-1 text-xs text-success/90">{result.emailsSent} login email{result.emailsSent === 1 ? "" : "s"} sent.</p>
+                {result.skipped > 0 && (
+                  <p className="mt-1 text-xs text-success/90">{result.skipped} skipped — already a member (matched by email).</p>
+                )}
+              </div>
+              <div className="flex justify-end pt-2">
+                <button onClick={onDone} className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">Done</button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

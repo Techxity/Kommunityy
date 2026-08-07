@@ -1,18 +1,19 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-  Play, Shuffle, Download, Mail, Trash2, ArrowLeft, PhoneCall, MessageCircle,
-  CheckCircle2, AlertTriangle, HelpCircle, Phone, RefreshCw, Lock, Plus,
+  Play, Shuffle, Download, Mail, ArrowLeft, PhoneCall, MessageCircle,
+  CheckCircle2, AlertTriangle, HelpCircle, Phone, RefreshCw, Lock, Loader2,
 } from "lucide-react";
-import { members } from "@/lib/mock-data";
+import { listMembers } from "@/lib/membership/members.functions";
 import { listMyChapters } from "@/lib/membership/chapters.functions";
 import {
-  callTreeStore,
-  useCallTreeSessions,
-  type CallTreeSession,
-  type Pairing,
-  type FeedbackStatus,
-} from "@/lib/call-tree-store";
+  listCallTreeSessions,
+  getCallTreeSession,
+  createCallTreeSession,
+  regenerateCallTreePairings,
+  activateCallTreeSession,
+  closeCallTreeSession,
+} from "@/lib/membership/calltree.functions";
 import { requireModule } from "@/lib/module-gate";
 
 export const Route = createFileRoute("/admin/calltree")({
@@ -20,7 +21,12 @@ export const Route = createFileRoute("/admin/calltree")({
   component: CallTreePage,
 });
 
-const memberById = (id: string) => members.find((m) => m.id === id);
+type SessionSummary = Awaited<ReturnType<typeof listCallTreeSessions>>[number];
+type SessionDetail = Awaited<ReturnType<typeof getCallTreeSession>>;
+type Pairing = NonNullable<SessionDetail>["pairings"][number];
+type Slot = Pairing["a"];
+type FeedbackStatus = "doing_great" | "not_sure" | "needs_help";
+
 const initials = (name?: string) =>
   (name ?? "?").split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
 
@@ -31,22 +37,34 @@ const STATUS_META: Record<FeedbackStatus, { label: string; tone: string; Icon: t
 };
 
 function CallTreePage() {
-  const sessions = useCallTreeSessions();
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const active = activeId ? sessions.find((s) => s.id === activeId) ?? null : null;
+  function refresh() {
+    listCallTreeSessions().then(setSessions).finally(() => setLoading(false));
+  }
+  useEffect(refresh, []);
 
-  if (active) return <SessionDetail session={active} onBack={() => setActiveId(null)} />;
+  if (activeId) {
+    return <SessionDetailView sessionId={activeId} onBack={() => { setActiveId(null); refresh(); }} />;
+  }
 
-  return <SessionList sessions={sessions} onOpen={setActiveId} />;
+  if (loading) {
+    return <div className="flex items-center justify-center py-24 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /></div>;
+  }
+
+  return <SessionList sessions={sessions} onOpen={setActiveId} onCreated={refresh} />;
 }
 
 function SessionList({
   sessions,
   onOpen,
+  onCreated,
 }: {
-  sessions: CallTreeSession[];
+  sessions: SessionSummary[];
   onOpen: (id: string) => void;
+  onCreated: () => void;
 }) {
   const [showCreate, setShowCreate] = useState(false);
 
@@ -78,61 +96,42 @@ function SessionList({
         </div>
       ) : (
         <ul className="grid gap-3 md:grid-cols-2">
-          {sessions.map((s) => {
-            const total = s.pairings.reduce(
-              (n, p) => n + 2 + (p.memberCId ? 1 : 0),
-              0,
-            );
-            const fb = s.pairings.reduce(
-              (n, p) =>
-                n + (p.feedbackA ? 1 : 0) + (p.feedbackB ? 1 : 0) + (p.feedbackC ? 1 : 0),
-              0,
-            );
-            const needsHelp = s.pairings.reduce(
-              (n, p) =>
-                n +
-                ([p.feedbackA, p.feedbackB, p.feedbackC].filter(
-                  (f) => f?.status === "needs_help",
-                ).length),
-              0,
-            );
-            return (
-              <li
-                key={s.id}
-                className="cursor-pointer rounded-2xl border border-border bg-card p-5 shadow-soft transition hover:border-primary/40 hover:shadow-md"
-                onClick={() => onOpen(s.id)}
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-display text-lg font-bold">{s.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(s.createdAt).toLocaleDateString()} · {s.pairings.length} pairs · {total} members
-                    </p>
-                  </div>
-                  <StatusBadge status={s.status} />
+          {sessions.map((s) => (
+            <li
+              key={s.id}
+              className="cursor-pointer rounded-2xl border border-border bg-card p-5 shadow-soft transition hover:border-primary/40 hover:shadow-md"
+              onClick={() => onOpen(s.id)}
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="font-display text-lg font-bold">{s.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {s.createdAt ? new Date(s.createdAt).toLocaleDateString() : ""} · {s.pairCount} pairs · {s.totalMembers} members
+                  </p>
                 </div>
-                <div className="mt-4 flex flex-wrap gap-3 text-xs">
-                  <span className="rounded-full bg-muted px-2.5 py-1">
-                    {fb}/{total} responded
+                <StatusBadge status={s.status} />
+              </div>
+              <div className="mt-4 flex flex-wrap gap-3 text-xs">
+                <span className="rounded-full bg-muted px-2.5 py-1">
+                  {s.responses}/{s.totalMembers} responded
+                </span>
+                {s.needsHelp > 0 && (
+                  <span className="rounded-full bg-destructive/10 px-2.5 py-1 font-semibold text-destructive">
+                    {s.needsHelp} need{s.needsHelp === 1 ? "s" : ""} help
                   </span>
-                  {needsHelp > 0 && (
-                    <span className="rounded-full bg-destructive/10 px-2.5 py-1 font-semibold text-destructive">
-                      {needsHelp} need{needsHelp === 1 ? "s" : ""} help
-                    </span>
-                  )}
-                </div>
-              </li>
-            );
-          })}
+                )}
+              </div>
+            </li>
+          ))}
         </ul>
       )}
 
-      {showCreate && <CreateSessionModal onClose={() => setShowCreate(false)} />}
+      {showCreate && <CreateSessionModal onClose={() => setShowCreate(false)} onCreated={onCreated} />}
     </div>
   );
 }
 
-function StatusBadge({ status }: { status: CallTreeSession["status"] }) {
+function StatusBadge({ status }: { status: SessionSummary["status"] }) {
   const tone =
     status === "active"
       ? "bg-success/15 text-success"
@@ -144,22 +143,28 @@ function StatusBadge({ status }: { status: CallTreeSession["status"] }) {
   );
 }
 
-function CreateSessionModal({ onClose }: { onClose: () => void }) {
+function CreateSessionModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [chapters, setChapters] = useState<{ id: string; name: string }[]>([]);
+  const [eligible, setEligible] = useState<{ id: string; name: string; email: string }[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
   useEffect(() => {
     listMyChapters().then((rows) => setChapters(rows.map((c) => ({ id: c.id, name: c.name }))));
+    listMembers({ data: { status: "active" } }).then((rows) => {
+      const active = rows.map((m) => ({ id: m.id, name: m.name, email: m.email }));
+      setEligible(active);
+      setSelected(new Set(active.map((m) => m.id)));
+      setLoadingMembers(false);
+    });
   }, []);
+
   const [name, setName] = useState(
     `Call tree — ${new Date().toLocaleDateString(undefined, { month: "short", year: "numeric" })}`,
   );
   const [chapterId, setChapterId] = useState<string>("");
-  const eligible = useMemo(
-    () => members.filter((m) => m.status === "active"),
-    [],
-  );
-  const [selected, setSelected] = useState<Set<string>>(
-    () => new Set(eligible.map((m) => m.id)),
-  );
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const toggle = (id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -169,14 +174,21 @@ function CreateSessionModal({ onClose }: { onClose: () => void }) {
     });
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (selected.size < 2) return;
-    callTreeStore.create({
-      name: name.trim() || "Call tree",
-      chapterId: chapterId || undefined,
-      memberIds: Array.from(selected),
-    });
-    onClose();
+    setSubmitting(true);
+    setError("");
+    try {
+      await createCallTreeSession({
+        data: { name: name.trim() || "Call tree", chapterId: chapterId || undefined, memberIds: Array.from(selected) },
+      });
+      onCreated();
+      onClose();
+    } catch (err: any) {
+      setError(err?.message ?? "Couldn't create this call tree.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -231,24 +243,35 @@ function CreateSessionModal({ onClose }: { onClose: () => void }) {
               {selected.size === eligible.length ? "Deselect all" : "Select all"}
             </button>
           </div>
-          <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded-xl border border-border p-2">
-            {eligible.map((m) => {
-              const checked = selected.has(m.id);
-              return (
-                <li key={m.id}>
-                  <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-muted">
-                    <input type="checkbox" checked={checked} onChange={() => toggle(m.id)} />
-                    <div className="grid h-7 w-7 place-items-center rounded-full bg-gradient-accent text-[10px] font-bold text-primary-foreground">
-                      {initials(m.name)}
-                    </div>
-                    <span className="text-sm font-medium">{m.name}</span>
-                    <span className="ml-auto text-xs text-muted-foreground">{m.email}</span>
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
+          {loadingMembers ? (
+            <div className="mt-2 flex items-center justify-center rounded-xl border border-border p-6 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+            </div>
+          ) : (
+            <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded-xl border border-border p-2">
+              {eligible.map((m) => {
+                const checked = selected.has(m.id);
+                return (
+                  <li key={m.id}>
+                    <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-muted">
+                      <input type="checkbox" checked={checked} onChange={() => toggle(m.id)} />
+                      <div className="grid h-7 w-7 place-items-center rounded-full bg-gradient-accent text-[10px] font-bold text-primary-foreground">
+                        {initials(m.name)}
+                      </div>
+                      <span className="text-sm font-medium">{m.name}</span>
+                      <span className="ml-auto text-xs text-muted-foreground">{m.email}</span>
+                    </label>
+                  </li>
+                );
+              })}
+              {eligible.length === 0 && (
+                <p className="p-3 text-center text-sm text-muted-foreground">No active members yet.</p>
+              )}
+            </ul>
+          )}
         </div>
+
+        {error && <p className="mt-4 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>}
 
         <div className="mt-6 flex justify-end gap-2">
           <button
@@ -259,10 +282,10 @@ function CreateSessionModal({ onClose }: { onClose: () => void }) {
           </button>
           <button
             onClick={submit}
-            disabled={selected.size < 2}
+            disabled={selected.size < 2 || submitting}
             className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-40"
           >
-            <Shuffle className="h-3.5 w-3.5" /> Generate pairs
+            <Shuffle className="h-3.5 w-3.5" /> {submitting ? "Creating…" : "Generate pairs"}
           </button>
         </div>
       </div>
@@ -270,57 +293,80 @@ function CreateSessionModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function SessionDetail({
-  session,
-  onBack,
-}: {
-  session: CallTreeSession;
-  onBack: () => void;
-}) {
+function SessionDetailView({ sessionId, onBack }: { sessionId: string; onBack: () => void }) {
+  const [session, setSession] = useState<SessionDetail>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  function refresh() {
+    getCallTreeSession({ data: { sessionId } }).then((s) => {
+      setSession(s);
+      setLoading(false);
+    });
+  }
+  useEffect(refresh, [sessionId]);
+
+  if (loading || !session) {
+    return <div className="flex items-center justify-center py-24 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /></div>;
+  }
+
   const isDraft = session.status === "draft";
   const isActive = session.status === "active";
 
-  const totalParticipants = session.pairings.reduce(
-    (n, p) => n + 2 + (p.memberCId ? 1 : 0),
-    0,
-  );
-  const responses = session.pairings.flatMap((p) =>
-    [p.feedbackA, p.feedbackB, p.feedbackC].filter(Boolean),
+  const totalParticipants = session.pairings.reduce((n, p) => n + 2 + (p.c ? 1 : 0), 0);
+  const allFeedback = session.pairings.flatMap((p) => [p.a.feedback, p.b.feedback, p.c?.feedback].filter(Boolean));
+  const needsHelp = session.pairings.flatMap((p) =>
+    [p.a, p.b, p.c].filter((slot): slot is Slot => !!slot && slot.feedback?.status === "needs_help"),
   );
 
-  const needsHelp = session.pairings.flatMap((p) =>
-    [
-      p.feedbackA && p.feedbackA.status === "needs_help" ? { p, memberId: p.memberAId, fb: p.feedbackA } : null,
-      p.feedbackB && p.feedbackB.status === "needs_help" ? { p, memberId: p.memberBId, fb: p.feedbackB } : null,
-      p.feedbackC && p.memberCId && p.feedbackC.status === "needs_help" ? { p, memberId: p.memberCId, fb: p.feedbackC } : null,
-    ].filter(Boolean) as Array<{ p: Pairing; memberId: string; fb: NonNullable<Pairing["feedbackA"]> }>,
-  );
+  async function reshuffle() {
+    setBusy(true);
+    try {
+      await regenerateCallTreePairings({ data: { sessionId } });
+      refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function activate() {
+    setBusy(true);
+    try {
+      await activateCallTreeSession({ data: { sessionId } });
+      refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function close() {
+    setBusy(true);
+    try {
+      await closeCallTreeSession({ data: { sessionId } });
+      refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const downloadCsv = () => {
     const rows: string[][] = [["Member", "Email", "Phone", "Partner(s)", "Partner contacts", "Feedback link"]];
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
     session.pairings.forEach((p) => {
-      const a = memberById(p.memberAId);
-      const b = memberById(p.memberBId);
-      const c = p.memberCId ? memberById(p.memberCId) : null;
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
-      const partnersFor = (selfId: string) =>
-        [a, b, c]
-          .filter((m): m is NonNullable<typeof m> => !!m && m.id !== selfId)
-          .map((m) => m.name)
-          .join(" & ");
-      const contactsFor = (selfId: string) =>
-        [a, b, c]
-          .filter((m): m is NonNullable<typeof m> => !!m && m.id !== selfId)
-          .map((m) => `${m.email} / ${m.phone}`)
-          .join(" | ");
-
-      if (a) rows.push([a.name, a.email, a.phone, partnersFor(a.id), contactsFor(a.id), `${origin}/feedback/${p.tokenA}`]);
-      if (b) rows.push([b.name, b.email, b.phone, partnersFor(b.id), contactsFor(b.id), `${origin}/feedback/${p.tokenB}`]);
-      if (c && p.tokenC) rows.push([c.name, c.email, c.phone, partnersFor(c.id), contactsFor(c.id), `${origin}/feedback/${p.tokenC}`]);
+      const slots = [p.a, p.b, p.c].filter((s): s is Slot => !!s);
+      slots.forEach((self) => {
+        const partners = slots.filter((s) => s.id !== self.id);
+        rows.push([
+          self.name,
+          self.email,
+          self.phone,
+          partners.map((m) => m.name).join(" & "),
+          partners.map((m) => `${m.email} / ${m.phone}`).join(" | "),
+          `${origin}/feedback/${self.token}`,
+        ]);
+      });
     });
-    const csv = rows
-      .map((r) => r.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(","))
-      .join("\n");
+    const csv = rows.map((r) => r.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -342,21 +388,16 @@ function SessionDetail({
             <StatusBadge status={session.status} />
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            {session.pairings.length} pairs · {totalParticipants} members · created {new Date(session.createdAt).toLocaleDateString()}
+            {session.pairings.length} pairs · {totalParticipants} members
+            {session.createdAt ? ` · created ${new Date(session.createdAt).toLocaleDateString()}` : ""}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {isDraft && (
             <button
-              onClick={() =>
-                callTreeStore.regenerate(
-                  session.id,
-                  session.pairings.flatMap((p) =>
-                    [p.memberAId, p.memberBId, p.memberCId].filter(Boolean) as string[],
-                  ),
-                )
-              }
-              className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold hover:bg-muted"
+              onClick={reshuffle}
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-50"
             >
               <RefreshCw className="h-3.5 w-3.5" /> Reshuffle
             </button>
@@ -369,16 +410,18 @@ function SessionDetail({
           </button>
           {isDraft && (
             <button
-              onClick={() => callTreeStore.activate(session.id)}
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+              onClick={activate}
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
             >
-              <Mail className="h-3.5 w-3.5" /> Activate & email pairs
+              <Mail className="h-3.5 w-3.5" /> {busy ? "Sending…" : "Activate & email pairs"}
             </button>
           )}
           {isActive && (
             <button
-              onClick={() => callTreeStore.close(session.id)}
-              className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold hover:bg-muted"
+              onClick={close}
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-50"
             >
               <Lock className="h-3.5 w-3.5" /> Close session
             </button>
@@ -388,16 +431,9 @@ function SessionDetail({
 
       <div className="grid gap-3 md:grid-cols-4">
         <Stat label="Pairs" value={session.pairings.length} />
-        <Stat label="Responses" value={`${responses.length}/${totalParticipants}`} />
-        <Stat
-          label="Doing great"
-          value={responses.filter((f) => f?.status === "doing_great").length}
-        />
-        <Stat
-          label="Needs help"
-          value={needsHelp.length}
-          tone={needsHelp.length > 0 ? "destructive" : undefined}
-        />
+        <Stat label="Responses" value={`${allFeedback.length}/${totalParticipants}`} />
+        <Stat label="Doing great" value={allFeedback.filter((f) => f?.status === "doing_great").length} />
+        <Stat label="Needs help" value={needsHelp.length} tone={needsHelp.length > 0 ? "destructive" : undefined} />
       </div>
 
       {needsHelp.length > 0 && (
@@ -407,38 +443,34 @@ function SessionDetail({
             <h2 className="font-display text-lg font-bold text-destructive">Needs follow-up</h2>
           </div>
           <ul className="mt-3 space-y-2">
-            {needsHelp.map(({ p, memberId, fb }, i) => {
-              const m = memberById(memberId);
-              if (!m) return null;
-              return (
-                <li
-                  key={`${p.id}-${i}`}
-                  className="flex flex-wrap items-center gap-3 rounded-xl border border-destructive/30 bg-background p-3"
+            {needsHelp.map((m) => (
+              <li
+                key={m.id}
+                className="flex flex-wrap items-center gap-3 rounded-xl border border-destructive/30 bg-background p-3"
+              >
+                <div className="grid h-9 w-9 place-items-center rounded-full bg-destructive/15 text-xs font-bold text-destructive">
+                  {initials(m.name)}
+                </div>
+                <div className="flex-1 min-w-40">
+                  <p className="text-sm font-semibold">{m.name}</p>
+                  {m.feedback?.notes && (
+                    <p className="text-xs text-muted-foreground">"{m.feedback.notes}"</p>
+                  )}
+                </div>
+                <a
+                  href={`tel:${m.phone}`}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-destructive px-3 py-1.5 text-xs font-semibold text-destructive-foreground hover:opacity-95"
                 >
-                  <div className="grid h-9 w-9 place-items-center rounded-full bg-destructive/15 text-xs font-bold text-destructive">
-                    {initials(m.name)}
-                  </div>
-                  <div className="flex-1 min-w-40">
-                    <p className="text-sm font-semibold">{m.name}</p>
-                    {fb.notes && (
-                      <p className="text-xs text-muted-foreground">"{fb.notes}"</p>
-                    )}
-                  </div>
-                  <a
-                    href={`tel:${m.phone}`}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-destructive px-3 py-1.5 text-xs font-semibold text-destructive-foreground hover:opacity-95"
-                  >
-                    <Phone className="h-3 w-3" /> Call
-                  </a>
-                  <a
-                    href={`mailto:${m.email}`}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold hover:bg-muted"
-                  >
-                    <Mail className="h-3 w-3" /> Email
-                  </a>
-                </li>
-              );
-            })}
+                  <Phone className="h-3 w-3" /> Call
+                </a>
+                <a
+                  href={`mailto:${m.email}`}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold hover:bg-muted"
+                >
+                  <Mail className="h-3 w-3" /> Email
+                </a>
+              </li>
+            ))}
           </ul>
         </section>
       )}
@@ -457,26 +489,17 @@ function SessionDetail({
   );
 }
 
-function PairingRow({
-  pairing,
-  sessionStatus,
-}: {
-  pairing: Pairing;
-  sessionStatus: CallTreeSession["status"];
-}) {
-  const a = memberById(pairing.memberAId);
-  const b = memberById(pairing.memberBId);
-  const c = pairing.memberCId ? memberById(pairing.memberCId) : null;
+function PairingRow({ pairing, sessionStatus }: { pairing: Pairing; sessionStatus: "draft" | "active" | "closed" }) {
   return (
     <li className="space-y-2 p-4">
       <div className="flex flex-wrap items-center gap-3">
-        <MemberChip name={a?.name} />
+        <MemberChip name={pairing.a.name} />
         <PhoneCall className="h-4 w-4 text-muted-foreground" />
-        <MemberChip name={b?.name} />
-        {c && (
+        <MemberChip name={pairing.b.name} />
+        {pairing.c && (
           <>
             <PhoneCall className="h-4 w-4 text-muted-foreground" />
-            <MemberChip name={c.name} />
+            <MemberChip name={pairing.c.name} />
             <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
               triad
             </span>
@@ -487,11 +510,9 @@ function PairingRow({
         )}
       </div>
       <div className="grid gap-2 pl-1 md:grid-cols-3">
-        <FeedbackPill member={a} fb={pairing.feedbackA} token={pairing.tokenA} active={sessionStatus !== "draft"} />
-        <FeedbackPill member={b} fb={pairing.feedbackB} token={pairing.tokenB} active={sessionStatus !== "draft"} />
-        {c && pairing.tokenC && (
-          <FeedbackPill member={c} fb={pairing.feedbackC} token={pairing.tokenC} active={sessionStatus !== "draft"} />
-        )}
+        <FeedbackPill slot={pairing.a} active={sessionStatus !== "draft"} />
+        <FeedbackPill slot={pairing.b} active={sessionStatus !== "draft"} />
+        {pairing.c && <FeedbackPill slot={pairing.c} active={sessionStatus !== "draft"} />}
       </div>
     </li>
   );
@@ -508,24 +529,13 @@ function MemberChip({ name }: { name?: string }) {
   );
 }
 
-function FeedbackPill({
-  member,
-  fb,
-  token,
-  active,
-}: {
-  member: ReturnType<typeof memberById>;
-  fb?: NonNullable<Pairing["feedbackA"]>;
-  token: string;
-  active: boolean;
-}) {
-  if (!member) return null;
-  if (!fb) {
+function FeedbackPill({ slot, active }: { slot: Slot; active: boolean }) {
+  if (!slot.feedback) {
     return (
       <div className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
-        <span className="font-medium">{member.name.split(" ")[0]}</span>
+        <span className="font-medium">{slot.name.split(" ")[0]}</span>
         {active ? (
-          <Link to="/feedback/$token" params={{ token }} className="ml-auto inline-flex items-center gap-1 text-primary hover:underline">
+          <Link to="/feedback/$token" params={{ token: slot.token }} className="ml-auto inline-flex items-center gap-1 text-primary hover:underline">
             preview link
           </Link>
         ) : (
@@ -534,15 +544,15 @@ function FeedbackPill({
       </div>
     );
   }
-  const meta = STATUS_META[fb.status];
+  const meta = STATUS_META[slot.feedback.status as FeedbackStatus];
   return (
     <div className={`flex items-start gap-2 rounded-lg px-3 py-2 text-xs ${meta.tone}`}>
       <meta.Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
       <div className="min-w-0">
-        <p className="font-semibold">{member.name.split(" ")[0]} · {meta.label}</p>
-        {fb.notes && (
+        <p className="font-semibold">{slot.name.split(" ")[0]} · {meta.label}</p>
+        {slot.feedback.notes && (
           <p className="mt-0.5 flex items-start gap-1 text-[11px] opacity-80">
-            <MessageCircle className="mt-0.5 h-3 w-3 shrink-0" /> {fb.notes}
+            <MessageCircle className="mt-0.5 h-3 w-3 shrink-0" /> {slot.feedback.notes}
           </p>
         )}
       </div>
@@ -550,15 +560,7 @@ function FeedbackPill({
   );
 }
 
-function Stat({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number | string;
-  tone?: "destructive";
-}) {
+function Stat({ label, value, tone }: { label: string; value: number | string; tone?: "destructive" }) {
   return (
     <div
       className={`rounded-2xl border bg-card p-5 shadow-soft ${

@@ -6,6 +6,7 @@ import { communityIdForAdmin } from "@/lib/payments/communities.functions";
 import { sendEmail } from "@/lib/email";
 import { birthdayEmail } from "@/lib/email-templates";
 import { sendWhatsAppTemplate, isWhatsAppConfigured } from "@/lib/whatsapp";
+import { toDateOnlyString } from "@/lib/date-only";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -54,11 +55,10 @@ export const listMembersWithBirthdays = createServerFn({ method: "POST" })
       name: r.name as string,
       email: (r.email as string | null) ?? "",
       whatsapp: (r.whatsapp as string | null) ?? "",
-      // String-sliced, not `new Date(...)`-parsed — see the note on
-      // toDateString in members.functions.ts for why: round-tripping a bare
-      // calendar date through a JS Date can silently shift it by a day
-      // depending on the local timezone of whoever's browser renders it.
-      dob: String(r.dob).slice(0, 10),
+      // See src/lib/date-only.ts — handles both the raw-text and
+      // Date-object shapes the driver can hand back for a `date` column,
+      // reading Date objects with UTC accessors so the day never shifts.
+      dob: toDateOnlyString(r.dob),
     }));
   });
 

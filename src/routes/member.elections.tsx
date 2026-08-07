@@ -45,19 +45,36 @@ function MemberElections() {
 
   if (!ballot) {
     return (
-      <div className="rounded-2xl border border-dashed border-border p-10 text-center">
-        <p className="text-sm text-muted-foreground">
-          Voting isn't available on your account yet — you need an active membership to vote.
-        </p>
+      <div className="space-y-6">
+        <header>
+          <h1 className="font-display text-3xl font-bold">Elections</h1>
+          <p className="text-sm text-muted-foreground">Vote for your community's next leadership.</p>
+        </header>
+        <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
+          <Vote className="mx-auto h-8 w-8 text-muted-foreground" />
+          <p className="mt-3 text-sm font-semibold">Voting isn't available yet</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            You need an active membership to vote. Reach out to your community admin if this seems wrong.
+          </p>
+        </div>
       </div>
     );
   }
 
   if (!ballot.election) {
     return (
-      <div className="rounded-2xl border border-dashed border-border p-10 text-center">
-        <Vote className="mx-auto h-8 w-8 text-muted-foreground" />
-        <p className="mt-3 text-sm text-muted-foreground">No election is running right now.</p>
+      <div className="space-y-6">
+        <header>
+          <h1 className="font-display text-3xl font-bold">Elections</h1>
+          <p className="text-sm text-muted-foreground">Vote for your community's next leadership.</p>
+        </header>
+        <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
+          <Vote className="mx-auto h-8 w-8 text-muted-foreground" />
+          <p className="mt-3 text-sm font-semibold">No election is running right now</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Check back once your admin starts a new election cycle.
+          </p>
+        </div>
       </div>
     );
   }
@@ -77,7 +94,11 @@ function MemberElections() {
 
       <div className="space-y-4">
         {ballot.positions.length === 0 && (
-          <p className="text-sm text-muted-foreground">No positions are open for this cycle yet.</p>
+          <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
+            <Vote className="mx-auto h-8 w-8 text-muted-foreground" />
+            <p className="mt-3 text-sm font-semibold">No positions are open yet</p>
+            <p className="mt-1 text-xs text-muted-foreground">Your admin hasn't added roles to this cycle yet.</p>
+          </div>
         )}
         {ballot.positions.map((p) => {
           const locked = !!p.myVote;

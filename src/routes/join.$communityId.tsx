@@ -31,6 +31,7 @@ function PublicJoinPage() {
   const [loading, setLoading] = useState(true);
   const [values, setValues] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [autoApproved, setAutoApproved] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState("");
@@ -63,13 +64,14 @@ function PublicJoinPage() {
 
     setSubmitting(true);
     try {
-      await submitApplication({
+      const res = await submitApplication({
         data: {
           communityId,
           values,
           chapterId: values["Chapter"] || undefined,
         },
       });
+      setAutoApproved(res.autoApproved);
       setSubmitted(true);
     } catch (err: any) {
       setSubmitError(err?.message ?? "Couldn't submit your application. Please try again.");
@@ -105,10 +107,19 @@ function PublicJoinPage() {
           <div className="grid h-16 w-16 place-items-center rounded-full bg-primary-foreground/15 ring-1 ring-primary-foreground/20">
             <CheckCircle2 className="h-8 w-8" />
           </div>
-          <h1 className="mt-6 font-display text-3xl font-bold">You're on the list</h1>
+          <h1 className="mt-6 font-display text-3xl font-bold">{autoApproved ? "You're in!" : "You're on the list"}</h1>
           <p className="mt-3 max-w-sm text-sm text-primary-foreground/80">
-            Thanks for applying to <span className="font-semibold">{community.name}</span>. A community admin will review your details
-            and confirm your membership shortly. We'll be in touch on the email and phone number you provided.
+            {autoApproved ? (
+              <>
+                Welcome to <span className="font-semibold">{community.name}</span>. Check your email for a link to set your
+                password — you're already a member, no approval wait needed.
+              </>
+            ) : (
+              <>
+                Thanks for applying to <span className="font-semibold">{community.name}</span>. A community admin will review your details
+                and confirm your membership shortly. We'll be in touch on the email and phone number you provided.
+              </>
+            )}
           </p>
           <Link
             to="/"

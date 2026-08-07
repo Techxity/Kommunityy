@@ -1,8 +1,7 @@
 import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, HelpCircle, AlertTriangle, PhoneCall, Mail, Phone } from "lucide-react";
-import { members, community } from "@/lib/mock-data";
-import { callTreeStore, type FeedbackStatus } from "@/lib/call-tree-store";
+import { useEffect, useState } from "react";
+import { CheckCircle2, HelpCircle, AlertTriangle, PhoneCall, Mail, Phone, Loader2 } from "lucide-react";
+import { getFeedbackInfo, submitCallTreeFeedback } from "@/lib/membership/calltree.functions";
 
 export const Route = createFileRoute("/feedback/$token")({
   component: FeedbackPage,
@@ -10,6 +9,8 @@ export const Route = createFileRoute("/feedback/$token")({
     meta: [{ title: "Share call feedback" }],
   }),
 });
+
+type FeedbackStatus = "doing_great" | "not_sure" | "needs_help";
 
 const OPTIONS: Array<{
   value: FeedbackStatus;
@@ -44,13 +45,17 @@ const OPTIONS: Array<{
 function FeedbackPage() {
   const { token } = useParams({ from: "/feedback/$token" });
   const navigate = useNavigate();
-  // Re-evaluate when the token / submission state changes.
-  const [tick, setTick] = useState(0);
-  const hit = useMemo(() => callTreeStore.findByToken(token), [token, tick]);
 
+  const [info, setInfo] = useState<Awaited<ReturnType<typeof getFeedbackInfo>> | null | undefined>(undefined);
   const [status, setStatus] = useState<FeedbackStatus | null>(null);
   const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    getFeedbackInfo({ data: { token } }).then(setInfo);
+  }, [token]);
 
   // After a successful submit, send the member to the call tree history page.
   useEffect(() => {
@@ -59,7 +64,17 @@ function FeedbackPage() {
     return () => clearTimeout(t);
   }, [submitted, navigate]);
 
-  if (!hit) {
+  if (info === undefined) {
+    return (
+      <Shell>
+        <div className="flex items-center justify-center py-10 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+        </div>
+      </Shell>
+    );
+  }
+
+  if (info === null) {
     return (
       <Shell>
         <h1 className="font-display text-2xl font-bold">Link not found</h1>
@@ -70,15 +85,6 @@ function FeedbackPage() {
     );
   }
 
-  const { pairing, slot, memberId } = hit;
-  const self = members.find((m) => m.id === memberId);
-  const partnerIds = [pairing.memberAId, pairing.memberBId, pairing.memberCId].filter(
-    (id): id is string => !!id && id !== memberId,
-  );
-  const partners = partnerIds.map((id) => members.find((m) => m.id === id)).filter(Boolean) as typeof members;
-
-  const existing = slot === "A" ? pairing.feedbackA : slot === "B" ? pairing.feedbackB : pairing.feedbackC;
-
   if (submitted) {
     return (
       <Shell>
@@ -88,7 +94,7 @@ function FeedbackPage() {
           </div>
           <h1 className="mt-4 font-display text-2xl font-bold">Thank you</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Your feedback has been shared with the {community.name} admin team.
+            Your feedback has been shared with the {info.communityName} admin team.
           </p>
           <p className="mt-4 text-xs text-muted-foreground">Taking you to your call tree history…</p>
         </div>
@@ -96,18 +102,25 @@ function FeedbackPage() {
     );
   }
 
-  const submit = () => {
+  const submit = async () => {
     if (!status) return;
-    callTreeStore.submitFeedback(token, status, notes.trim() || undefined);
-    setSubmitted(true);
-    setTick((t) => t + 1);
+    setSubmitting(true);
+    setError("");
+    try {
+      await submitCallTreeFeedback({ data: { token, status, notes: notes.trim() || undefined } });
+      setSubmitted(true);
+    } catch (err: any) {
+      setError(err?.message ?? "Couldn't submit your feedback. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <Shell>
-      <p className="text-xs font-semibold uppercase tracking-wider text-primary">{community.name}</p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-primary">{info.communityName}</p>
       <h1 className="mt-1 font-display text-2xl font-bold">
-        Hi {self?.name.split(" ")[0] ?? "there"} 👋
+        Hi {info.selfName.split(" ")[0] ?? "there"} 👋
       </h1>
       <p className="mt-2 text-sm text-muted-foreground">
         Thanks for being part of our call tree. Please share how the call with your partner went.
@@ -118,7 +131,7 @@ function FeedbackPage() {
           You were paired with
         </p>
         <ul className="mt-2 space-y-2">
-          {partners.map((p) => (
+          {info.partners.map((p) => (
             <li key={p.id} className="flex flex-wrap items-center gap-3">
               <div className="grid h-9 w-9 place-items-center rounded-full bg-gradient-accent text-xs font-bold text-primary-foreground">
                 {p.name.split(" ").map((x) => x[0]).join("").slice(0, 2)}
@@ -140,7 +153,7 @@ function FeedbackPage() {
         </ul>
       </section>
 
-      {existing && (
+      {info.existingFeedback && (
         <p className="mt-4 rounded-lg bg-accent/10 px-3 py-2 text-xs text-accent">
           You already shared feedback for this round — submitting again will update your response.
         </p>
@@ -183,12 +196,14 @@ function FeedbackPage() {
         className="mt-1.5 w-full rounded-lg border border-border bg-background p-3 text-sm outline-none focus:border-ring"
       />
 
+      {error && <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>}
+
       <button
         onClick={submit}
-        disabled={!status}
+        disabled={!status || submitting}
         className="mt-5 w-full rounded-full bg-primary py-3 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-40"
       >
-        Share feedback
+        {submitting ? "Sharing…" : "Share feedback"}
       </button>
     </Shell>
   );

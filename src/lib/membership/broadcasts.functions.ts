@@ -26,6 +26,29 @@ export const listBroadcasts = createServerFn({ method: "POST" })
     }));
   });
 
+// Member: recent announcements for the logged-in member's own community —
+// powers the member dashboard's "Latest updates" widget and /member/updates.
+// Unlike listBroadcasts (admin-only), this resolves the community from the
+// member's own user_id link rather than requiring a community_admin role.
+export const listMyBroadcasts = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const rows = await sql`
+      SELECT b.id, b.subject, b.body, b.sent_at
+      FROM public.broadcasts b
+      JOIN public.members m ON m.community_id = b.community_id
+      WHERE m.user_id = ${context.userId}::uuid AND m.status = 'active'
+      ORDER BY b.sent_at DESC
+      LIMIT 20
+    `;
+    return rows.map((r) => ({
+      id: r.id as string,
+      title: r.subject as string,
+      body: r.body as string,
+      date: new Date(r.sent_at as string).toLocaleDateString(),
+    }));
+  });
+
 export const sendBroadcast = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i) => z.object({ subject: z.string().min(1).max(200), body: z.string().min(1).max(10000) }).parse(i))

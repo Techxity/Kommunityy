@@ -1,20 +1,56 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { members, election, callTreePairs, broadcasts, dues } from "@/lib/mock-data";
 import { useEffect, useState } from "react";
-import { useCallTreeSessions } from "@/lib/call-tree-store";
-import { Cake, PhoneCall, Vote, Banknote, Megaphone, ArrowUpRight } from "lucide-react";
+import { getMyProfile } from "@/lib/membership/members.functions";
+import { getMyBallot } from "@/lib/membership/elections.functions";
+import { getMyDuesInfo } from "@/lib/payments/dues.functions";
+import { listMyBroadcasts } from "@/lib/membership/broadcasts.functions";
+import { listMyExecutives } from "@/lib/membership/members.functions";
+import { getMyCallTreeHistory } from "@/lib/membership/calltree.functions";
+import { PhoneCall, Banknote, Megaphone, ArrowUpRight } from "lucide-react";
 
 export const Route = createFileRoute("/member/")({
   component: MemberHome,
 });
 
-function MemberHome() {
-  const me = members[0]; // simulated logged-in member
+type Me = Awaited<ReturnType<typeof getMyProfile>>;
+type Ballot = Awaited<ReturnType<typeof getMyBallot>>;
+type DuesInfo = Awaited<ReturnType<typeof getMyDuesInfo>>;
+type Broadcasts = Awaited<ReturnType<typeof listMyBroadcasts>>;
+type Executives = Awaited<ReturnType<typeof listMyExecutives>>;
+type CallTreeHistory = Awaited<ReturnType<typeof getMyCallTreeHistory>>;
 
-  // Live call-tree assignment → feedback link for this member
-  const sessions = useCallTreeSessions();
-  const [hydrated, setHydrated] = useState(false);
-  useEffect(() => setHydrated(true), []);
+// Bare "YYYY-MM-DD" string check — no `new Date(...)` round trip, same
+// reasoning as admin.birthdays.tsx's dobParts: parsing a bare date and
+// re-reading it with local accessors can silently shift the day depending
+// on the viewer's timezone.
+function isBirthdayToday(dob: string): boolean {
+  if (!dob) return false;
+  const [, month, day] = dob.split("-").map(Number);
+  if (!month || !day) return false;
+  const now = new Date();
+  return month === now.getMonth() + 1 && day === now.getDate();
+}
+
+function MemberHome() {
+  const [me, setMe] = useState<Me | null | undefined>(undefined);
+  const [ballot, setBallot] = useState<Ballot | null>(null);
+  const [dues, setDues] = useState<DuesInfo>({ plan: null, history: [] });
+  const [broadcasts, setBroadcasts] = useState<Broadcasts>([]);
+  const [executives, setExecutives] = useState<Executives>([]);
+  const [callTree, setCallTree] = useState<CallTreeHistory>([]);
+
+  useEffect(() => {
+    getMyProfile().then(setMe).catch(() => setMe(null));
+    getMyBallot().then(setBallot).catch(() => {});
+    getMyDuesInfo().then(setDues).catch(() => {});
+    listMyBroadcasts().then(setBroadcasts).catch(() => {});
+    listMyExecutives().then(setExecutives).catch(() => {});
+    getMyCallTreeHistory().then(setCallTree).catch(() => {});
+  }, []);
+
+  if (me === undefined) {
+    return <div className="min-h-[40vh]" />;
+  }
 
   if (!me) {
     return (
@@ -27,21 +63,15 @@ function MemberHome() {
     );
   }
 
-  const isBirthday = new Date().toDateString() === new Date(new Date().getFullYear(), new Date(me.dob).getMonth(), new Date(me.dob).getDate()).toDateString();
-  const myPairing = callTreePairs.find((p) => p.caller === me.name || p.callee === me.name);
+  const isBirthday = isBirthdayToday(me.dob);
+  const activePairing = callTree.find((r) => r.sessionStatus === "active" && !r.feedback);
+  const feedbackToken = activePairing?.token ?? null;
 
-  let feedbackToken: string | null = null;
-  for (const s of sessions) {
-    if (s.status !== "active") continue;
-    for (const p of s.pairings) {
-      if (p.memberAId === me.id) feedbackToken = p.tokenA;
-      else if (p.memberBId === me.id) feedbackToken = p.tokenB;
-      else if (p.memberCId === me.id && p.tokenC) feedbackToken = p.tokenC;
-      if (feedbackToken) break;
-    }
-    if (feedbackToken) break;
-  }
-
+  const amountLabel = dues.plan
+    ? [dues.plan.amountNgn ? `₦${dues.plan.amountNgn.toLocaleString()}` : null, dues.plan.amountUsd ? `$${dues.plan.amountUsd.toLocaleString()}` : null]
+        .filter(Boolean)
+        .join(" / ")
+    : null;
 
   return (
     <div className="space-y-6">
@@ -66,23 +96,36 @@ function MemberHome() {
         <div className="col-span-12 rounded-2xl border border-border bg-card p-6 shadow-soft md:col-span-7">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">Live election · {election.year}</p>
-              <h2 className="mt-1 font-display text-xl font-bold">Executive Council — Vote now</h2>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                {ballot?.election ? `Live election · ${ballot.election.year}` : "Elections"}
+              </p>
+              <h2 className="mt-1 font-display text-xl font-bold">
+                {ballot?.election ? "Cast your vote" : "No election running"}
+              </h2>
             </div>
-            <Link to="/member/elections" className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
-              Cast vote <ArrowUpRight className="h-3 w-3" />
-            </Link>
+            {ballot?.election && (
+              <Link to="/member/elections" className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
+                Cast vote <ArrowUpRight className="h-3 w-3" />
+              </Link>
+            )}
           </div>
-          <ul className="mt-5 space-y-3">
-            {election.positions.slice(0, 2).map((p) => (
-              <li key={p.role} className="rounded-xl border border-border p-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">{p.role}</span>
-                  <span className="text-xs text-muted-foreground">{p.candidates.length} candidates</span>
-                </div>
-              </li>
-            ))}
-          </ul>
+          {ballot?.election ? (
+            <ul className="mt-5 space-y-3">
+              {ballot.positions.slice(0, 2).map((p) => (
+                <li key={p.id} className="rounded-xl border border-border p-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{p.role}</span>
+                    <span className="text-xs text-muted-foreground">{p.candidates.length} candidates</span>
+                  </div>
+                </li>
+              ))}
+              {ballot.positions.length === 0 && (
+                <p className="text-sm text-muted-foreground">No positions are open for this cycle yet.</p>
+              )}
+            </ul>
+          ) : (
+            <p className="mt-4 text-sm text-muted-foreground">Check back once your admin starts a new election cycle.</p>
+          )}
         </div>
 
         {/* Call tree */}
@@ -90,24 +133,16 @@ function MemberHome() {
           <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
             <PhoneCall className="h-3.5 w-3.5" /> Call tree assignment
           </div>
-          {myPairing ? (
+          {feedbackToken ? (
             <>
-              <p className="mt-2 text-sm">You're paired to call</p>
-              <p className="mt-1 font-display text-2xl font-bold">{myPairing.callee === me.name ? myPairing.caller : myPairing.callee}</p>
-              {hydrated && feedbackToken ? (
-                <Link
-                  to="/feedback/$token"
-                  params={{ token: feedbackToken }}
-                  className="mt-4 block w-full rounded-full bg-primary py-2 text-center text-sm font-semibold text-primary-foreground transition hover:opacity-90"
-                >
-                  Submit feedback
-                </Link>
-              ) : (
-                <p className="mt-4 rounded-full bg-muted py-2 text-center text-xs text-muted-foreground">
-                  Feedback opens once your admin activates this call tree round.
-                </p>
-              )}
-
+              <p className="mt-2 text-sm">You have an active pairing</p>
+              <Link
+                to="/feedback/$token"
+                params={{ token: feedbackToken }}
+                className="mt-4 block w-full rounded-full bg-primary py-2 text-center text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+              >
+                Submit feedback
+              </Link>
             </>
           ) : (
             <p className="mt-3 text-sm text-muted-foreground">No active call tree assignment.</p>
@@ -117,9 +152,13 @@ function MemberHome() {
         {/* Dues */}
         <div className="col-span-12 rounded-2xl border border-border bg-gradient-accent p-6 text-primary-foreground shadow-elegant md:col-span-5">
           <Banknote className="h-5 w-5 opacity-80" />
-          <p className="mt-3 text-xs uppercase tracking-wider opacity-70">Next dues payment</p>
-          <p className="mt-1 font-display text-3xl font-bold">₦{dues.amount.toLocaleString()}</p>
-          <p className="mt-1 text-xs opacity-80">Due {dues.nextDue}</p>
+          <p className="mt-3 text-xs uppercase tracking-wider opacity-70">
+            {dues.plan ? "Dues amount" : "Dues"}
+          </p>
+          <p className="mt-1 font-display text-3xl font-bold">{amountLabel ?? "Not set up yet"}</p>
+          <p className="mt-1 text-xs opacity-80">
+            {dues.plan ? `${dues.plan.interval.charAt(0).toUpperCase()}${dues.plan.interval.slice(1)}` : "Ask your admin to set up dues"}
+          </p>
           <Link to="/member/dues" className="mt-4 inline-flex items-center gap-1 rounded-full bg-primary-foreground/15 px-3 py-1.5 text-xs font-semibold">Pay now <ArrowUpRight className="h-3 w-3" /></Link>
         </div>
 
@@ -130,7 +169,7 @@ function MemberHome() {
             <Link to="/member/updates" className="text-xs font-semibold text-accent">View all →</Link>
           </div>
           <ul className="mt-4 space-y-3">
-            {broadcasts.map((b) => (
+            {broadcasts.slice(0, 4).map((b) => (
               <li key={b.id} className="flex items-start gap-3 rounded-xl border border-border p-3">
                 <Megaphone className="mt-0.5 h-4 w-4 text-accent" />
                 <div className="flex-1">
@@ -139,6 +178,9 @@ function MemberHome() {
                 </div>
               </li>
             ))}
+            {broadcasts.length === 0 && (
+              <p className="text-sm text-muted-foreground">No updates yet.</p>
+            )}
           </ul>
         </div>
 
@@ -146,11 +188,11 @@ function MemberHome() {
         <div className="col-span-12 rounded-2xl border border-border bg-card p-6 shadow-soft">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">Current executive members</p>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
-            {members.filter((m) => ["President", "Secretary", "Treasurer", "PRO"].includes(m.role)).map((m) => (
+            {executives.map((m) => (
               <div key={m.id} className="rounded-xl border border-border p-4">
                 <div className="flex items-center gap-3">
                   <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-accent text-sm font-bold text-primary-foreground">
-                    {m.name.split(" ").map(p=>p[0]).join("").slice(0,2)}
+                    {m.name.split(" ").map((p) => p[0]).join("").slice(0, 2)}
                   </div>
                   <div>
                     <p className="text-sm font-semibold">{m.name}</p>
@@ -158,11 +200,14 @@ function MemberHome() {
                   </div>
                 </div>
                 <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-                  <p>{m.email}</p>
-                  <p>{m.phone}</p>
+                  {m.email && <p>{m.email}</p>}
+                  {m.phone && <p>{m.phone}</p>}
                 </div>
               </div>
             ))}
+            {executives.length === 0 && (
+              <p className="text-sm text-muted-foreground">No executive roles assigned yet.</p>
+            )}
           </div>
         </div>
       </div>
