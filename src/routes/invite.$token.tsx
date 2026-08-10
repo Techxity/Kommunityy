@@ -29,11 +29,12 @@ function AcceptInvite() {
   // is replaced with a "sign in to link" path, since we never reset an
   // existing account's password through an invite.
   const [existingAccount, setExistingAccount] = useState(false);
-  const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
+  const [signedInEmail, setSignedInEmail] = useState<string | null | undefined>(undefined);
+  const [autoLinkTried, setAutoLinkTried] = useState(false);
 
   useEffect(() => {
     getInviteInfo({ data: { token } }).then(setInfo);
-    // If they're already signed in, we can offer a one-click link instead of
+    // If they're already signed in, we can link automatically instead of
     // asking them to set a password.
     me()
       .then((u) => setSignedInEmail(u?.email ?? null))
@@ -42,6 +43,16 @@ function AcceptInvite() {
 
   const emailMatchesSignedIn =
     !!signedInEmail && !!info && signedInEmail.toLowerCase() === info.email.toLowerCase();
+
+  // Signed in as the invited email (e.g. they just came back from signing in
+  // via the ?next= redirect) — link the membership automatically, no click.
+  useEffect(() => {
+    if (emailMatchesSignedIn && !autoLinkTried && !done && !loading) {
+      setAutoLinkTried(true);
+      linkMembership();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emailMatchesSignedIn, autoLinkTried, done, loading]);
 
   async function linkMembership() {
     setError("");
@@ -157,24 +168,37 @@ function AcceptInvite() {
           <h1 className="mt-6 font-display text-3xl font-bold">Welcome back, {info.name.split(" ")[0]}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             You already have an account for {info.email}. {emailMatchesSignedIn
-              ? "Link this membership to it in one click."
+              ? "Linking this membership to it now."
               : "Sign in with your existing password and your membership will be linked automatically."}
           </p>
 
           {error && <p className="mt-4 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-600">{error}</p>}
 
           {emailMatchesSignedIn ? (
-            <button
-              onClick={linkMembership}
-              disabled={loading}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
-            >
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              {loading ? "Linking…" : `Link my ${info.communityName} membership`}
-            </button>
+            error ? (
+              <button
+                onClick={linkMembership}
+                disabled={loading}
+                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
+              >
+                {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                {loading ? "Linking…" : "Try again"}
+              </button>
+            ) : (
+              <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Linking your membership…
+              </div>
+            )
           ) : (
             <button
-              onClick={() => navigate({ to: "/l/$slug", params: { slug: info.communitySlug } })}
+              onClick={() =>
+                navigate({
+                  to: "/l/$slug",
+                  params: { slug: info.communitySlug },
+                  search: { next: `/invite/${token}` },
+                })
+              }
               className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90"
             >
               Go to sign in

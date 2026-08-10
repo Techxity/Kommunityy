@@ -10,6 +10,12 @@ import { getCommunityBySlug } from "@/lib/payments/communities.functions";
 // email/password account), just scoped visually so members recognize it as
 // "their" door in rather than the generic platform login.
 export const Route = createFileRoute("/l/$slug")({
+  // `next` is an optional same-origin return path (e.g. an invite the member
+  // was linking). Kept in the URL so it survives the round-trip through login.
+  validateSearch: (search: Record<string, unknown>): { next?: string } => {
+    const next = typeof search.next === "string" ? search.next : undefined;
+    return next ? { next } : {};
+  },
   component: EstateLogin,
 });
 
@@ -34,6 +40,14 @@ function EstateLogin() {
     setLoading(true);
     try {
       const result = await login({ data: { email, password } });
+      // Honor a ?next= return path (e.g. an invite the member was linking) —
+      // but only a same-origin relative path, never an absolute/external URL,
+      // so this can't be abused as an open redirect.
+      const next = new URLSearchParams(window.location.search).get("next");
+      if (next && next.startsWith("/") && !next.startsWith("//")) {
+        window.location.href = next;
+        return;
+      }
       if (result.isSuperAdmin) navigate({ to: "/super-admin" });
       else if (result.communityAdminOf) navigate({ to: "/admin" });
       else navigate({ to: "/member" });
