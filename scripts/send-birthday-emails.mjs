@@ -2,10 +2,15 @@
 // Standalone daily job: messages every active member whose birthday is
 // today, across every community, on every channel they have on file (email
 // via Resend, WhatsApp via Meta's Cloud API), then marks them sent so a
-// second run the same day is a no-op. Talks to Neon/Resend/Meta directly
-// over HTTP — no dependency on the TanStack Start app itself, so it can run
-// as its own Railway cron service (or a local Task Scheduler job)
-// independent of the web process.
+// second run the same day is a no-op. Also sends one digest email per
+// community (to every community_admin on file) listing all of that
+// community's celebrants for the day, with a ready-to-paste WhatsApp
+// message per celebrant — admins share it in their own group manually,
+// which costs nothing, instead of relying solely on the paid per-member
+// WhatsApp send below. Talks to Neon/Resend/Meta directly over HTTP — no
+// dependency on the TanStack Start app itself, so it can run as its own
+// Railway cron service (or a local Task Scheduler job) independent of the
+// web process.
 //
 // Requires DATABASE_URL and RESEND_API_KEY in the environment (same values
 // the main app uses). Locally:
@@ -14,13 +19,14 @@
 //   node scripts/send-birthday-emails.mjs
 // (Railway injects the shared env vars automatically — no --env-file needed.)
 //
-// WhatsApp is optional: set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID
-// to turn it on (see src/lib/whatsapp.ts for the one-time Meta setup this
-// depends on, including the exact template text to get approved). Without
-// them, this script behaves exactly as before — email only.
+// WhatsApp is optional and off by default: set WHATSAPP_ACCESS_TOKEN and
+// WHATSAPP_PHONE_NUMBER_ID to turn on the paid per-member send (see
+// src/lib/whatsapp.ts for the one-time Meta setup this depends on). Without
+// them, this script only sends the per-member email plus the admin digest
+// below — no WhatsApp Business API cost at all.
 
 import { neon } from "@neondatabase/serverless";
-import { birthdayEmail } from "./lib/email-templates.mjs";
+import { birthdayEmail, celebrantsDigestEmail } from "./lib/email-templates.mjs";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -134,18 +140,9 @@ async function main() {
   const monthName = MONTHS[month - 1];
 
   const rows = await sql`
-    SELECT m.id, m.name, m.email, m.whatsapp, c.name AS community_name, c.birthday_messages,
-           admin.email AS admin_email
+    SELECT m.id, m.name, m.email, m.whatsapp, c.id AS community_id, c.name AS community_name, c.birthday_messages
     FROM public.members m
     JOIN public.communities c ON c.id = m.community_id
-    LEFT JOIN LATERAL (
-      SELECT u.email
-      FROM public.user_roles ur
-      JOIN public.users u ON u.id = ur.user_id
-      WHERE ur.community_id = c.id AND ur.role = 'community_admin'
-      ORDER BY ur.created_at ASC
-      LIMIT 1
-    ) admin ON true
     WHERE m.status = 'active'
       AND (m.email IS NOT NULL OR m.whatsapp IS NOT NULL)
       AND m.dob IS NOT NULL
@@ -161,10 +158,19 @@ async function main() {
   let waSent = 0;
   let waFailed = 0;
 
+  // Grouped alongside the per-member sends below (same `rows`, so the digest
+  // always matches exactly who was messaged this run) — collected here, sent
+  // after the per-member loop finishes.
+  const celebrantsByCommunity = new Map();
+
   for (const m of rows) {
     const message = m.birthday_messages?.[monthName] ?? "Happy birthday! 🎉";
     const firstName = String(m.name).split(" ")[0];
     let anyOk = false;
+
+    const entry = celebrantsByCommunity.get(m.community_id) ?? { communityName: m.community_name, celebrants: [] };
+    entry.celebrants.push({ name: m.name, message: `Happy birthday, ${firstName}! ${message}` });
+    celebrantsByCommunity.set(m.community_id, entry);
 
     if (m.email) {
       const result = await sendEmail({
@@ -172,9 +178,6 @@ async function main() {
         subject: `Happy birthday, ${firstName}! 🎂`,
         fromName: m.community_name,
         html: birthdayEmail({ memberName: m.name, communityName: m.community_name, message }),
-        // CC's the community admin so they get proof-of-life that the daily
-        // cron job actually ran and reached this member.
-        cc: m.admin_email || undefined,
       });
       if (result.ok) {
         emailSent++;
@@ -201,11 +204,53 @@ async function main() {
     }
   }
 
+  // One digest per community (only communities with a celebrant today end up
+  // in the map), to every community_admin on file — not just one, so a
+  // community with co-admins doesn't leave anyone out of the loop.
+  let digestSent = 0;
+  let digestFailed = 0;
+  if (celebrantsByCommunity.size > 0) {
+    const adminRows = await sql`
+      SELECT ur.community_id, u.email
+      FROM public.user_roles ur
+      JOIN public.users u ON u.id = ur.user_id
+      WHERE ur.role = 'community_admin' AND ur.community_id = ANY(${Array.from(celebrantsByCommunity.keys())}::uuid[])
+        AND u.email IS NOT NULL
+    `;
+    const adminsByCommunity = new Map();
+    for (const a of adminRows) {
+      const list = adminsByCommunity.get(a.community_id) ?? [];
+      list.push(a.email);
+      adminsByCommunity.set(a.community_id, list);
+    }
+
+    for (const [communityId, entry] of celebrantsByCommunity) {
+      const adminEmails = Array.from(new Set(adminsByCommunity.get(communityId) ?? []));
+      if (adminEmails.length === 0) {
+        console.log(`[birthdays] No admin on file for ${entry.communityName} — skipping celebrants digest.`);
+        continue;
+      }
+      const count = entry.celebrants.length;
+      const subject = count === 1 ? `🎂 1 birthday today at ${entry.communityName}` : `🎂 ${count} birthdays today at ${entry.communityName}`;
+      const html = celebrantsDigestEmail({ communityName: entry.communityName, celebrants: entry.celebrants });
+      for (const adminEmail of adminEmails) {
+        const result = await sendEmail({ to: adminEmail, subject, fromName: entry.communityName, html });
+        if (result.ok) {
+          digestSent++;
+        } else {
+          digestFailed++;
+          console.error(`[birthdays] Failed to send celebrants digest to ${adminEmail}: ${result.error}`);
+        }
+      }
+    }
+  }
+
   console.log(
     `[birthdays] Done. Email sent ${emailSent}, failed ${emailFailed}.` +
-      (WHATSAPP_CONFIGURED ? ` WhatsApp sent ${waSent}, failed ${waFailed}.` : ""),
+      (WHATSAPP_CONFIGURED ? ` WhatsApp sent ${waSent}, failed ${waFailed}.` : "") +
+      ` Admin digests sent ${digestSent}, failed ${digestFailed}.`,
   );
-  if (emailSent === 0 && waSent === 0 && (emailFailed > 0 || waFailed > 0)) process.exit(1);
+  if (emailSent === 0 && waSent === 0 && digestSent === 0 && (emailFailed > 0 || waFailed > 0 || digestFailed > 0)) process.exit(1);
 }
 
 main().catch((err) => {

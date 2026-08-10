@@ -185,6 +185,41 @@ export function callTreePairingEmail({
   });
 }
 
+// Sent once per community per day (only when there's at least one
+// celebrant), to every community_admin on file. Gives the admin a
+// copy-paste-ready message per celebrant so they can post it in their own
+// WhatsApp group manually — the whole point being to avoid per-member sends
+// through the paid Meta Business API. Built by scripts/send-birthday-emails.mjs
+// via the plain-JS mirror of this function — keep both in sync.
+export function celebrantsDigestEmail({
+  communityName,
+  celebrants,
+}: {
+  communityName: string;
+  celebrants: { name: string; message: string }[];
+}): string {
+  const count = celebrants.length;
+  const cards = celebrants
+    .map(
+      (c) => `
+      <div style="margin:0 0 14px;padding:14px 16px;background-color:#fffbeb;border-radius:10px;">
+        <p style="margin:0 0 6px;font-weight:700;color:#111827;">${escapeHtml(c.name)}</p>
+        <p style="margin:0;color:#374151;white-space:pre-wrap;">${escapeHtml(c.message)}</p>
+      </div>`,
+    )
+    .join("");
+  return shell({
+    accentColor: "#f59e0b",
+    badge: "🎂 Today's celebrants",
+    heading: count === 1 ? "1 member is celebrating today" : `${count} members are celebrating today`,
+    bodyHtml: `
+      <p style="margin:0 0 16px;">Copy any of these straight into your WhatsApp group:</p>
+      ${cards}
+    `,
+    footerNote: `Sent to the admins of ${escapeHtml(communityName)}. Sharing these yourself in your WhatsApp group costs nothing — that's why this exists instead of the app messaging each member directly.`,
+  });
+}
+
 export function trialReminderEmail({
   adminName,
   communityName,
