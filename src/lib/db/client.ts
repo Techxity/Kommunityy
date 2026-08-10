@@ -88,6 +88,32 @@ export function getRawSql() {
   return _rawSql;
 }
 
+type RawSqlClient = ReturnType<typeof createRawSql>;
+type TransactionQueries = Parameters<RawSqlClient["transaction"]>[0];
+
+// The one blessed way to run a multi-statement transaction. Hides the
+// getRawSql() footgun (see the long note above): the callback receives the
+// raw tagged-template client to BUILD statements against — building against
+// the wrapped `sql` export silently breaks `.transaction()` — and the
+// resulting array is run atomically, with driver errors normalized to the
+// same friendly message as every other query. Callers never touch getRawSql
+// or normalizeDbError directly.
+//
+//   await withTransaction((tx) => [
+//     tx`INSERT INTO ... VALUES (${a})`,
+//     tx`UPDATE ... WHERE id = ${b}`,
+//   ]);
+export async function withTransaction<T = unknown>(
+  build: (tx: RawSqlClient) => TransactionQueries,
+): Promise<T> {
+  const raw = getRawSql();
+  try {
+    return (await raw.transaction(build(raw))) as T;
+  } catch (e) {
+    throw normalizeDbError(e);
+  }
+}
+
 export { normalizeDbError };
 
 let _sql: ReturnType<typeof wrapNeonClient<ReturnType<typeof createRawSql>>> | undefined;

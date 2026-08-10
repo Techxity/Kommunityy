@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { sql, getRawSql, normalizeDbError } from "@/lib/db/client";
+import { sql, withTransaction } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth/require-auth.server";
 import { communityIdForAdmin } from "@/lib/payments/communities.functions";
 
@@ -122,27 +122,37 @@ export const startElectionCycle = createServerFn({ method: "POST" })
     const live = await sql`SELECT id FROM public.elections WHERE community_id = ${communityId}::uuid AND status = 'live' LIMIT 1`;
     if (live[0]) throw new Error("End the current election before starting a new cycle.");
 
-    const rawSql = getRawSql();
     const electionId = crypto.randomUUID();
-    const statements = [
-      rawSql`INSERT INTO public.elections (id, community_id, year, status, ends_at) VALUES (${electionId}::uuid, ${communityId}::uuid, ${data.year}, 'live', ${data.endsAt}::date)`,
-    ];
+
+    // Pre-generate position ids so candidates can reference them, then insert
+    // all positions in one statement and all candidates in another — instead
+    // of one INSERT per position and per candidate (previously O(positions +
+    // candidates) round trips inside the transaction).
+    const posIds: string[] = [];
+    const posRoles: string[] = [];
+    const posOrders: number[] = [];
+    const candPosIds: string[] = [];
+    const candMemberIds: string[] = [];
     data.positions.forEach((p, i) => {
       const positionId = crypto.randomUUID();
-      statements.push(
-        rawSql`INSERT INTO public.election_positions (id, election_id, role, sort_order) VALUES (${positionId}::uuid, ${electionId}::uuid, ${p.role}, ${i})`,
-      );
+      posIds.push(positionId);
+      posRoles.push(p.role);
+      posOrders.push(i);
       for (const memberId of p.memberIds) {
-        statements.push(
-          rawSql`INSERT INTO public.election_candidates (position_id, member_id) VALUES (${positionId}::uuid, ${memberId}::uuid)`,
-        );
+        candPosIds.push(positionId);
+        candMemberIds.push(memberId);
       }
     });
-    try {
-      await rawSql.transaction(statements);
-    } catch (e) {
-      throw normalizeDbError(e);
-    }
+
+    await withTransaction((tx) => [
+      tx`INSERT INTO public.elections (id, community_id, year, status, ends_at)
+         VALUES (${electionId}::uuid, ${communityId}::uuid, ${data.year}, 'live', ${data.endsAt}::date)`,
+      tx`INSERT INTO public.election_positions (id, election_id, role, sort_order)
+         SELECT id, ${electionId}::uuid, role, ord
+         FROM unnest(${posIds}::uuid[], ${posRoles}::text[], ${posOrders}::int[]) AS t(id, role, ord)`,
+      tx`INSERT INTO public.election_candidates (position_id, member_id)
+         SELECT pos, mem FROM unnest(${candPosIds}::uuid[], ${candMemberIds}::uuid[]) AS t(pos, mem)`,
+    ]);
     return { ok: true, electionId };
   });
 
@@ -219,12 +229,35 @@ export const updateCandidates = createServerFn({ method: "POST" })
       if (!validPositionIds.has(p.positionId)) {
         throw new Error("One or more positions don't belong to this election.");
       }
-      await sql`DELETE FROM public.election_candidates WHERE position_id = ${p.positionId}::uuid`;
+    }
+
+    // Flatten to (position_id, member_id) pairs, dropping members that aren't
+    // valid for this community. Then clear all affected positions and re-insert
+    // every pair in one transaction — atomic, and two statements instead of a
+    // delete + insert per candidate.
+    const clearIds = data.positions.map((p) => p.positionId);
+    const pairPos: string[] = [];
+    const pairMem: string[] = [];
+    for (const p of data.positions) {
       for (const memberId of p.memberIds) {
         if (!validMemberIds.has(memberId)) continue;
-        await sql`INSERT INTO public.election_candidates (position_id, member_id) VALUES (${p.positionId}::uuid, ${memberId}::uuid)`;
+        pairPos.push(p.positionId);
+        pairMem.push(memberId);
       }
     }
+
+    await withTransaction((tx) => {
+      const stmts = [
+        tx`DELETE FROM public.election_candidates WHERE position_id = ANY(${clearIds}::uuid[])`,
+      ];
+      if (pairPos.length > 0) {
+        stmts.push(
+          tx`INSERT INTO public.election_candidates (position_id, member_id)
+             SELECT pos, mem FROM unnest(${pairPos}::uuid[], ${pairMem}::uuid[]) AS t(pos, mem)`,
+        );
+      }
+      return stmts;
+    });
     return { ok: true };
   });
 

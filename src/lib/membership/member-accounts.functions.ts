@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { sql, getRawSql, normalizeDbError } from "@/lib/db/client";
+import { sql, withTransaction } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth/require-auth.server";
 import { communityIdForAdmin } from "@/lib/payments/communities.functions";
 import { hashPassword } from "@/lib/auth/password";
@@ -92,16 +92,11 @@ export const acceptMemberInvite = createServerFn({ method: "POST" })
     const userId = crypto.randomUUID();
     await sql`INSERT INTO public.users (id, email, password_hash) VALUES (${userId}::uuid, ${email}, ${passwordHash})`;
 
-    const rawSql = getRawSql();
-    try {
-      await rawSql.transaction([
-        rawSql`UPDATE public.members SET user_id = ${userId}::uuid WHERE id = ${invite.member_id}::uuid`,
-        rawSql`INSERT INTO public.user_roles (user_id, role, community_id) VALUES (${userId}::uuid, 'member', ${invite.community_id}::uuid) ON CONFLICT DO NOTHING`,
-        rawSql`DELETE FROM public.member_invites WHERE id = ${invite.invite_id}::uuid`,
-      ]);
-    } catch (e) {
-      throw normalizeDbError(e);
-    }
+    await withTransaction((tx) => [
+      tx`UPDATE public.members SET user_id = ${userId}::uuid WHERE id = ${invite.member_id}::uuid`,
+      tx`INSERT INTO public.user_roles (user_id, role, community_id) VALUES (${userId}::uuid, 'member', ${invite.community_id}::uuid) ON CONFLICT DO NOTHING`,
+      tx`DELETE FROM public.member_invites WHERE id = ${invite.invite_id}::uuid`,
+    ]);
 
     const token = await createSession(userId);
     setSessionCookie(token);
@@ -137,15 +132,10 @@ export const linkExistingAccountToMembership = createServerFn({ method: "POST" }
       throw new Error("This invite is for a different email address than the account you're signed in to.");
     }
 
-    const rawSql = getRawSql();
-    try {
-      await rawSql.transaction([
-        rawSql`UPDATE public.members SET user_id = ${context.userId}::uuid WHERE id = ${invite.member_id}::uuid`,
-        rawSql`INSERT INTO public.user_roles (user_id, role, community_id) VALUES (${context.userId}::uuid, 'member', ${invite.community_id}::uuid) ON CONFLICT DO NOTHING`,
-        rawSql`DELETE FROM public.member_invites WHERE id = ${invite.invite_id}::uuid`,
-      ]);
-    } catch (e) {
-      throw normalizeDbError(e);
-    }
+    await withTransaction((tx) => [
+      tx`UPDATE public.members SET user_id = ${context.userId}::uuid WHERE id = ${invite.member_id}::uuid`,
+      tx`INSERT INTO public.user_roles (user_id, role, community_id) VALUES (${context.userId}::uuid, 'member', ${invite.community_id}::uuid) ON CONFLICT DO NOTHING`,
+      tx`DELETE FROM public.member_invites WHERE id = ${invite.invite_id}::uuid`,
+    ]);
     return { ok: true };
   });

@@ -19,19 +19,6 @@ export async function communityIdForAdmin(userId: string): Promise<string | null
   return (rows[0]?.community_id as string | undefined) ?? null;
 }
 
-// Public: the app is currently single-tenant in practice (one community per
-// deployment), so the admin dashboard just grabs the first one ever created.
-// Only public fields are returned — bank details go through getCommunityBank.
-export const getDefaultCommunity = createServerFn({ method: "POST" }).handler(async () => {
-  const rows = await sql`
-    SELECT id, name
-    FROM public.communities
-    ORDER BY created_at ASC
-    LIMIT 1
-  `;
-  return rows[0] ?? null;
-});
-
 // Public: looks up a community by its login-page slug (/l/{slug}) — powers
 // the branded per-estate login page. Only non-sensitive fields.
 export const getCommunityBySlug = createServerFn({ method: "POST" })
@@ -43,9 +30,8 @@ export const getCommunityBySlug = createServerFn({ method: "POST" })
     return { id: row.id as string, name: row.name as string, type: (row.type as string | null) ?? "" };
   });
 
-// The community the logged-in admin actually belongs to (as opposed to
-// getDefaultCommunity's single-tenant "first ever" guess) — used by the
-// admin shell/dashboard for the community name and trial countdown.
+// The community the logged-in admin actually belongs to — used by the admin
+// shell/dashboard for the community name and trial countdown.
 export const getMyCommunity = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {

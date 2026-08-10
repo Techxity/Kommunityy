@@ -227,30 +227,56 @@ export const bulkCreateMembers = createServerFn({ method: "POST" })
     const chapterRows = await sql`SELECT id, name FROM public.chapters WHERE community_id = ${communityId}::uuid`;
     const chapterByName = new Map(chapterRows.map((c) => [String(c.name).toLowerCase(), c.id as string]));
 
-    const results: { email: string; name: string; status: "created" | "skipped_duplicate"; emailSent?: boolean }[] = [];
+    // Bare "YYYY-MM-DD" only — anything else from a messy spreadsheet cell is
+    // dropped rather than guessed at (ambiguous MM/DD vs DD/MM date formats
+    // have burned this app before; better to leave it blank and let the admin
+    // fix it via Edit member than silently store the wrong day).
+    const cleanDob = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
 
-    for (const r of rows) {
-      const key = r.email.toLowerCase();
-      if (existingSet.has(key)) {
-        results.push({ email: r.email, name: r.name, status: "skipped_duplicate" });
-        continue;
-      }
-      const chapterId = r.chapter ? (chapterByName.get(r.chapter.toLowerCase()) ?? null) : null;
-      // Bare "YYYY-MM-DD" only — anything else from a messy spreadsheet cell
-      // is dropped rather than guessed at (ambiguous MM/DD vs DD/MM date
-      // formats have burned this app before; better to leave it blank and
-      // let the admin fix it via Edit member than silently store the wrong day).
-      const dob = r.dob && /^\d{4}-\d{2}-\d{2}$/.test(r.dob) ? r.dob : null;
+    // Everything that isn't already a member — inserted in ONE multi-row
+    // statement via unnest, instead of an INSERT per row.
+    const toInsert = rows.filter((r) => !existingSet.has(r.email.toLowerCase()));
 
+    // Maps a newly-inserted member's (lowercased) email to whether their
+    // account-setup invite email went out, so results below stay in the
+    // original upload order.
+    const emailSentByEmail = new Map<string, boolean>();
+    if (toInsert.length > 0) {
+      // One jsonb array → one INSERT ... SELECT. jsonb_to_recordset maps
+      // absent/null JSON keys straight to SQL NULL, so nullable columns
+      // (phone, dob, chapter_id, …) need no special handling — cleaner and
+      // safer than parallel typed arrays for a row shape this wide.
+      const payload = toInsert.map((r) => ({
+        name: r.name,
+        email: r.email,
+        phone: r.phone ?? null,
+        whatsapp: r.whatsapp ?? null,
+        dob: cleanDob(r.dob),
+        role: r.role ?? null,
+        chapter_id: r.chapter ? (chapterByName.get(r.chapter.toLowerCase()) ?? null) : null,
+      }));
       const inserted = await sql`
         INSERT INTO public.members (community_id, name, email, phone, whatsapp, dob, role, chapter_id, status, joined_at)
-        VALUES (${communityId}::uuid, ${r.name}, ${r.email}, ${r.phone ?? null}, ${r.whatsapp ?? null}, ${dob}::date, ${r.role ?? null}, ${chapterId}, 'active', now())
-        RETURNING id
+        SELECT ${communityId}::uuid, x.name, x.email, x.phone, x.whatsapp, x.dob::date, x.role, x.chapter_id::uuid, 'active', now()
+        FROM jsonb_to_recordset(${JSON.stringify(payload)}::jsonb)
+          AS x(name text, email text, phone text, whatsapp text, dob text, role text, chapter_id text)
+        RETURNING id, email
       `;
-      const memberId = inserted[0]?.id as string | undefined;
-      const invite = memberId ? await ensureMemberInvite(memberId).catch(() => ({ created: false, emailSent: false })) : { created: false, emailSent: false };
-      results.push({ email: r.email, name: r.name, status: "created", emailSent: !!invite.emailSent });
+      // Invites still go one email per member (that's inherent), but the DB
+      // work above is now a single round trip.
+      for (const row of inserted) {
+        const invite = await ensureMemberInvite(row.id as string).catch(() => ({ created: false, emailSent: false }));
+        emailSentByEmail.set((row.email as string).toLowerCase(), !!invite.emailSent);
+      }
     }
+
+    const results = rows.map((r) => {
+      const key = r.email.toLowerCase();
+      if (existingSet.has(key)) {
+        return { email: r.email, name: r.name, status: "skipped_duplicate" as const };
+      }
+      return { email: r.email, name: r.name, status: "created" as const, emailSent: emailSentByEmail.get(key) ?? false };
+    });
 
     return {
       created: results.filter((r) => r.status === "created").length,

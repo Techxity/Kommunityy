@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { sql, getRawSql } from "@/lib/db/client";
+import { sql, withTransaction } from "@/lib/db/client";
 import { hashPassword, verifyPassword, DUMMY_PASSWORD_HASH } from "./password";
 import { createSession, revokeAllSessionsForUser, revokeSessionToken } from "./session.server";
 import { setSessionCookie, clearSessionCookie, readSessionToken } from "./session-cookie.server";
@@ -73,12 +73,11 @@ export const signup = createServerFn({ method: "POST" })
     const communityId = crypto.randomUUID();
     const slug = await uniqueCommunitySlug(data.communityName);
 
-    const rawSql = getRawSql();
     try {
-      await rawSql.transaction([
-        rawSql`INSERT INTO public.users (id, email, password_hash, name) VALUES (${userId}::uuid, ${email}, ${passwordHash}, ${data.name})`,
-        rawSql`INSERT INTO public.communities (id, name, slug, type, tier_id, trial_ends_at) VALUES (${communityId}::uuid, ${data.communityName}, ${slug}, ${data.communityType ?? null}, ${tierId}, ${trialEndsAt})`,
-        rawSql`INSERT INTO public.user_roles (user_id, role, community_id) VALUES (${userId}::uuid, 'community_admin', ${communityId}::uuid)`,
+      await withTransaction((tx) => [
+        tx`INSERT INTO public.users (id, email, password_hash, name) VALUES (${userId}::uuid, ${email}, ${passwordHash}, ${data.name})`,
+        tx`INSERT INTO public.communities (id, name, slug, type, tier_id, trial_ends_at) VALUES (${communityId}::uuid, ${data.communityName}, ${slug}, ${data.communityType ?? null}, ${tierId}, ${trialEndsAt})`,
+        tx`INSERT INTO public.user_roles (user_id, role, community_id) VALUES (${userId}::uuid, 'community_admin', ${communityId}::uuid)`,
       ]);
     } catch (e: any) {
       if (String(e?.message ?? "").toLowerCase().includes("unique")) {

@@ -207,6 +207,8 @@ CREATE TABLE IF NOT EXISTS public.members (
 );
 CREATE INDEX IF NOT EXISTS members_community_id_idx ON public.members(community_id);
 CREATE INDEX IF NOT EXISTS members_status_idx ON public.members(community_id, status);
+-- Hot path: every member-facing lookup resolves the row via user_id.
+CREATE INDEX IF NOT EXISTS members_user_id_idx ON public.members(user_id) WHERE user_id IS NOT NULL;
 
 -- Tracks admin-sent email invites (sendInvites) so the public join form can
 -- tell a personally-invited applicant apart from an organic submission —
