@@ -30,9 +30,16 @@ export async function hashInviteToken(token: string): Promise<string> {
 // has an account, has no email on file, or already has a live invite
 // pending. Called automatically when a member is approved/activated, and
 // manually via resendMemberInvite for retries.
+// SECURITY: the raw invite link is only ever delivered by email — it is
+// deliberately NOT returned to the caller. Surfacing it in a server-function
+// response let an admin obtain a set-password link for any email they typed
+// into a member row, which is one half of an account-takeover chain (the
+// other half — acceptMemberInvite clobbering an existing account — is now
+// closed too). If email delivery isn't configured, fix that and re-send
+// rather than handing the link back through the UI.
 export async function ensureMemberInvite(
   memberId: string,
-): Promise<{ created: boolean; emailSent?: boolean; link?: string; reason?: string }> {
+): Promise<{ created: boolean; emailSent?: boolean; reason?: string }> {
   const rows = await sql`
     SELECT m.id, m.name, m.email, m.user_id, c.name AS community_name
     FROM public.members m
@@ -71,5 +78,5 @@ export async function ensureMemberInvite(
     }),
   });
 
-  return { created: true, emailSent: result.ok, link };
+  return { created: true, emailSent: result.ok };
 }

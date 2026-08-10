@@ -1,7 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Copy, Check, Loader2, Users2 } from "lucide-react";
-import { getInviteInfo, acceptMemberInvite } from "@/lib/membership/member-accounts.functions";
+import {
+  getInviteInfo,
+  acceptMemberInvite,
+  linkExistingAccountToMembership,
+} from "@/lib/membership/member-accounts.functions";
+import { me } from "@/lib/auth/auth.functions";
 
 export const Route = createFileRoute("/invite/$token")({
   head: () => ({ meta: [{ title: "Set your password — Kommunity" }] }),
@@ -20,10 +25,35 @@ function AcceptInvite() {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [copied, setCopied] = useState(false);
+  // Set when the invited email already has an account — the set-password form
+  // is replaced with a "sign in to link" path, since we never reset an
+  // existing account's password through an invite.
+  const [existingAccount, setExistingAccount] = useState(false);
+  const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
 
   useEffect(() => {
     getInviteInfo({ data: { token } }).then(setInfo);
+    // If they're already signed in, we can offer a one-click link instead of
+    // asking them to set a password.
+    me()
+      .then((u) => setSignedInEmail(u?.email ?? null))
+      .catch(() => setSignedInEmail(null));
   }, [token]);
+
+  const emailMatchesSignedIn =
+    !!signedInEmail && !!info && signedInEmail.toLowerCase() === info.email.toLowerCase();
+
+  async function linkMembership() {
+    setError("");
+    setLoading(true);
+    try {
+      await linkExistingAccountToMembership({ data: { token } });
+      setDone(true);
+    } catch (err: any) {
+      setError(err?.message ?? "Couldn't link your membership. Please try again.");
+      setLoading(false);
+    }
+  }
 
   const loginUrl =
     info && typeof window !== "undefined" ? `${window.location.origin}/l/${info.communitySlug}` : "";
@@ -50,7 +80,14 @@ function AcceptInvite() {
       await acceptMemberInvite({ data: { token, password } });
       setDone(true);
     } catch (err: any) {
-      setError(err?.message ?? "Couldn't set your password. Please try again.");
+      // The invited email already has an account — switch to the sign-in-to-link
+      // path rather than (dangerously) resetting that account's password.
+      if (/already exists for this email/i.test(err?.message ?? "")) {
+        setExistingAccount(true);
+        setError("");
+      } else {
+        setError(err?.message ?? "Couldn't set your password. Please try again.");
+      }
       setLoading(false);
     }
   }
@@ -102,6 +139,47 @@ function AcceptInvite() {
           >
             Continue to your dashboard
           </button>
+        </section>
+      </div>
+    );
+  }
+
+  // The invited email already has an account. Never reset its password via an
+  // invite — either link in one click (already signed in as that email) or
+  // point them to their login page to sign in first.
+  if (existingAccount || (emailMatchesSignedIn && info.email)) {
+    return (
+      <div className="min-h-screen bg-background">
+        <section className="mx-auto max-w-md px-6 py-16">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-accent text-primary-foreground shadow-soft">
+            <Users2 className="h-5 w-5" />
+          </div>
+          <h1 className="mt-6 font-display text-3xl font-bold">Welcome back, {info.name.split(" ")[0]}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            You already have an account for {info.email}. {emailMatchesSignedIn
+              ? "Link this membership to it in one click."
+              : "Sign in with your existing password and your membership will be linked automatically."}
+          </p>
+
+          {error && <p className="mt-4 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-600">{error}</p>}
+
+          {emailMatchesSignedIn ? (
+            <button
+              onClick={linkMembership}
+              disabled={loading}
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
+            >
+              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+              {loading ? "Linking…" : `Link my ${info.communityName} membership`}
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate({ to: "/l/$slug", params: { slug: info.communitySlug } })}
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90"
+            >
+              Go to sign in
+            </button>
+          )}
         </section>
       </div>
     );

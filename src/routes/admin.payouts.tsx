@@ -245,14 +245,14 @@ function BankSection({ community, onSaved }: { community: Community; onSaved: ()
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    listBanksFn({ data: { currency: "NGN" } })
+    listBanksFn({ data: { community_id: community.id, currency: "NGN" } })
       .then(setBanks)
       .catch((e) => setErr(e.message));
   }, []);
 
   useEffect(() => {
     if (bankCode && /^\d{10}$/.test(accountNumber)) {
-      resolveFn({ data: { bank_code: bankCode, account_number: accountNumber } })
+      resolveFn({ data: { community_id: community.id, bank_code: bankCode, account_number: accountNumber } })
         .then((r) => {
           setResolvedName(r.account_name);
           setErr(null);

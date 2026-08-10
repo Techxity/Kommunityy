@@ -12,10 +12,19 @@ import {
 } from "./paystack.server";
 import { platformFeePctFor } from "./paystack-charge.server";
 
+// Both of these proxy Paystack endpoints (bank list, and account-number →
+// account-name resolution). They're gated to community admins of the given
+// community — not just any authenticated user — because resolveAccount in
+// particular is an account-holder-name lookup oracle for arbitrary Nigerian
+// bank accounts, and an uncapped Paystack API-cost sink. Only the payout-setup
+// screen needs them, and that's admin-only.
 export const listBanks = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((i) => z.object({ currency: z.enum(["NGN", "USD"]).default("NGN") }).parse(i))
-  .handler(async ({ data }) => {
+  .inputValidator((i) =>
+    z.object({ community_id: z.string().uuid(), currency: z.enum(["NGN", "USD"]).default("NGN") }).parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    await assertCommunityAdmin(context.userId, data.community_id);
     const banks = await paystackListBanks(data.currency);
     return banks.map((b) => ({ name: b.name, code: b.code }));
   });
@@ -25,12 +34,14 @@ export const resolveAccount = createServerFn({ method: "POST" })
   .inputValidator((i) =>
     z
       .object({
+        community_id: z.string().uuid(),
         account_number: z.string().regex(/^\d{6,12}$/),
         bank_code: z.string().min(2).max(10),
       })
       .parse(i),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    await assertCommunityAdmin(context.userId, data.community_id);
     return paystackResolveAccount(data.account_number, data.bank_code);
   });
 

@@ -194,9 +194,34 @@ export const updateCandidates = createServerFn({ method: "POST" })
     if (!election) throw new Error("Election not found.");
     if (election.status === "live") throw new Error("End the election before editing candidates.");
 
+    // Only positions that genuinely belong to THIS election may be touched.
+    // Without this, a caller could pass their own electionId (to pass the
+    // ownership check above) alongside another community's positionIds and
+    // rewrite that community's candidate list — a cross-tenant tampering IDOR.
+    const ownPositions = await sql`
+      SELECT id FROM public.election_positions WHERE election_id = ${data.electionId}::uuid
+    `;
+    const validPositionIds = new Set(ownPositions.map((r) => r.id as string));
+
+    // Likewise, candidates may only be community members — reject any memberId
+    // that isn't an active member of this community.
+    const incomingMemberIds = Array.from(new Set(data.positions.flatMap((p) => p.memberIds)));
+    const validMemberIds = new Set<string>();
+    if (incomingMemberIds.length > 0) {
+      const memberRows = await sql`
+        SELECT id FROM public.members
+        WHERE community_id = ${communityId}::uuid AND id = ANY(${incomingMemberIds}::uuid[])
+      `;
+      for (const r of memberRows) validMemberIds.add(r.id as string);
+    }
+
     for (const p of data.positions) {
+      if (!validPositionIds.has(p.positionId)) {
+        throw new Error("One or more positions don't belong to this election.");
+      }
       await sql`DELETE FROM public.election_candidates WHERE position_id = ${p.positionId}::uuid`;
       for (const memberId of p.memberIds) {
+        if (!validMemberIds.has(memberId)) continue;
         await sql`INSERT INTO public.election_candidates (position_id, member_id) VALUES (${p.positionId}::uuid, ${memberId}::uuid)`;
       }
     }

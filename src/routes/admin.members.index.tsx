@@ -53,7 +53,7 @@ function MembersPage() {
     try {
       const res = await resendMemberInvite({ data: { memberId } });
       if (!res.created) setInviteNote(res.reason ?? "Couldn't send an invite right now.");
-      else if (!res.emailSent) setInviteNote(`Invite created, but email didn't send. Link: ${res.link}`);
+      else if (!res.emailSent) setInviteNote("Invite created, but the email didn't send — check your email settings and try again.");
       else setInviteNote("Account invite sent.");
       refresh();
     } catch (err: any) {
