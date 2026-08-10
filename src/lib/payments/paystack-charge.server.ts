@@ -21,7 +21,7 @@ async function communityForDuesPlan(plan_id: string) {
   const rows = await sql`SELECT community_id FROM public.dues_plans WHERE id = ${plan_id} LIMIT 1`;
   return (rows[0]?.community_id as string | undefined) ?? null;
 }
-async function platformFeePctFor(community_id: string): Promise<number> {
+export async function platformFeePctFor(community_id: string): Promise<number> {
   const rows = await sql`
     SELECT t.platform_fee_pct
     FROM public.communities c
@@ -65,12 +65,19 @@ export async function applyVerifiedCharge(
   const platform_fee = Math.round(gross * pct) / 100;
   const community_net = Math.max(0, gross - platform_fee);
 
+  // Set by dues.functions.ts/donations.functions.ts at checkout time based on
+  // whether a Paystack subaccount was passed to /transaction/initialize —
+  // trusted here as-is since it only affects which pool a payment is counted
+  // toward for manual payouts, not the amount collected or who was charged.
+  const settlement_mode: "platform_held" | "subaccount_split" =
+    meta.settlement_mode === "subaccount_split" ? "subaccount_split" : "platform_held";
+
   if (meta.kind === "donation" && meta.donation_id) {
     await sql`
       INSERT INTO public.donation_payments
-        (donation_id, payer_name, payer_email, amount, currency, provider, provider_ref, status, paystack_fee, platform_fee, community_net)
+        (donation_id, payer_name, payer_email, amount, currency, provider, provider_ref, status, paystack_fee, platform_fee, community_net, settlement_mode)
       VALUES
-        (${meta.donation_id}, ${meta.payer_name ?? email ?? "Anonymous"}, ${email ?? null}, ${gross}, ${currency}, 'paystack', ${reference}, 'paid', ${paystack_fee}, ${platform_fee}, ${community_net})
+        (${meta.donation_id}, ${meta.payer_name ?? email ?? "Anonymous"}, ${email ?? null}, ${gross}, ${currency}, 'paystack', ${reference}, 'paid', ${paystack_fee}, ${platform_fee}, ${community_net}, ${settlement_mode})
       ON CONFLICT (provider, provider_ref) DO NOTHING
     `;
     return { applied: true, kind: "donation" };
@@ -79,9 +86,9 @@ export async function applyVerifiedCharge(
   if (meta.kind === "dues" && meta.plan_id) {
     await sql`
       INSERT INTO public.dues_payments
-        (plan_id, member_name, member_email, amount, currency, provider, provider_ref, status, paystack_fee, platform_fee, community_net)
+        (plan_id, member_name, member_email, amount, currency, provider, provider_ref, status, paystack_fee, platform_fee, community_net, settlement_mode)
       VALUES
-        (${meta.plan_id}, ${meta.member_name ?? email ?? "Member"}, ${email ?? null}, ${gross}, ${currency}, 'paystack', ${reference}, 'paid', ${paystack_fee}, ${platform_fee}, ${community_net})
+        (${meta.plan_id}, ${meta.member_name ?? email ?? "Member"}, ${email ?? null}, ${gross}, ${currency}, 'paystack', ${reference}, 'paid', ${paystack_fee}, ${platform_fee}, ${community_net}, ${settlement_mode})
       ON CONFLICT (provider, provider_ref) DO NOTHING
     `;
     return { applied: true, kind: "dues" };

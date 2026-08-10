@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Vote, Plus, Trophy, RotateCcw, History, Crown, Pencil, X, Check, Users, Search } from "lucide-react";
+import { Vote, Plus, Trophy, RotateCcw, History, Crown, Pencil, X, Check, Users, Search, Download } from "lucide-react";
 import { toast } from "sonner";
 import {
   getElectionsAdminData,
@@ -23,6 +23,51 @@ type Position = { id: string; role: string; candidates: Candidate[] };
 type ElectionRecord = { id: string; year: number; status: "live" | "ended"; endsAt: string; positions: Position[] };
 
 const winnerOf = (p: Position) => [...p.candidates].sort((a, b) => b.votes - a.votes)[0]?.name ?? "—";
+
+// Client-side CSV build — all the data it needs (positions, candidates, vote
+// counts) is already in the payload the admin page fetched, so there's no
+// need for a dedicated export server function. One row per candidate, with
+// enough context (election year/status/close date, role, vote share, and a
+// winner flag) that this can stand on its own if a dispute needs a paper
+// trail independent of the live app.
+function buildElectionCsv(election: ElectionRecord): string {
+  const rows: string[][] = [
+    ["Election Year", "Status", "Voting Closed", "Role", "Candidate", "Votes", "Vote Share %", "Total Votes for Role", "Winner"],
+  ];
+  election.positions.forEach((p) => {
+    const total = p.candidates.reduce((s, c) => s + c.votes, 0);
+    const sorted = [...p.candidates].sort((a, b) => b.votes - a.votes);
+    sorted.forEach((c, i) => {
+      const pct = total ? ((c.votes / total) * 100).toFixed(1) : "0.0";
+      rows.push([
+        String(election.year),
+        election.status,
+        election.endsAt,
+        p.role,
+        c.name,
+        String(c.votes),
+        pct,
+        String(total),
+        i === 0 && c.votes > 0 ? "Yes" : "No",
+      ]);
+    });
+    if (sorted.length === 0) {
+      rows.push([String(election.year), election.status, election.endsAt, p.role, "—", "0", "0.0", "0", "No"]);
+    }
+  });
+  return rows.map((r) => r.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\n");
+}
+
+function downloadElectionCsv(election: ElectionRecord) {
+  const csv = buildElectionCsv(election);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `election-results-${election.year}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 function Elections() {
   const [election, setElection] = useState<ElectionRecord | null>(null);
@@ -189,6 +234,13 @@ function Elections() {
               Edit candidates
             </button>
           )}
+          <button
+            onClick={() => downloadElectionCsv(election)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary px-4 py-2 text-sm font-semibold transition hover:bg-secondary/80"
+            title="Download vote breakdown as CSV for your records"
+          >
+            <Download className="h-3.5 w-3.5" /> Export results (CSV)
+          </button>
           {isLive ? (
             <button
               onClick={handleEndElection}
@@ -277,9 +329,18 @@ function Elections() {
                     <p className="font-display text-lg font-semibold">{h.year} Executive Council</p>
                     <p className="text-xs text-muted-foreground">Concluded {h.endsAt}</p>
                   </div>
-                  <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    {h.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      {h.status}
+                    </span>
+                    <button
+                      onClick={() => downloadElectionCsv(h)}
+                      className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-xs font-semibold hover:bg-muted"
+                      title="Download this cycle's results as CSV"
+                    >
+                      <Download className="h-3 w-3" /> CSV
+                    </button>
+                  </div>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
                   {h.positions.map((p) => {

@@ -275,6 +275,78 @@ export const getMyBallot = createServerFn({ method: "POST" })
     };
   });
 
+// Every election cycle in the member's community (not just the live one),
+// with the member's own selections and — only once a cycle has ended —
+// the final vote tallies. Tallies are withheld for a still-live election so
+// members can't see a running count while voting is open; that view is
+// admin-only via getElectionsAdminData.
+export const getMyElectionHistory = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const voter = await activeMemberFor(context.userId);
+    if (!voter) return [];
+
+    const elections = await sql`
+      SELECT id, year, status, ends_at FROM public.elections
+      WHERE community_id = ${voter.communityId}::uuid
+      ORDER BY created_at DESC
+    `;
+    if (elections.length === 0) return [];
+    const electionIds = elections.map((e) => e.id as string);
+
+    const positions = await sql`
+      SELECT id, election_id, role, sort_order FROM public.election_positions
+      WHERE election_id = ANY(${electionIds}::uuid[])
+      ORDER BY sort_order ASC
+    `;
+    const positionIds = positions.map((p) => p.id as string);
+
+    const candidates =
+      positionIds.length > 0
+        ? await sql`
+            SELECT ec.id, ec.position_id, m.name,
+              (SELECT count(*)::int FROM public.election_votes v WHERE v.candidate_id = ec.id) AS votes
+            FROM public.election_candidates ec
+            JOIN public.members m ON m.id = ec.member_id
+            WHERE ec.position_id = ANY(${positionIds}::uuid[])
+          `
+        : [];
+
+    const myVotes =
+      positionIds.length > 0
+        ? await sql`
+            SELECT position_id, candidate_id FROM public.election_votes
+            WHERE voter_member_id = ${voter.memberId}::uuid AND position_id = ANY(${positionIds}::uuid[])
+          `
+        : [];
+    const votedByPosition = new Map(myVotes.map((v) => [v.position_id as string, v.candidate_id as string]));
+
+    return elections.map((e) => {
+      const ended = e.status === "ended";
+      const positionsForElection = positions
+        .filter((p) => p.election_id === e.id)
+        .map((p) => {
+          const cands = candidates
+            .filter((c) => c.position_id === p.id)
+            .map((c) => ({
+              id: c.id as string,
+              name: c.name as string,
+              votes: ended ? (c.votes as number) : null,
+            }));
+          const myVoteCandidateId = votedByPosition.get(p.id as string) ?? null;
+          const myVoteName = myVoteCandidateId ? cands.find((c) => c.id === myVoteCandidateId)?.name ?? null : null;
+          return { id: p.id as string, role: p.role as string, candidates: cands, myVoteCandidateId, myVoteName };
+        });
+      return {
+        id: e.id as string,
+        year: e.year as number,
+        status: e.status as string,
+        endsAt: toDateStr(e.ends_at),
+        positions: positionsForElection,
+      };
+    });
+  });
+
 export const submitBallot = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i) => z.object({ votes: z.record(z.string().uuid(), z.string().uuid()) }).parse(i))

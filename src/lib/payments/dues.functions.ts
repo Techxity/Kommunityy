@@ -2,7 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getRequestHost } from "@tanstack/react-start/server";
 import { sql } from "@/lib/db/client";
-import { initializeTransaction } from "./paystack.server";
+import { initializeTransaction, verifyTransaction } from "./paystack.server";
+import { applyVerifiedCharge } from "./paystack-charge.server";
 import { requireAuth } from "@/lib/auth/require-auth.server";
 import { communityIdForAdmin } from "./communities.functions";
 
@@ -17,9 +18,11 @@ export const startDuesCheckout = createServerFn({ method: "POST" })
   .inputValidator((input) => StartDuesInput.parse(input))
   .handler(async ({ data }) => {
     const rows = await sql`
-      SELECT id, name, amount_ngn, amount_usd, active
-      FROM public.dues_plans
-      WHERE id = ${data.plan_id}
+      SELECT dp.id, dp.name, dp.amount_ngn, dp.amount_usd, dp.active,
+        c.paystack_subaccount_code
+      FROM public.dues_plans dp
+      JOIN public.communities c ON c.id = dp.community_id
+      WHERE dp.id = ${data.plan_id}
       LIMIT 1
     `;
     const plan = rows[0];
@@ -31,18 +34,53 @@ export const startDuesCheckout = createServerFn({ method: "POST" })
     const proto = host.includes("localhost") ? "http" : "https";
     const callback_url = `${proto}://${host}/pay-dues/${plan.id}?status=success`;
 
+    // Subaccounts are an NGN-rails feature — USD always stays on the
+    // platform-held/manual-payout path regardless of whether one exists.
+    const subaccount_code = data.currency === "NGN" ? (plan.paystack_subaccount_code as string | null) : null;
+    const settlement_mode = subaccount_code ? "subaccount_split" : "platform_held";
+
     const tx = await initializeTransaction({
       email: data.member_email,
       amount: Number(amount),
       currency: data.currency,
       callback_url,
+      subaccount: subaccount_code ?? undefined,
       metadata: {
         kind: "dues",
         plan_id: plan.id,
         member_name: data.member_name,
+        settlement_mode,
       },
     });
     return { authorization_url: tx.authorization_url, reference: tx.reference };
+  });
+
+// Public: confirms a just-completed dues payment when the payer's browser
+// lands back on /pay-dues/:planId after Paystack checkout. Mirrors
+// tiers.functions.ts's verifyPlanPayment — the webhook (paystack-webhook.ts)
+// is the source of truth and will also apply the charge, but it runs async
+// and may not have landed by the time the browser redirects back, which is
+// exactly when the payer wants to see a confirmed status. applyVerifiedCharge
+// is idempotent (ON CONFLICT DO NOTHING on provider+reference), so whichever
+// of the two call sites runs first wins and the other is a no-op.
+export const verifyDuesPayment = createServerFn({ method: "POST" })
+  .inputValidator((i) => z.object({ reference: z.string().min(1), plan_id: z.string().uuid() }).parse(i))
+  .handler(async ({ data }) => {
+    const tx = await verifyTransaction(data.reference);
+    const meta = (tx.metadata ?? {}) as Record<string, any>;
+    if (meta.kind !== "dues" || meta.plan_id !== data.plan_id) {
+      throw new Error("This payment reference doesn't match this dues plan.");
+    }
+
+    const result = await applyVerifiedCharge(tx);
+    return {
+      ok: result.applied,
+      status: tx.status as string,
+      amount: Number(tx.amount) / 100,
+      currency: tx.currency as "NGN" | "USD",
+      reference: tx.reference as string,
+      memberName: (meta.member_name as string | undefined) ?? null,
+    };
   });
 
 // Public: a dues plan's checkout details (no auth — this is a shareable pay link).

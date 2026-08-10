@@ -14,7 +14,7 @@ import {
   requestPayout,
 } from "@/lib/payments/payouts.functions";
 import { Button } from "@/components/ui/button";
-import { Banknote, Landmark, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { Banknote, Landmark, Clock, CheckCircle2, XCircle, Zap } from "lucide-react";
 
 export const Route = createFileRoute("/admin/payouts")({
   component: PayoutsPage,
@@ -30,6 +30,8 @@ type Community = {
   account_number: string | null;
   account_name: string | null;
   paystack_recipient_code: string | null;
+  paystack_subaccount_code: string | null;
+  subaccount_percentage_charge: number | null;
 };
 type Payout = {
   id: string;
@@ -74,6 +76,8 @@ function PayoutsPage() {
         account_number: bank.account_number ?? null,
         account_name: bank.account_name ?? null,
         paystack_recipient_code: bank.paystack_recipient_code ?? null,
+        paystack_subaccount_code: bank.paystack_subaccount_code ?? null,
+        subaccount_percentage_charge: bank.subaccount_percentage_charge != null ? Number(bank.subaccount_percentage_charge) : null,
       });
 
       const [bal, pos] = await Promise.all([
@@ -278,7 +282,9 @@ function BankSection({ community, onSaved }: { community: Community; onSaved: ()
         },
       });
       setMsg(
-        r.recipient_code
+        r.subaccount_code
+          ? "Saved. New NGN dues/donations now settle straight to this account — no payout request needed."
+          : r.recipient_code
           ? "Saved. Payouts via Paystack are ready."
           : "Saved. Paystack Transfers not enabled — payouts will be manual.",
       );
@@ -299,6 +305,22 @@ function BankSection({ community, onSaved }: { community: Community; onSaved: ()
       <p className="mt-1 text-sm text-muted-foreground">
         Funds are sent to this account when the super admin approves your payout.
       </p>
+
+      {community.paystack_subaccount_code ? (
+        <div className="mt-4 flex items-start gap-2 rounded-xl border border-success/30 bg-success/5 px-4 py-3 text-sm text-success">
+          <Zap className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            Automatic settlement is active. New NGN dues and donations split at the point of payment —
+            {community.subaccount_percentage_charge != null && ` your share settles directly to this account (platform keeps ${community.subaccount_percentage_charge}%),`}
+            {" "}no payout request needed. USD still goes through manual payouts below.
+          </span>
+        </div>
+      ) : (
+        <div className="mt-4 rounded-xl border border-dashed border-border bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
+          Once you save verified bank details, new NGN collections will settle to this account automatically
+          instead of needing a payout request each time.
+        </div>
+      )}
 
       <div className="mt-5 grid gap-4 md:grid-cols-3">
         <Field label="Bank">

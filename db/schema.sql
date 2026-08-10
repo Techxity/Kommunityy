@@ -111,6 +111,8 @@ CREATE TABLE IF NOT EXISTS public.communities (
   account_number text,
   account_name text,
   paystack_recipient_code text,
+  paystack_subaccount_code text,
+  subaccount_percentage_charge numeric(5,2),
   tier_id uuid REFERENCES public.subscription_tiers(id),
   trial_ends_at timestamptz,
   onboarding_fields jsonb NOT NULL
@@ -296,6 +298,7 @@ CREATE TABLE IF NOT EXISTS public.dues_payments (
   paystack_fee numeric NOT NULL DEFAULT 0,
   platform_fee numeric NOT NULL DEFAULT 0,
   community_net numeric NOT NULL DEFAULT 0,
+  settlement_mode text NOT NULL DEFAULT 'platform_held' CHECK (settlement_mode IN ('platform_held', 'subaccount_split')),
   UNIQUE (provider, provider_ref)
 );
 
@@ -330,6 +333,7 @@ CREATE TABLE IF NOT EXISTS public.donation_payments (
   paystack_fee numeric NOT NULL DEFAULT 0,
   platform_fee numeric NOT NULL DEFAULT 0,
   community_net numeric NOT NULL DEFAULT 0,
+  settlement_mode text NOT NULL DEFAULT 'platform_held' CHECK (settlement_mode IN ('platform_held', 'subaccount_split')),
   UNIQUE (provider, provider_ref)
 );
 
@@ -448,14 +452,14 @@ WITH collected AS (
          COALESCE(SUM(pay.community_net),0) AS amt
   FROM public.donation_payments pay
   JOIN public.donations dp ON dp.id = pay.donation_id
-  WHERE pay.status = 'paid'
+  WHERE pay.status = 'paid' AND pay.settlement_mode = 'platform_held'
   GROUP BY dp.community_id, pay.currency
   UNION ALL
   SELECT dpl.community_id, dp.currency, 'dues'::public.payout_source,
          COALESCE(SUM(dp.community_net),0)
   FROM public.dues_payments dp
   JOIN public.dues_plans dpl ON dpl.id = dp.plan_id
-  WHERE dp.status = 'paid'
+  WHERE dp.status = 'paid' AND dp.settlement_mode = 'platform_held'
   GROUP BY dpl.community_id, dp.currency
 ),
 paid_out AS (

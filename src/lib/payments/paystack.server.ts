@@ -34,6 +34,7 @@ export async function initializeTransaction(args: {
   callback_url: string;
   metadata?: Record<string, unknown>;
   reference?: string;
+  subaccount?: string; // Paystack subaccount_code — splits settlement to the community directly
 }): Promise<{ authorization_url: string; reference: string; access_code: string }> {
   return paystackFetch("/transaction/initialize", {
     method: "POST",
@@ -44,12 +45,45 @@ export async function initializeTransaction(args: {
       callback_url: args.callback_url,
       metadata: args.metadata ?? {},
       reference: args.reference,
+      subaccount: args.subaccount,
     }),
   });
 }
 
 export async function verifyTransaction(reference: string) {
   return paystackFetch<any>(`/transaction/verify/${encodeURIComponent(reference)}`);
+}
+
+// ───── Subaccounts (split settlement — community gets paid directly) ────────
+
+// percentage_charge is the platform's cut; the remainder settles straight
+// to the subaccount's bank account on the main account's normal settlement
+// schedule (T+1 once approved by Paystack). NGN-rails only.
+export async function createSubaccount(args: {
+  business_name: string;
+  bank_code: string;
+  account_number: string;
+  percentage_charge: number;
+}): Promise<{ subaccount_code: string; percentage_charge: number }> {
+  return paystackFetch("/subaccount", {
+    method: "POST",
+    body: JSON.stringify({
+      business_name: args.business_name,
+      bank_code: args.bank_code,
+      account_number: args.account_number,
+      percentage_charge: args.percentage_charge,
+    }),
+  });
+}
+
+export async function updateSubaccount(
+  subaccount_code: string,
+  args: { business_name?: string; bank_code?: string; account_number?: string; percentage_charge?: number },
+): Promise<{ subaccount_code: string; percentage_charge: number }> {
+  return paystackFetch(`/subaccount/${encodeURIComponent(subaccount_code)}`, {
+    method: "PUT",
+    body: JSON.stringify(args),
+  });
 }
 
 // ───── Banks / recipients / transfers ────────────────────────────────────────

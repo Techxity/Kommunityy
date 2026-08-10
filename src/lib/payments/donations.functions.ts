@@ -24,9 +24,11 @@ export const startDonationCheckout = createServerFn({ method: "POST" })
   .inputValidator((input) => StartDonationInput.parse(input))
   .handler(async ({ data }) => {
     const rows = await sql`
-      SELECT id, purpose, status, target_ngn, target_usd, shareable_slug
-      FROM public.donations
-      WHERE shareable_slug = ${data.slug}
+      SELECT d.id, d.purpose, d.status, d.target_ngn, d.target_usd, d.shareable_slug,
+        c.paystack_subaccount_code
+      FROM public.donations d
+      JOIN public.communities c ON c.id = d.community_id
+      WHERE d.shareable_slug = ${data.slug}
       LIMIT 1
     `;
     const donation = rows[0];
@@ -39,15 +41,22 @@ export const startDonationCheckout = createServerFn({ method: "POST" })
     const proto = host.includes("localhost") ? "http" : "https";
     const callback_url = `${proto}://${host}/donate/${data.slug}?status=success`;
 
+    // Subaccounts are an NGN-rails feature — USD always stays on the
+    // platform-held/manual-payout path regardless of whether one exists.
+    const subaccount_code = data.currency === "NGN" ? (donation.paystack_subaccount_code as string | null) : null;
+    const settlement_mode = subaccount_code ? "subaccount_split" : "platform_held";
+
     const tx = await initializeTransaction({
       email: data.payer_email,
       amount: data.amount,
       currency: data.currency,
       callback_url,
+      subaccount: subaccount_code ?? undefined,
       metadata: {
         kind: "donation",
         donation_id: donation.id,
         payer_name: data.payer_name,
+        settlement_mode,
       },
     });
 

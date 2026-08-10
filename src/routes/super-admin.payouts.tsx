@@ -7,8 +7,9 @@ import {
   markPayoutPaid,
   rejectPayout,
 } from "@/lib/payments/payouts.functions";
+import { migrateCommunitiesToSubaccounts } from "@/lib/payments/bank.functions";
 import { Button } from "@/components/ui/button";
-import { Wallet, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Wallet, CheckCircle2, XCircle, Clock, Zap } from "lucide-react";
 
 export const Route = createFileRoute("/super-admin/payouts")({
   component: SuperPayoutsPage,
@@ -76,6 +77,8 @@ function SuperPayoutsPage() {
         <h1 className="font-display text-3xl font-bold">Payouts</h1>
         <p className="text-sm text-muted-foreground">Approve community withdrawal requests.</p>
       </header>
+
+      <SubaccountMigrationPanel />
 
       <div className="flex gap-2">
         <Chip active={tab === "pending"} onClick={() => setTab("pending")}>
@@ -175,6 +178,70 @@ function SuperPayoutsPage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// One-time (but safe-to-re-run) migration: creates a Paystack subaccount for
+// every community that already has verified bank details from the old
+// manual-payout flow but hasn't been given a subaccount yet. After this
+// runs, their NEW NGN dues/donations split at Paystack automatically —
+// whatever was already collected before migration stays payable through the
+// normal payout flow above.
+function SubaccountMigrationPanel() {
+  const migrateFn = useServerFn(migrateCommunitiesToSubaccounts);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<Awaited<ReturnType<typeof migrateCommunitiesToSubaccounts>> | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const run = async () => {
+    setBusy(true);
+    setErr(null);
+    setResult(null);
+    try {
+      const r = await migrateFn();
+      setResult(r);
+    } catch (e: any) {
+      setErr(e.message ?? "Migration failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Zap className="h-4 w-4 text-primary" />
+          <div>
+            <p className="font-display text-base font-bold">Paystack subaccounts</p>
+            <p className="text-xs text-muted-foreground">
+              Back-fill a subaccount for communities that already have verified bank details on file.
+              New NGN dues/donations for them will settle automatically — no payout request needed.
+            </p>
+          </div>
+        </div>
+        <Button size="sm" onClick={run} disabled={busy}>
+          {busy ? "Migrating…" : "Migrate eligible communities"}
+        </Button>
+      </div>
+      {err && <p className="mt-3 text-xs text-destructive">{err}</p>}
+      {result && (
+        <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+          <p>
+            {result.migrated.length} migrated · {result.failed.length} failed · {result.totalCandidates} candidates checked.
+          </p>
+          {result.migrated.length > 0 && (
+            <p>Migrated: {result.migrated.map((m) => m.name).join(", ")}</p>
+          )}
+          {result.failed.length > 0 && (
+            <p className="text-destructive">
+              Failed: {result.failed.map((f) => `${f.name} (${f.error})`).join("; ")}
+            </p>
+          )}
+          {result.totalCandidates === 0 && <p>No communities are waiting on migration.</p>}
+        </div>
+      )}
     </div>
   );
 }

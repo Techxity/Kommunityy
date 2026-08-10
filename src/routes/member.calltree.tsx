@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CheckCircle2, HelpCircle, AlertTriangle, PhoneCall, Loader2 } from "lucide-react";
+import { CheckCircle2, HelpCircle, AlertTriangle, PhoneCall, Loader2, Phone, Mail } from "lucide-react";
 import { getMyCallTreeHistory } from "@/lib/membership/calltree.functions";
 
 export const Route = createFileRoute("/member/calltree")({
@@ -73,9 +73,6 @@ function MemberCallTree() {
                       {r.sessionStatus === "active" ? "Active round" : r.sessionStatus === "closed" ? "Closed round" : "Draft round"}
                     </p>
                     <h2 className="mt-0.5 font-display text-lg font-bold">{r.sessionName}</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Paired with {r.partners.join(", ") || "—"}
-                    </p>
                   </div>
                   {meta ? (
                     <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${meta.tone}`}>
@@ -96,6 +93,44 @@ function MemberCallTree() {
                     </span>
                   )}
                 </div>
+
+                <ul className="mt-4 space-y-2">
+                  {r.partners.map((p) => (
+                    <li key={p.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-muted/30 p-3">
+                      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-accent text-xs font-bold text-primary-foreground">
+                        {p.name.split(" ").map((x) => x[0]).join("").slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold">{p.name}</p>
+                        {p.email && <p className="truncate text-xs text-muted-foreground">{p.email}</p>}
+                      </div>
+                      <div className="ml-auto flex gap-1">
+                        {p.phone && (
+                          <a
+                            href={`tel:${p.phone}`}
+                            className="rounded-full border border-border bg-card p-2 text-muted-foreground hover:text-foreground"
+                            aria-label={`Call ${p.name}`}
+                          >
+                            <Phone className="h-3.5 w-3.5" />
+                          </a>
+                        )}
+                        {p.email && (
+                          <a
+                            href={`mailto:${p.email}`}
+                            className="rounded-full border border-border bg-card p-2 text-muted-foreground hover:text-foreground"
+                            aria-label={`Email ${p.name}`}
+                          >
+                            <Mail className="h-3.5 w-3.5" />
+                          </a>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                  {r.partners.length === 0 && (
+                    <li className="text-sm text-muted-foreground">No partner on record.</li>
+                  )}
+                </ul>
+
                 {r.feedback?.notes && (
                   <p className="mt-3 rounded-xl bg-muted/50 p-3 text-sm text-muted-foreground">"{r.feedback.notes}"</p>
                 )}

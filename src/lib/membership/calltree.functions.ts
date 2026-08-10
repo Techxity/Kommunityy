@@ -319,7 +319,9 @@ export const getMyCallTreeHistory = createServerFn({ method: "POST" })
              p.feedback_b_status, p.feedback_b_notes, p.feedback_b_submitted_at,
              p.feedback_c_status, p.feedback_c_notes, p.feedback_c_submitted_at,
              s.id AS session_id, s.name AS session_name, s.status AS session_status,
-             a.name AS a_name, b.name AS b_name, c.name AS c_name
+             a.name AS a_name, a.email AS a_email, a.phone AS a_phone,
+             b.name AS b_name, b.email AS b_email, b.phone AS b_phone,
+             c.name AS c_name, c.email AS c_email, c.phone AS c_phone
       FROM public.call_tree_pairings p
       JOIN public.call_tree_sessions s ON s.id = p.session_id
       JOIN public.members a ON a.id = p.member_a_id
@@ -346,10 +348,16 @@ export const getMyCallTreeHistory = createServerFn({ method: "POST" })
           ? { status: r.feedback_c_status as string, notes: (r.feedback_c_notes as string | null) ?? "", submittedAt: toTimestampIso(r.feedback_c_submitted_at) }
           : null;
       const partners = [
-        r.member_a_id !== me.memberId ? (r.a_name as string) : null,
-        r.member_b_id !== me.memberId ? (r.b_name as string) : null,
-        r.member_c_id && r.member_c_id !== me.memberId ? (r.c_name as string) : null,
-      ].filter(Boolean) as string[];
+        r.member_a_id !== me.memberId
+          ? { id: r.member_a_id as string, name: r.a_name as string, email: (r.a_email as string | null) ?? "", phone: (r.a_phone as string | null) ?? "" }
+          : null,
+        r.member_b_id !== me.memberId
+          ? { id: r.member_b_id as string, name: r.b_name as string, email: (r.b_email as string | null) ?? "", phone: (r.b_phone as string | null) ?? "" }
+          : null,
+        r.member_c_id && r.member_c_id !== me.memberId
+          ? { id: r.member_c_id as string, name: r.c_name as string, email: (r.c_email as string | null) ?? "", phone: (r.c_phone as string | null) ?? "" }
+          : null,
+      ].filter((p): p is { id: string; name: string; email: string; phone: string } => p !== null);
 
       return {
         pairingId: r.id as string,
