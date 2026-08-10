@@ -4,7 +4,7 @@ import { Copy, Check, Loader2, Users2 } from "lucide-react";
 import { getInviteInfo, acceptMemberInvite } from "@/lib/membership/member-accounts.functions";
 
 export const Route = createFileRoute("/invite/$token")({
-  head: () => ({ meta: [{ title: "Set your password — Kinfolk" }] }),
+  head: () => ({ meta: [{ title: "Set your password — Kommunity" }] }),
   component: AcceptInvite,
 });
 

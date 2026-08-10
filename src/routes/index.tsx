@@ -16,10 +16,10 @@ import {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Kinfolk — Community Management for Associations & Estates" },
+      { title: "Kommunity — Community Management for Associations & Estates" },
       { name: "description", content: "Memberships, dues, elections, broadcasts and care — all in one beautifully designed platform built for associations, alumni groups and estates." },
-      { property: "og:title", content: "Kinfolk — Run your community like an enterprise" },
-      { property: "og:description", content: "From birthday wishes to digital elections — Kinfolk gives your community admins the tools they need." },
+      { property: "og:title", content: "Kommunity — Run your community like an enterprise" },
+      { property: "og:description", content: "From birthday wishes to digital elections — Kommunity gives your community admins the tools they need." },
     ],
   }),
   component: Landing,
@@ -54,7 +54,7 @@ function Landing() {
             <span className="text-accent-foreground/90">like an enterprise.</span>
           </h1>
           <p className="mt-6 max-w-xl text-lg text-primary-foreground/75 md:text-xl">
-            Kinfolk is the operating system for associations, alumni networks, estates and fellowships.
+            Kommunity is the operating system for associations, alumni networks, estates and fellowships.
             Membership, dues, elections and care — beautifully done.
           </p>
           <div className="mt-10 flex flex-wrap items-center gap-3">

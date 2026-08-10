@@ -30,7 +30,7 @@ function Settings() {
     });
   }, []);
 
-  const loginUrl = slug ? `${typeof window !== "undefined" ? window.location.origin : "https://kinfolk.app"}/l/${slug}` : "";
+  const loginUrl = slug ? `${typeof window !== "undefined" ? window.location.origin : "https://kommunity.app"}/l/${slug}` : "";
 
   function copyLoginUrl() {
     if (typeof navigator !== "undefined" && navigator.clipboard && loginUrl) {

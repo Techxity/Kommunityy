@@ -7,7 +7,7 @@ export const Route = createFileRoute("/join/$communityId")({
   component: PublicJoinPage,
   head: ({ params }) => ({
     meta: [
-      { title: "Join a community — Kinfolk" },
+      { title: "Join a community — Kommunity" },
       { name: "robots", content: "noindex" },
       { name: "x-community", content: params.communityId },
     ],
@@ -90,10 +90,10 @@ function PublicJoinPage() {
         <div className="mx-auto flex min-h-screen max-w-xl flex-col items-center justify-center px-6 py-16 text-center">
           <h1 className="font-display text-2xl font-bold">Community not found</h1>
           <p className="mt-3 text-sm text-muted-foreground">
-            This join link doesn't match a community on Kinfolk. Double-check the link with whoever shared it with you.
+            This join link doesn't match a community on Kommunity. Double-check the link with whoever shared it with you.
           </p>
           <Link to="/" className="mt-8 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground">
-            Back to Kinfolk
+            Back to Kommunity
           </Link>
         </div>
       </div>
@@ -125,7 +125,7 @@ function PublicJoinPage() {
             to="/"
             className="mt-8 inline-flex items-center gap-2 rounded-full bg-primary-foreground px-5 py-2.5 text-sm font-semibold text-primary"
           >
-            Back to Kinfolk
+            Back to Kommunity
           </Link>
         </div>
       </div>
@@ -141,7 +141,7 @@ function PublicJoinPage() {
             <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary-foreground/15 ring-1 ring-primary-foreground/20">
               <Users2 className="h-4 w-4" />
             </span>
-            <p className="font-display text-base font-semibold">Kinfolk</p>
+            <p className="font-display text-base font-semibold">Kommunity</p>
           </div>
           {community.type && (
             <p className="mt-8 text-xs uppercase tracking-[0.2em] text-primary-foreground/70">{community.type} · Membership application</p>
@@ -243,7 +243,7 @@ function PublicJoinPage() {
         </form>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          Powered by <Link to="/" className="font-semibold text-foreground hover:underline">Kinfolk</Link>
+          Powered by <Link to="/" className="font-semibold text-foreground hover:underline">Kommunity</Link>
         </p>
       </div>
     </div>

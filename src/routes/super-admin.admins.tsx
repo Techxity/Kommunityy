@@ -25,7 +25,7 @@ function Admins() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl font-bold tracking-tight">Platform admins</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Manage who has access to the Kinfolk control center.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Manage who has access to the Kommunity control center.</p>
         </div>
         <button onClick={() => setOpen(true)} className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">
           <Plus className="h-4 w-4" /> Invite admin

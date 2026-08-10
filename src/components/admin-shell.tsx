@@ -190,7 +190,7 @@ export function AdminShell() {
             <Users2 className="h-4 w-4" />
           </span>
           <div>
-            <p className="font-display text-base font-bold leading-none">Kinfolk</p>
+            <p className="font-display text-base font-bold leading-none">Kommunity</p>
             <p className="mt-1 text-[11px] uppercase tracking-wider text-sidebar-foreground/60">Admin Console</p>
           </div>
         </div>

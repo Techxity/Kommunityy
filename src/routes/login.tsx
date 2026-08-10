@@ -5,7 +5,7 @@ import { Users2, Loader2 } from "lucide-react";
 import { login } from "@/lib/auth/auth.functions";
 
 export const Route = createFileRoute("/login")({
-  head: () => ({ meta: [{ title: "Sign in — Kinfolk" }] }),
+  head: () => ({ meta: [{ title: "Sign in — Kommunity" }] }),
   component: Login,
 });
 

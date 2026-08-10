@@ -7,9 +7,9 @@ export const Route = createFileRoute("/member/calltree")({
   component: MemberCallTree,
   head: () => ({
     meta: [
-      { title: "My Call Tree History — Kinfolk" },
+      { title: "My Call Tree History — Kommunity" },
       { name: "description", content: "See every call tree round you were paired for and the feedback you shared." },
-      { property: "og:title", content: "My Call Tree History — Kinfolk" },
+      { property: "og:title", content: "My Call Tree History — Kommunity" },
       { property: "og:description", content: "See every call tree round you were paired for and the feedback you shared." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

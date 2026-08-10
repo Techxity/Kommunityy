@@ -31,7 +31,7 @@ function OnboardingForm() {
   }, []);
 
   const formUrl =
-    (typeof window !== "undefined" ? window.location.origin : "https://kinfolk.app") +
+    (typeof window !== "undefined" ? window.location.origin : "https://kommunity.app") +
     `/join/${communityId}`;
 
   function toggle(f: FieldName) {

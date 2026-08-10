@@ -157,7 +157,7 @@ export function SuperAdminShell() {
             <Sparkles className="h-4 w-4" />
           </span>
           <div>
-            <p className="font-display text-base font-bold leading-none">Kinfolk</p>
+            <p className="font-display text-base font-bold leading-none">Kommunity</p>
             <p className="mt-1 text-[11px] uppercase tracking-wider text-sidebar-foreground/60">Platform Control</p>
           </div>
         </div>
@@ -187,7 +187,7 @@ export function SuperAdminShell() {
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/85 px-6 backdrop-blur">
           <div>
             <p className="text-xs uppercase tracking-wider text-muted-foreground">Platform</p>
-            <p className="font-display text-lg font-semibold">Kinfolk Control Center</p>
+            <p className="font-display text-lg font-semibold">Kommunity Control Center</p>
           </div>
           <div className="flex items-center gap-3">
             <button className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground">

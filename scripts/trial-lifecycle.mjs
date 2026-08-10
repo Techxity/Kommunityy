@@ -36,7 +36,7 @@ if (!RESEND_API_KEY) {
 const sql = neon(DATABASE_URL);
 
 async function sendEmail({ to, subject, html }) {
-  const from = `Kinfolk <${RESEND_FROM_ADDRESS}>`;
+  const from = `Kommunity <${RESEND_FROM_ADDRESS}>`;
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",

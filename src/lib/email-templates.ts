@@ -1,4 +1,4 @@
-// Shared HTML shell + per-notification designs for every email Kinfolk
+// Shared HTML shell + per-notification designs for every email Kommunity
 // sends. Deliberately table-based with inline styles throughout — Outlook,
 // Gmail's app, and most other email clients don't reliably support
 // flexbox/grid or a `<style>` block, so neither is used here.
@@ -95,7 +95,7 @@ export function birthdayEmail({
       <p style="margin:0 0 12px;">Dear ${escapeHtml(memberName)},</p>
       <p style="margin:0;">${escapeHtml(message)}</p>
     `,
-    footerNote: `Sent with care by ${escapeHtml(communityName)}, powered by Kinfolk.`,
+    footerNote: `Sent with care by ${escapeHtml(communityName)}, powered by Kommunity.`,
   });
 }
 
@@ -129,7 +129,7 @@ export function joinInviteEmail({
     bodyHtml: `<p style="margin:0;">Fill out a short form to apply — your community admin will review it and get you set up with a member account.</p>`,
     ctaText: "Fill out the join form",
     ctaUrl: joinUrl,
-    footerNote: `This invite was sent by ${escapeHtml(communityName)} via Kinfolk.`,
+    footerNote: `This invite was sent by ${escapeHtml(communityName)} via Kommunity.`,
   });
 }
 
@@ -152,7 +152,7 @@ export function memberAccountReadyEmail({
     `,
     ctaText: "Set your password",
     ctaUrl: setupUrl,
-    footerNote: `Sent by ${escapeHtml(communityName)} via Kinfolk.`,
+    footerNote: `Sent by ${escapeHtml(communityName)} via Kommunity.`,
   });
 }
 
@@ -181,7 +181,7 @@ export function callTreePairingEmail({
     `,
     ctaText: "Share how the call went",
     ctaUrl: feedbackUrl,
-    footerNote: `Sent by ${escapeHtml(communityName)} via Kinfolk.`,
+    footerNote: `Sent by ${escapeHtml(communityName)} via Kommunity.`,
   });
 }
 
@@ -244,7 +244,7 @@ export function trialReminderEmail({
     `,
     ctaText: "Choose a plan",
     ctaUrl: subscriptionUrl,
-    footerNote: "You're receiving this because you're the admin of a community on Kinfolk.",
+    footerNote: "You're receiving this because you're the admin of a community on Kommunity.",
   });
 }
 
@@ -267,6 +267,6 @@ export function trialEndedEmail({
     `,
     ctaText: "Choose a plan",
     ctaUrl: subscriptionUrl,
-    footerNote: "You're receiving this because you're the admin of a community on Kinfolk.",
+    footerNote: "You're receiving this because you're the admin of a community on Kommunity.",
   });
 }

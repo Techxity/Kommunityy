@@ -64,7 +64,7 @@ const MONTHS = [
 ];
 
 async function sendEmail({ to, subject, html, fromName, cc }) {
-  const from = `${fromName ?? "Kinfolk"} <${RESEND_FROM_ADDRESS}>`;
+  const from = `${fromName ?? "Kommunity"} <${RESEND_FROM_ADDRESS}>`;
   const ccList = cc && cc.toLowerCase() !== to.toLowerCase() ? [cc] : [];
   try {
     const res = await fetch("https://api.resend.com/emails", {

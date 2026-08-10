@@ -3,7 +3,7 @@ import { MemberShell } from "@/components/member-shell";
 import { me } from "@/lib/auth/auth.functions";
 
 export const Route = createFileRoute("/member")({
-  head: () => ({ meta: [{ title: "Member Portal — Kinfolk" }] }),
+  head: () => ({ meta: [{ title: "Member Portal — Kommunity" }] }),
   beforeLoad: async () => {
     // Real member accounts exist now (created via the "set your password"
     // invite email sent when an admin approves a join application). We

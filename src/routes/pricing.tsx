@@ -6,7 +6,7 @@ import { useState } from "react";
 export const Route = createFileRoute("/pricing")({
   head: () => ({
     meta: [
-      { title: "Pricing — Kinfolk" },
+      { title: "Pricing — Kommunity" },
       { name: "description", content: "Simple plans for communities of every size. Basic, Premium, Enterprise — billed in USD or NGN." },
     ],
   }),

@@ -65,7 +65,7 @@ export function birthdayEmail({ memberName, communityName, message }) {
       <p style="margin:0 0 12px;">Dear ${escapeHtml(memberName)},</p>
       <p style="margin:0;">${escapeHtml(message)}</p>
     `,
-    footerNote: `Sent with care by ${escapeHtml(communityName)}, powered by Kinfolk.`,
+    footerNote: `Sent with care by ${escapeHtml(communityName)}, powered by Kommunity.`,
   });
 }
 
@@ -110,7 +110,7 @@ export function trialReminderEmail({ adminName, communityName, daysLeft, subscri
       </p>
     `,
     ...(subscriptionUrl ? { ctaText: "Choose a plan", ctaUrl: subscriptionUrl } : {}),
-    footerNote: "You're receiving this because you're the admin of a community on Kinfolk.",
+    footerNote: "You're receiving this because you're the admin of a community on Kommunity.",
   });
 }
 
@@ -124,6 +124,6 @@ export function trialEndedEmail({ adminName, communityName, subscriptionUrl }) {
       <p style="margin:0;">We've paused <strong>${escapeHtml(communityName)}</strong> while you pick a plan. Nothing has been deleted — sign in and choose a plan any time to pick up right where you left off.</p>
     `,
     ...(subscriptionUrl ? { ctaText: "Choose a plan", ctaUrl: subscriptionUrl } : {}),
-    footerNote: "You're receiving this because you're the admin of a community on Kinfolk.",
+    footerNote: "You're receiving this because you're the admin of a community on Kommunity.",
   });
 }

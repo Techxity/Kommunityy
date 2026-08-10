@@ -6,10 +6,10 @@ import { useState } from "react";
 export const Route = createFileRoute("/about")({
   head: () => ({
     meta: [
-      { title: "About Us — Kinfolk" },
-      { name: "description", content: "Learn about Kinfolk and get in touch with our team." },
-      { property: "og:title", content: "About Us — Kinfolk" },
-      { property: "og:description", content: "Learn about Kinfolk and get in touch with our team." },
+      { title: "About Us — Kommunity" },
+      { name: "description", content: "Learn about Kommunity and get in touch with our team." },
+      { property: "og:title", content: "About Us — Kommunity" },
+      { property: "og:description", content: "Learn about Kommunity and get in touch with our team." },
     ],
   }),
   component: AboutPage,
@@ -34,9 +34,9 @@ function AboutPage() {
         <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-3.5 w-3.5" /> Back home
         </Link>
-        <h1 className="mt-6 font-display text-4xl font-bold tracking-tight md:text-5xl">About Kinfolk</h1>
+        <h1 className="mt-6 font-display text-4xl font-bold tracking-tight md:text-5xl">About Kommunity</h1>
         <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
-          Kinfolk is the operating system for associations, alumni networks, estates and fellowships.
+          Kommunity is the operating system for associations, alumni networks, estates and fellowships.
           We believe every community deserves enterprise-grade tools without the enterprise complexity.
         </p>
       </section>
@@ -64,7 +64,7 @@ function AboutPage() {
           <div>
             <h2 className="font-display text-3xl font-bold tracking-tight">Contact Us</h2>
             <p className="mt-3 text-muted-foreground">
-              Have questions about Kinfolk? Want to schedule a demo? We'd love to hear from you.
+              Have questions about Kommunity? Want to schedule a demo? We'd love to hear from you.
             </p>
             <div className="mt-8 space-y-5">
               <div className="flex items-center gap-4">
@@ -73,7 +73,7 @@ function AboutPage() {
                 </span>
                 <div>
                   <p className="text-sm font-medium text-foreground">Email</p>
-                  <p className="text-sm text-muted-foreground">hello@kinfolk.app</p>
+                  <p className="text-sm text-muted-foreground">hello@kommunity.app</p>
                 </div>
               </div>
               <div className="flex items-center gap-4">

@@ -8,7 +8,7 @@
 // address (RESEND_FROM_ADDRESS, on our verified domain). What CAN vary per
 // community is the display name in front of that address, e.g.
 // `"Irewole Estate" <notifications@yourdomain.com>` — pass `fromName` to set
-// it. Recipients see the community's name as the sender, not "Kinfolk".
+// it. Recipients see the community's name as the sender, not "Kommunity".
 function resolveFromAddress(): string {
   const explicit = process.env.RESEND_FROM_ADDRESS;
   if (explicit) return explicit;
@@ -38,7 +38,7 @@ export async function sendEmail({
     return { ok: false, error: "RESEND_API_KEY isn't set — add one from resend.com to your environment." };
   }
   const address = resolveFromAddress();
-  const from = `${fromName ?? "Kinfolk"} <${address}>`;
+  const from = `${fromName ?? "Kommunity"} <${address}>`;
   // Drop any cc address that's identical to the recipient — Resend accepts
   // duplicates fine, but there's no reason to double-send to the same inbox
   // (e.g. a community admin emailing themselves their own birthday).

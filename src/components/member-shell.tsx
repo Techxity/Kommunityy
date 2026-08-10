@@ -29,7 +29,7 @@ export function MemberShell() {
             <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-accent text-primary-foreground">
               <Users2 className="h-4 w-4" />
             </span>
-            Kinfolk
+            Kommunity
           </Link>
           <nav className="hidden items-center gap-1 md:flex">
             {nav.map((item) => {

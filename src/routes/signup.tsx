@@ -8,7 +8,7 @@ import { listSubscriptionTiers, getTrialSettings, startPlanCheckout } from "@/li
 export const Route = createFileRoute("/signup")({
   head: () => ({
     meta: [
-      { title: "Create your community — Kinfolk" },
+      { title: "Create your community — Kommunity" },
       { name: "description", content: "Sign up your community in minutes and start a 14-day Enterprise trial." },
     ],
   }),
