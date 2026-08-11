@@ -66,3 +66,69 @@ export async function sendEmail({
     return { ok: false, error: e?.message ?? "Unknown error sending email." };
   }
 }
+
+export type BatchEmail = {
+  to: string;
+  subject: string;
+  html: string;
+  fromName?: string;
+  replyTo?: string;
+};
+
+// Bulk send via Resend's batch endpoint. Instead of one HTTP request per
+// recipient — which for a large community means hundreds of concurrent calls
+// that blow past Resend's rate limits and stall the request — this sends up
+// to 100 messages per call and runs only a few of those calls at a time.
+// Each message can have its own subject/html (batch entries are independent).
+// Returns aggregate counts; a failed batch call counts its whole chunk as
+// failed (Resend batch is accepted or rejected as a unit).
+const BATCH_SIZE = 100; // Resend hard cap per /emails/batch call
+const BATCH_CONCURRENCY = 3; // cap parallel batch calls to stay within rate limits
+
+export async function sendEmailsBatch(messages: BatchEmail[]): Promise<{ sent: number; failed: number }> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return { sent: 0, failed: messages.length };
+  if (messages.length === 0) return { sent: 0, failed: 0 };
+  const address = resolveFromAddress();
+
+  const chunks: BatchEmail[][] = [];
+  for (let i = 0; i < messages.length; i += BATCH_SIZE) chunks.push(messages.slice(i, i + BATCH_SIZE));
+
+  let sent = 0;
+  let failed = 0;
+  for (let i = 0; i < chunks.length; i += BATCH_CONCURRENCY) {
+    const group = chunks.slice(i, i + BATCH_CONCURRENCY);
+    const results = await Promise.all(
+      group.map(async (chunk) => {
+        const body = chunk.map((m) => ({
+          from: `${m.fromName ?? "Kommunity"} <${address}>`,
+          to: [m.to],
+          subject: m.subject,
+          html: m.html,
+          ...(m.replyTo ? { reply_to: m.replyTo } : {}),
+        }));
+        try {
+          const res = await fetch("https://api.resend.com/emails/batch", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          if (!res.ok) {
+            const detail = await res.text().catch(() => "");
+            console.error(`[email batch] ${res.status}: ${detail}`);
+            return { ok: 0, bad: chunk.length };
+          }
+          return { ok: chunk.length, bad: 0 };
+        } catch (e: any) {
+          console.error(`[email batch] ${e?.message ?? "send failed"}`);
+          return { ok: 0, bad: chunk.length };
+        }
+      }),
+    );
+    for (const r of results) {
+      sent += r.ok;
+      failed += r.bad;
+    }
+  }
+  return { sent, failed };
+}

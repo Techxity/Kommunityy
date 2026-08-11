@@ -82,6 +82,59 @@ async function sendEmail({ to, subject, html, fromName, cc }) {
   }
 }
 
+// Bulk birthday emails via Resend's batch endpoint — up to 100 per call, a
+// few calls in parallel — instead of one request per celebrant. Mirrors
+// sendEmailsBatch in src/lib/email.ts (the two entry points can't share a
+// module). Returns the set of member ids whose email was accepted; a batch
+// is accepted or rejected as a whole.
+const EMAIL_BATCH_SIZE = 100;
+const EMAIL_BATCH_CONCURRENCY = 3;
+async function sendEmailBatches(jobs) {
+  const okIds = new Set();
+  let sent = 0;
+  let failed = 0;
+  const chunks = [];
+  for (let i = 0; i < jobs.length; i += EMAIL_BATCH_SIZE) chunks.push(jobs.slice(i, i + EMAIL_BATCH_SIZE));
+  for (let i = 0; i < chunks.length; i += EMAIL_BATCH_CONCURRENCY) {
+    const group = chunks.slice(i, i + EMAIL_BATCH_CONCURRENCY);
+    const results = await Promise.all(
+      group.map(async (chunk) => {
+        const body = chunk.map((j) => ({
+          from: `${j.fromName ?? "Kommunity"} <${RESEND_FROM_ADDRESS}>`,
+          to: [j.to],
+          subject: j.subject,
+          html: j.html,
+        }));
+        try {
+          const res = await fetch("https://api.resend.com/emails/batch", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          if (!res.ok) {
+            const detail = await res.text().catch(() => "");
+            console.error(`[birthdays] email batch ${res.status}: ${detail}`);
+            return { chunk, ok: false };
+          }
+          return { chunk, ok: true };
+        } catch (e) {
+          console.error(`[birthdays] email batch failed: ${e?.message ?? "unknown error"}`);
+          return { chunk, ok: false };
+        }
+      }),
+    );
+    for (const r of results) {
+      if (r.ok) {
+        r.chunk.forEach((j) => okIds.add(j.id));
+        sent += r.chunk.length;
+      } else {
+        failed += r.chunk.length;
+      }
+    }
+  }
+  return { okIds, sent, failed };
+}
+
 // Mirrors src/lib/whatsapp.ts — see that file for the one-time Meta setup
 // (template name/body, access token) this depends on. Kept inline here
 // rather than shared, since it's a small, self-contained fetch call and the
@@ -158,50 +211,61 @@ async function main() {
   let waSent = 0;
   let waFailed = 0;
 
-  // Grouped alongside the per-member sends below (same `rows`, so the digest
-  // always matches exactly who was messaged this run) — collected here, sent
-  // after the per-member loop finishes.
+  // Collect all the work first — digest entries, email jobs, WhatsApp jobs —
+  // then send emails in batches and WhatsApp per member, and mark everyone
+  // sent in a single UPDATE. (Same `rows`, so the digest always matches
+  // exactly who was messaged this run.)
   const celebrantsByCommunity = new Map();
+  const emailJobs = [];
+  const waJobs = [];
 
   for (const m of rows) {
     const message = m.birthday_messages?.[monthName] ?? "Happy birthday! 🎉";
     const firstName = String(m.name).split(" ")[0];
-    let anyOk = false;
 
     const entry = celebrantsByCommunity.get(m.community_id) ?? { communityName: m.community_name, celebrants: [] };
     entry.celebrants.push({ name: m.name, message: `Happy birthday, ${firstName}! ${message}` });
     celebrantsByCommunity.set(m.community_id, entry);
 
     if (m.email) {
-      const result = await sendEmail({
+      emailJobs.push({
+        id: m.id,
         to: m.email,
         subject: `Happy birthday, ${firstName}! 🎂`,
         fromName: m.community_name,
         html: birthdayEmail({ memberName: m.name, communityName: m.community_name, message }),
       });
-      if (result.ok) {
-        emailSent++;
-        anyOk = true;
-      } else {
-        emailFailed++;
-        console.error(`[birthdays] Failed to email ${m.email}: ${result.error}`);
-      }
     }
-
     if (WHATSAPP_CONFIGURED && m.whatsapp) {
-      const result = await sendWhatsApp({ to: m.whatsapp, firstName, message, communityName: m.community_name });
-      if (result.ok) {
-        waSent++;
-        anyOk = true;
-      } else {
-        waFailed++;
-        console.error(`[birthdays] Failed to WhatsApp ${m.whatsapp}: ${result.error}`);
-      }
+      waJobs.push({ id: m.id, to: m.whatsapp, firstName, message, communityName: m.community_name });
     }
+  }
 
-    if (anyOk) {
-      await sql`UPDATE public.members SET last_birthday_sent_year = ${year}, last_birthday_sent_at = now() WHERE id = ${m.id}::uuid`;
+  // Emails: one HTTP call per 100 celebrants instead of one per celebrant.
+  const emailResult = await sendEmailBatches(emailJobs);
+  emailSent = emailResult.sent;
+  emailFailed = emailResult.failed;
+  const sentIds = new Set(emailResult.okIds);
+
+  // WhatsApp (only when configured) stays per-member — different API, no batch.
+  for (const j of waJobs) {
+    const result = await sendWhatsApp(j);
+    if (result.ok) {
+      waSent++;
+      sentIds.add(j.id);
+    } else {
+      waFailed++;
+      console.error(`[birthdays] Failed to WhatsApp ${j.to}: ${result.error}`);
     }
+  }
+
+  // Mark everyone who got a message on any channel, in one statement.
+  if (sentIds.size > 0) {
+    await sql`
+      UPDATE public.members
+      SET last_birthday_sent_year = ${year}, last_birthday_sent_at = now()
+      WHERE id = ANY(${Array.from(sentIds)}::uuid[])
+    `;
   }
 
   // One digest per community (only communities with a celebrant today end up

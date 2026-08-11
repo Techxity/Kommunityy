@@ -4,6 +4,7 @@ import { getRequestHost } from "@tanstack/react-start/server";
 import { sql } from "@/lib/db/client";
 import { initializeTransaction } from "./paystack.server";
 import { requireAuth } from "@/lib/auth/require-auth.server";
+import { errorBoundary } from "@/lib/error-boundary.server";
 import { communityIdForAdmin } from "./communities.functions";
 
 function slugify(text: string): string {
@@ -21,6 +22,7 @@ const StartDonationInput = z.object({
 });
 
 export const startDonationCheckout = createServerFn({ method: "POST" })
+  .middleware([errorBoundary])
   .inputValidator((input) => StartDonationInput.parse(input))
   .handler(async ({ data }) => {
     const rows = await sql`

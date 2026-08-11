@@ -9,6 +9,7 @@
 import { createMiddleware } from "@tanstack/react-start";
 import { readSessionToken } from "./session-cookie.server";
 import { verifySessionToken } from "./session.server";
+import { errorBoundary } from "@/lib/error-boundary.server";
 
 export async function getSessionUser(): Promise<{ userId: string } | null> {
   const token = readSessionToken();
@@ -16,9 +17,13 @@ export async function getSessionUser(): Promise<{ userId: string } | null> {
   return verifySessionToken(token);
 }
 
-// Attach to any server function that reads or writes private data.
-export const requireAuth = createMiddleware({ type: "function" }).server(async ({ next }) => {
-  const session = await getSessionUser();
-  if (!session) throw new Error("Unauthorized: no active session");
-  return next({ context: { userId: session.userId } });
-});
+// Attach to any server function that reads or writes private data. Chaining
+// errorBoundary here means every authenticated server function automatically
+// gets internal-error sanitization too — no per-function wiring needed.
+export const requireAuth = createMiddleware({ type: "function" })
+  .middleware([errorBoundary])
+  .server(async ({ next }) => {
+    const session = await getSessionUser();
+    if (!session) throw new Error("Unauthorized: no active session");
+    return next({ context: { userId: session.userId } });
+  });

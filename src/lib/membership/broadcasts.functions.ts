@@ -3,7 +3,7 @@ import { z } from "zod";
 import { sql } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth/require-auth.server";
 import { communityIdForAdmin } from "@/lib/payments/communities.functions";
-import { sendEmail } from "@/lib/email";
+import { sendEmailsBatch } from "@/lib/email";
 import { broadcastEmail } from "@/lib/email-templates";
 
 export const listBroadcasts = createServerFn({ method: "POST" })
@@ -66,11 +66,14 @@ export const sendBroadcast = createServerFn({ method: "POST" })
 
     const html = broadcastEmail({ communityName, bodyText: data.body });
 
-    const results = await Promise.all(
-      members.map((m) => sendEmail({ to: m.email as string, subject: data.subject, html, fromName: communityName })),
+    // Batched send (see sendEmailsBatch) — one HTTP call per 100 recipients,
+    // a few in parallel, instead of one request per member.
+    const { sent } = await sendEmailsBatch(
+      members.map((m) => ({ to: m.email as string, subject: data.subject, html, fromName: communityName })),
     );
-    const sent = results.filter((r) => r.ok).length;
-    if (members.length > 0 && sent === 0 && results[0]?.error) throw new Error(results[0].error);
+    if (members.length > 0 && sent === 0) {
+      throw new Error("Couldn't send the broadcast right now. Please try again.");
+    }
 
     await sql`
       INSERT INTO public.broadcasts (community_id, subject, body, reach)

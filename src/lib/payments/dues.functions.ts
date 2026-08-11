@@ -5,6 +5,7 @@ import { sql } from "@/lib/db/client";
 import { initializeTransaction, verifyTransaction } from "./paystack.server";
 import { applyVerifiedCharge } from "./paystack-charge.server";
 import { requireAuth } from "@/lib/auth/require-auth.server";
+import { errorBoundary } from "@/lib/error-boundary.server";
 import { communityIdForAdmin } from "./communities.functions";
 import { toDateOnlyString } from "@/lib/date-only";
 import { monthsPerPeriod, parseYm, addMonths, ymToDateStr, ymAfter } from "@/lib/dues-period";
@@ -21,6 +22,7 @@ const StartDuesInput = z.object({
 });
 
 export const startDuesCheckout = createServerFn({ method: "POST" })
+  .middleware([errorBoundary])
   .inputValidator((input) => StartDuesInput.parse(input))
   .handler(async ({ data }) => {
     const rows = await sql`
@@ -75,6 +77,7 @@ export const startDuesCheckout = createServerFn({ method: "POST" })
 // is idempotent (ON CONFLICT DO NOTHING on provider+reference), so whichever
 // of the two call sites runs first wins and the other is a no-op.
 export const verifyDuesPayment = createServerFn({ method: "POST" })
+  .middleware([errorBoundary])
   .inputValidator((i) => z.object({ reference: z.string().min(1), plan_id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
     const tx = await verifyTransaction(data.reference);
