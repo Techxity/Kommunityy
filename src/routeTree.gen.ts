@@ -53,6 +53,8 @@ import { Route as SuperAdminPlansRouteImport } from './routes/super-admin.plans'
 import { Route as SuperAdminSupportRouteImport } from './routes/super-admin.support'
 import { Route as AdminMembersIndexRouteImport } from './routes/admin.members.index'
 import { Route as AdminMembersPendingRouteImport } from './routes/admin.members.pending'
+import { Route as ApiCronBirthdaysRouteImport } from './routes/api/cron/birthdays'
+import { Route as ApiCronTrialsRouteImport } from './routes/api/cron/trials'
 import { Route as ApiPublicPaystackWebhookRouteImport } from './routes/api/public/paystack-webhook'
 
 const IndexRoute = IndexRouteImport.update({
@@ -275,6 +277,16 @@ const AdminMembersPendingRoute = AdminMembersPendingRouteImport.update({
   path: '/pending',
   getParentRoute: () => AdminMembersRoute,
 } as any)
+const ApiCronBirthdaysRoute = ApiCronBirthdaysRouteImport.update({
+  id: '/api/cron/birthdays',
+  path: '/api/cron/birthdays',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCronTrialsRoute = ApiCronTrialsRouteImport.update({
+  id: '/api/cron/trials',
+  path: '/api/cron/trials',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicPaystackWebhookRoute =
   ApiPublicPaystackWebhookRouteImport.update({
     id: '/api/public/paystack-webhook',
@@ -326,6 +338,8 @@ export interface FileRoutesByFullPath {
   '/member/': typeof MemberIndexRoute
   '/super-admin/': typeof SuperAdminIndexRoute
   '/admin/members/pending': typeof AdminMembersPendingRoute
+  '/api/cron/birthdays': typeof ApiCronBirthdaysRoute
+  '/api/cron/trials': typeof ApiCronTrialsRoute
   '/api/public/paystack-webhook': typeof ApiPublicPaystackWebhookRoute
   '/admin/members/': typeof AdminMembersIndexRoute
 }
@@ -369,6 +383,8 @@ export interface FileRoutesByTo {
   '/member': typeof MemberIndexRoute
   '/super-admin': typeof SuperAdminIndexRoute
   '/admin/members/pending': typeof AdminMembersPendingRoute
+  '/api/cron/birthdays': typeof ApiCronBirthdaysRoute
+  '/api/cron/trials': typeof ApiCronTrialsRoute
   '/api/public/paystack-webhook': typeof ApiPublicPaystackWebhookRoute
   '/admin/members': typeof AdminMembersIndexRoute
 }
@@ -417,6 +433,8 @@ export interface FileRoutesById {
   '/member/': typeof MemberIndexRoute
   '/super-admin/': typeof SuperAdminIndexRoute
   '/admin/members/pending': typeof AdminMembersPendingRoute
+  '/api/cron/birthdays': typeof ApiCronBirthdaysRoute
+  '/api/cron/trials': typeof ApiCronTrialsRoute
   '/api/public/paystack-webhook': typeof ApiPublicPaystackWebhookRoute
   '/admin/members/': typeof AdminMembersIndexRoute
 }
@@ -466,6 +484,8 @@ export interface FileRouteTypes {
     | '/member/'
     | '/super-admin/'
     | '/admin/members/pending'
+    | '/api/cron/birthdays'
+    | '/api/cron/trials'
     | '/api/public/paystack-webhook'
     | '/admin/members/'
   fileRoutesByTo: FileRoutesByTo
@@ -509,6 +529,8 @@ export interface FileRouteTypes {
     | '/member'
     | '/super-admin'
     | '/admin/members/pending'
+    | '/api/cron/birthdays'
+    | '/api/cron/trials'
     | '/api/public/paystack-webhook'
     | '/admin/members'
   id:
@@ -556,6 +578,8 @@ export interface FileRouteTypes {
     | '/member/'
     | '/super-admin/'
     | '/admin/members/pending'
+    | '/api/cron/birthdays'
+    | '/api/cron/trials'
     | '/api/public/paystack-webhook'
     | '/admin/members/'
   fileRoutesById: FileRoutesById
@@ -575,6 +599,8 @@ export interface RootRouteChildren {
   JoinCommunityIdRoute: typeof JoinCommunityIdRoute
   LSlugRoute: typeof LSlugRoute
   PayDuesPlanIdRoute: typeof PayDuesPlanIdRoute
+  ApiCronBirthdaysRoute: typeof ApiCronBirthdaysRoute
+  ApiCronTrialsRoute: typeof ApiCronTrialsRoute
   ApiPublicPaystackWebhookRoute: typeof ApiPublicPaystackWebhookRoute
 }
 
@@ -888,6 +914,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminMembersPendingRouteImport
       parentRoute: typeof AdminMembersRoute
     }
+    '/api/cron/birthdays': {
+      id: '/api/cron/birthdays'
+      path: '/api/cron/birthdays'
+      fullPath: '/api/cron/birthdays'
+      preLoaderRoute: typeof ApiCronBirthdaysRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cron/trials': {
+      id: '/api/cron/trials'
+      path: '/api/cron/trials'
+      fullPath: '/api/cron/trials'
+      preLoaderRoute: typeof ApiCronTrialsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/paystack-webhook': {
       id: '/api/public/paystack-webhook'
       path: '/api/public/paystack-webhook'
@@ -1010,18 +1050,10 @@ const rootRouteChildren: RootRouteChildren = {
   JoinCommunityIdRoute: JoinCommunityIdRoute,
   LSlugRoute: LSlugRoute,
   PayDuesPlanIdRoute: PayDuesPlanIdRoute,
+  ApiCronBirthdaysRoute: ApiCronBirthdaysRoute,
+  ApiCronTrialsRoute: ApiCronTrialsRoute,
   ApiPublicPaystackWebhookRoute: ApiPublicPaystackWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

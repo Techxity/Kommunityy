@@ -73,6 +73,9 @@ export type BatchEmail = {
   html: string;
   fromName?: string;
   replyTo?: string;
+  // Optional caller-supplied id (e.g. a member id) echoed back in `okIds` for
+  // messages whose batch was accepted — lets callers mark exactly who was sent.
+  id?: string;
 };
 
 // Bulk send via Resend's batch endpoint. Instead of one HTTP request per
@@ -85,10 +88,12 @@ export type BatchEmail = {
 const BATCH_SIZE = 100; // Resend hard cap per /emails/batch call
 const BATCH_CONCURRENCY = 3; // cap parallel batch calls to stay within rate limits
 
-export async function sendEmailsBatch(messages: BatchEmail[]): Promise<{ sent: number; failed: number }> {
+export async function sendEmailsBatch(
+  messages: BatchEmail[],
+): Promise<{ sent: number; failed: number; okIds: string[] }> {
   const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) return { sent: 0, failed: messages.length };
-  if (messages.length === 0) return { sent: 0, failed: 0 };
+  if (!apiKey) return { sent: 0, failed: messages.length, okIds: [] };
+  if (messages.length === 0) return { sent: 0, failed: 0, okIds: [] };
   const address = resolveFromAddress();
 
   const chunks: BatchEmail[][] = [];
@@ -96,6 +101,7 @@ export async function sendEmailsBatch(messages: BatchEmail[]): Promise<{ sent: n
 
   let sent = 0;
   let failed = 0;
+  const okIds: string[] = [];
   for (let i = 0; i < chunks.length; i += BATCH_CONCURRENCY) {
     const group = chunks.slice(i, i + BATCH_CONCURRENCY);
     const results = await Promise.all(
@@ -116,19 +122,21 @@ export async function sendEmailsBatch(messages: BatchEmail[]): Promise<{ sent: n
           if (!res.ok) {
             const detail = await res.text().catch(() => "");
             console.error(`[email batch] ${res.status}: ${detail}`);
-            return { ok: 0, bad: chunk.length };
+            return { ok: 0, bad: chunk.length, ids: [] as string[] };
           }
-          return { ok: chunk.length, bad: 0 };
+          // Batch accepted as a unit — every message in it counts as sent.
+          return { ok: chunk.length, bad: 0, ids: chunk.map((m) => m.id).filter((x): x is string => !!x) };
         } catch (e: any) {
           console.error(`[email batch] ${e?.message ?? "send failed"}`);
-          return { ok: 0, bad: chunk.length };
+          return { ok: 0, bad: chunk.length, ids: [] as string[] };
         }
       }),
     );
     for (const r of results) {
       sent += r.ok;
       failed += r.bad;
+      okIds.push(...r.ids);
     }
   }
-  return { sent, failed };
+  return { sent, failed, okIds };
 }
