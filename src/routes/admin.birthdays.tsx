@@ -12,7 +12,15 @@ export const Route = createFileRoute("/admin/birthdays")({
   component: Birthdays,
 });
 
-type Member = { id: string; name: string; email: string; whatsapp: string; dob: string };
+type Member = {
+  id: string;
+  name: string;
+  email: string;
+  whatsapp: string;
+  dob: string;
+  lastSentAt: string | null;
+  lastSentYear: number | null;
+};
 type SendResult = { emailSent: number; emailTotal: number; whatsappSent: number; whatsappTotal: number; whatsappConfigured: boolean };
 
 function resultSummary(r: SendResult): string {
@@ -43,6 +51,10 @@ function formatDob(dob: string): string {
   const { month, day } = dobParts(dob);
   if (!month || !day) return "";
   return `${MONTHS[month - 1]} ${day}`;
+}
+
+function formatSent(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 
 function Birthdays() {
@@ -89,6 +101,7 @@ function Birthdays() {
       setLastRun(new Date().toISOString());
       setLastResult(result);
       setJustSent(true);
+      refreshMembers(); // reflect the new "Sent" badges/history right away
       setTimeout(() => setJustSent(false), 2200);
     } catch (err: any) {
       alert(err?.message ?? "Couldn't send birthday messages.");
@@ -106,6 +119,7 @@ function Birthdays() {
     try {
       await sendBirthdayMessages({ data: { memberIds: [memberId] } });
       setResentId(memberId);
+      refreshMembers(); // reflect the new "Sent" badge/history right away
       setTimeout(() => setResentId(null), 2200);
     } catch (err: any) {
       alert(err?.message ?? "Couldn't send that birthday message.");
@@ -231,9 +245,17 @@ function Birthdays() {
           </div>
 
           <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
-            <div className="mb-4 flex items-center gap-2 text-sm font-semibold">
+            <div className="mb-4 flex flex-wrap items-center gap-2 text-sm font-semibold">
               <Cake className="h-4 w-4 text-accent" />
               {active} celebrations · {thisMonth.length} {thisMonth.length === 1 ? "member" : "members"}
+              {(() => {
+                const sentCount = thisMonth.filter((m) => m.lastSentYear === new Date().getFullYear()).length;
+                return sentCount > 0 ? (
+                  <span className="rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-semibold text-success">
+                    {sentCount} sent this year
+                  </span>
+                ) : null;
+              })()}
             </div>
             {thisMonth.length === 0 ? (
               <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">No birthdays this month.</p>
@@ -246,7 +268,14 @@ function Birthdays() {
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-semibold">{m.name}</p>
-                      <p className="text-xs text-muted-foreground">{formatDob(m.dob)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDob(m.dob)}
+                        {m.lastSentAt && (
+                          <span className="ml-2 inline-flex items-center gap-1 text-success">
+                            <Check className="h-3 w-3" /> Sent {formatSent(m.lastSentAt)}
+                          </span>
+                        )}
+                      </p>
                     </div>
                     <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
                       {m.email && <span title={m.email}><Mail className="h-3.5 w-3.5" /></span>}

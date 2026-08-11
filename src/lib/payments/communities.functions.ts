@@ -158,7 +158,7 @@ export const getDashboardStats = createServerFn({ method: "POST" })
       return {
         activeMembers: 0,
         totalMembers: 0,
-        birthdaysThisMonth: [] as { id: string; name: string; dob: string }[],
+        birthdaysThisMonth: [] as { id: string; name: string; dob: string; sentThisYear: boolean }[],
         messagesSent30d: 0,
       };
     }
@@ -172,7 +172,7 @@ export const getDashboardStats = createServerFn({ method: "POST" })
     `;
 
     const birthdays = await sql`
-      SELECT id, name, dob
+      SELECT id, name, dob, last_birthday_sent_year
       FROM public.members
       WHERE community_id = ${communityId}::uuid
         AND status = 'active'
@@ -180,6 +180,7 @@ export const getDashboardStats = createServerFn({ method: "POST" })
         AND EXTRACT(MONTH FROM dob) = EXTRACT(MONTH FROM CURRENT_DATE)
       ORDER BY EXTRACT(DAY FROM dob) ASC
     `;
+    const currentYear = new Date().getUTCFullYear();
 
     // "Messages sent" = broadcast reach (each recipient counted) + individual
     // birthday emails, both in the trailing 30 days — gives a real sense of
@@ -202,6 +203,9 @@ export const getDashboardStats = createServerFn({ method: "POST" })
         // See src/lib/date-only.ts — handles both the raw-text and
         // Date-object shapes the driver can hand back for a `date` column.
         dob: toDateOnlyString(r.dob),
+        // Whether this member has already had their birthday message sent
+        // this calendar year — lets the dashboard show "Sent" vs "Scheduled".
+        sentThisYear: r.last_birthday_sent_year != null && Number(r.last_birthday_sent_year) === currentYear,
       })),
       messagesSent30d,
     };

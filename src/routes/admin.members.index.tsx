@@ -4,6 +4,7 @@ import { listMembers, updateMember, setMembersStatus, bulkCreateMembers } from "
 import { listMyChapters } from "@/lib/membership/chapters.functions";
 import { sendInvites } from "@/lib/membership/invites.functions";
 import { resendMemberInvite } from "@/lib/membership/member-accounts.functions";
+import { downloadXls } from "@/lib/export-xls";
 import {
   Search,
   Upload,
@@ -21,6 +22,7 @@ import {
   FileUp,
   Check,
   AlertTriangle,
+  Download,
 } from "lucide-react";
 
 export const Route = createFileRoute("/admin/members/")({
@@ -135,6 +137,32 @@ function MembersPage() {
     refresh();
   }
 
+  const [exporting, setExporting] = useState(false);
+  async function exportMembers() {
+    setExporting(true);
+    try {
+      // Pull the full roster (every status) fresh, independent of the current
+      // on-screen filters, so "export members" really is all of them.
+      const all = await listMembers({ data: {} });
+      // Any custom onboarding fields live in `extra` — union their keys into
+      // columns so nothing an admin collected is silently dropped.
+      const extraKeys = Array.from(new Set(all.flatMap((m) => Object.keys(m.extra ?? {}))));
+      const headers = [
+        "Name", "Email", "Phone", "WhatsApp", "Date of Birth", "Role",
+        "Chapter", "Country", "Address", "Status", "Joined", "Has account",
+        ...extraKeys,
+      ];
+      const rows = all.map((m) => [
+        m.name, m.email, m.phone, m.whatsapp, m.dob, m.role,
+        m.chapter, m.country, m.address, m.status, m.joined, m.hasAccount ? "Yes" : "No",
+        ...extraKeys.map((k) => m.extra?.[k] ?? ""),
+      ]);
+      downloadXls(`members-${new Date().toISOString().slice(0, 10)}`, "Members", headers, rows);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function saveEdit(updated: Member) {
     await updateMember({
       data: {
@@ -178,6 +206,9 @@ function MembersPage() {
           </Link>
           <button onClick={() => setShowBulkUpload(true)} className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground shadow-soft hover:bg-muted">
             <FileUp className="h-4 w-4" /> Bulk upload
+          </button>
+          <button onClick={exportMembers} disabled={exporting} className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground shadow-soft hover:bg-muted disabled:opacity-50">
+            <Download className="h-4 w-4" /> {exporting ? "Exporting…" : "Export"}
           </button>
           <button onClick={() => setShowInvite(true)} className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-soft hover:opacity-90">
             <Plus className="h-4 w-4" /> Invite members

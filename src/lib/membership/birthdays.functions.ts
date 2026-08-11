@@ -45,7 +45,7 @@ export const listMembersWithBirthdays = createServerFn({ method: "POST" })
     const communityId = await communityIdForAdmin(context.userId);
     if (!communityId) return [];
     const rows = await sql`
-      SELECT id, name, email, whatsapp, dob
+      SELECT id, name, email, whatsapp, dob, last_birthday_sent_at, last_birthday_sent_year
       FROM public.members
       WHERE community_id = ${communityId}::uuid AND status = 'active' AND dob IS NOT NULL
       ORDER BY name ASC
@@ -59,6 +59,10 @@ export const listMembersWithBirthdays = createServerFn({ method: "POST" })
       // Date-object shapes the driver can hand back for a `date` column,
       // reading Date objects with UTC accessors so the day never shifts.
       dob: toDateOnlyString(r.dob),
+      // Sent-history: when this member was last sent a birthday message, so
+      // the Birthdays page can show per-month history at a glance.
+      lastSentAt: r.last_birthday_sent_at ? new Date(r.last_birthday_sent_at as string).toISOString() : null,
+      lastSentYear: r.last_birthday_sent_year != null ? Number(r.last_birthday_sent_year) : null,
     }));
   });
 
