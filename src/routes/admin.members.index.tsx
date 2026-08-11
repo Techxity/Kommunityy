@@ -4,7 +4,7 @@ import { listMembers, updateMember, setMembersStatus, bulkCreateMembers } from "
 import { listMyChapters } from "@/lib/membership/chapters.functions";
 import { sendInvites } from "@/lib/membership/invites.functions";
 import { resendMemberInvite } from "@/lib/membership/member-accounts.functions";
-import { downloadXls } from "@/lib/export-xls";
+import { downloadCsv } from "@/lib/export-csv";
 import {
   Search,
   Upload,
@@ -157,7 +157,7 @@ function MembersPage() {
         m.chapter, m.country, m.address, m.status, m.joined, m.hasAccount ? "Yes" : "No",
         ...extraKeys.map((k) => m.extra?.[k] ?? ""),
       ]);
-      downloadXls(`members-${new Date().toISOString().slice(0, 10)}`, "Members", headers, rows);
+      downloadCsv(`members-${new Date().toISOString().slice(0, 10)}`, headers, rows);
     } finally {
       setExporting(false);
     }
