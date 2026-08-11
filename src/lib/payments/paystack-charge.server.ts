@@ -84,11 +84,17 @@ export async function applyVerifiedCharge(
   }
 
   if (meta.kind === "dues" && meta.plan_id) {
+    // Multi-month dues: how many periods this covers and which period it
+    // starts from — set by startDuesCheckout, used to compute what the member
+    // is paid through. Default to a single current-ish period for safety.
+    const months = Number.isFinite(Number(meta.months)) && Number(meta.months) > 0 ? Math.min(12, Math.floor(Number(meta.months))) : 1;
+    const period_start: string | null =
+      typeof meta.period_start === "string" && /^\d{4}-\d{2}-\d{2}$/.test(meta.period_start) ? meta.period_start : null;
     await sql`
       INSERT INTO public.dues_payments
-        (plan_id, member_name, member_email, amount, currency, provider, provider_ref, status, paystack_fee, platform_fee, community_net, settlement_mode)
+        (plan_id, member_name, member_email, amount, currency, provider, provider_ref, status, paystack_fee, platform_fee, community_net, settlement_mode, months, period_start)
       VALUES
-        (${meta.plan_id}, ${meta.member_name ?? email ?? "Member"}, ${email ?? null}, ${gross}, ${currency}, 'paystack', ${reference}, 'paid', ${paystack_fee}, ${platform_fee}, ${community_net}, ${settlement_mode})
+        (${meta.plan_id}, ${meta.member_name ?? email ?? "Member"}, ${email ?? null}, ${gross}, ${currency}, 'paystack', ${reference}, 'paid', ${paystack_fee}, ${platform_fee}, ${community_net}, ${settlement_mode}, ${months}, ${period_start}::date)
       ON CONFLICT (provider, provider_ref) DO NOTHING
     `;
     return { applied: true, kind: "dues" };

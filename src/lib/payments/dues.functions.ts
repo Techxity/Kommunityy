@@ -6,12 +6,18 @@ import { initializeTransaction, verifyTransaction } from "./paystack.server";
 import { applyVerifiedCharge } from "./paystack-charge.server";
 import { requireAuth } from "@/lib/auth/require-auth.server";
 import { communityIdForAdmin } from "./communities.functions";
+import { toDateOnlyString } from "@/lib/date-only";
+import { monthsPerPeriod, parseYm, addMonths, ymToDateStr, ymAfter } from "@/lib/dues-period";
 
 const StartDuesInput = z.object({
   plan_id: z.string().uuid(),
   currency: z.enum(["NGN", "USD"]),
   member_name: z.string().min(1).max(120),
   member_email: z.string().email().max(200),
+  // How many billing periods this single payment covers, and which period it
+  // starts from (first-of-month). Both default sensibly for a plain one-off.
+  months: z.number().int().min(1).max(12).default(1),
+  period_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 export const startDuesCheckout = createServerFn({ method: "POST" })
@@ -27,8 +33,11 @@ export const startDuesCheckout = createServerFn({ method: "POST" })
     `;
     const plan = rows[0];
     if (!plan || !plan.active) throw new Error("Plan not available");
-    const amount = data.currency === "NGN" ? plan.amount_ngn : plan.amount_usd;
-    if (!amount) throw new Error(`${data.currency} not offered for this plan`);
+    const unitAmount = data.currency === "NGN" ? plan.amount_ngn : plan.amount_usd;
+    if (!unitAmount) throw new Error(`${data.currency} not offered for this plan`);
+
+    // One payment can cover several periods — charge unit price × months.
+    const total = Number(unitAmount) * data.months;
 
     const host = getRequestHost();
     const proto = host.includes("localhost") ? "http" : "https";
@@ -41,7 +50,7 @@ export const startDuesCheckout = createServerFn({ method: "POST" })
 
     const tx = await initializeTransaction({
       email: data.member_email,
-      amount: Number(amount),
+      amount: total,
       currency: data.currency,
       callback_url,
       subaccount: subaccount_code ?? undefined,
@@ -50,6 +59,8 @@ export const startDuesCheckout = createServerFn({ method: "POST" })
         plan_id: plan.id,
         member_name: data.member_name,
         settlement_mode,
+        months: data.months,
+        period_start: data.period_start ?? null,
       },
     });
     return { authorization_url: tx.authorization_url, reference: tx.reference };
@@ -114,7 +125,13 @@ export const getMyDuesInfo = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const member = await activeMemberFor(context.userId);
-    if (!member) return { plan: null, history: [] as { id: string; amount: number; currency: "NGN" | "USD"; status: string; date: string }[] };
+    if (!member) {
+      return {
+        plan: null as { interval: "monthly" | "quarterly" | "yearly"; amountNgn: number | null; amountUsd: number | null } | null,
+        coverage: { nextDue: null as string | null },
+        history: [] as { id: string; amount: number; currency: "NGN" | "USD"; status: string; date: string; months: number; periodStart: string | null }[],
+      };
+    }
 
     const plans = await sql`
       SELECT interval, amount_ngn, amount_usd
@@ -134,7 +151,7 @@ export const getMyDuesInfo = createServerFn({ method: "POST" })
 
     const history = member.email
       ? await sql`
-          SELECT dp.id, dp.amount, dp.currency, dp.status, dp.paid_at
+          SELECT dp.id, dp.amount, dp.currency, dp.status, dp.paid_at, dp.months, dp.period_start
           FROM public.dues_payments dp
           JOIN public.dues_plans p ON p.id = dp.plan_id
           WHERE p.community_id = ${member.communityId}::uuid AND lower(dp.member_email) = lower(${member.email})
@@ -143,14 +160,29 @@ export const getMyDuesInfo = createServerFn({ method: "POST" })
         `
       : [];
 
+    // How far the member is paid through: the latest period covered by any
+    // successful payment that recorded a period. nextDue is the first period
+    // NOT yet covered — what the checkout should default the start to.
+    const mpp = monthsPerPeriod(plan?.interval);
+    let nextDue: ReturnType<typeof addMonths> | null = null;
+    for (const r of history) {
+      if (r.status !== "paid" || !r.period_start) continue;
+      const start = parseYm(toDateOnlyString(r.period_start));
+      const end = addMonths(start, Number(r.months ?? 1) * mpp); // first uncovered period
+      if (!nextDue || ymAfter(end, nextDue)) nextDue = end;
+    }
+
     return {
       plan,
+      coverage: { nextDue: nextDue ? ymToDateStr(nextDue) : null },
       history: history.map((r) => ({
         id: r.id as string,
         amount: Number(r.amount),
         currency: r.currency as "NGN" | "USD",
         status: r.status as string,
         date: new Date(r.paid_at as string).toLocaleDateString(),
+        months: Number(r.months ?? 1),
+        periodStart: r.period_start ? toDateOnlyString(r.period_start) : null,
       })),
     };
   });

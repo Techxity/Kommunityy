@@ -301,6 +301,9 @@ CREATE TABLE IF NOT EXISTS public.dues_payments (
   platform_fee numeric NOT NULL DEFAULT 0,
   community_net numeric NOT NULL DEFAULT 0,
   settlement_mode text NOT NULL DEFAULT 'platform_held' CHECK (settlement_mode IN ('platform_held', 'subaccount_split')),
+  -- Multi-month dues: one payment can cover several billing periods.
+  months int NOT NULL DEFAULT 1,
+  period_start date,
   UNIQUE (provider, provider_ref)
 );
 

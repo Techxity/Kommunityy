@@ -6,7 +6,8 @@ import { getMyDuesInfo } from "@/lib/payments/dues.functions";
 import { listMyBroadcasts } from "@/lib/membership/broadcasts.functions";
 import { listMyExecutives } from "@/lib/membership/members.functions";
 import { getMyCallTreeHistory } from "@/lib/membership/calltree.functions";
-import { PhoneCall, Banknote, Megaphone, ArrowUpRight } from "lucide-react";
+import { formatYm, parseYm } from "@/lib/dues-period";
+import { PhoneCall, Banknote, Megaphone, ArrowUpRight, Check } from "lucide-react";
 
 export const Route = createFileRoute("/member/")({
   component: MemberHome,
@@ -34,7 +35,7 @@ function isBirthdayToday(dob: string): boolean {
 function MemberHome() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
   const [ballot, setBallot] = useState<Ballot | null>(null);
-  const [dues, setDues] = useState<DuesInfo>({ plan: null, history: [] });
+  const [dues, setDues] = useState<DuesInfo>({ plan: null, coverage: { nextDue: null }, history: [] });
   const [broadcasts, setBroadcasts] = useState<Broadcasts>([]);
   const [executives, setExecutives] = useState<Executives>([]);
   const [callTree, setCallTree] = useState<CallTreeHistory>([]);
@@ -66,6 +67,7 @@ function MemberHome() {
   const isBirthday = isBirthdayToday(me.dob);
   const activePairing = callTree.find((r) => r.sessionStatus === "active" && !r.feedback);
   const feedbackToken = activePairing?.token ?? null;
+  const hasVoted = !!ballot?.positions.some((p) => p.myVote);
 
   const amountLabel = dues.plan
     ? [dues.plan.amountNgn ? `₦${dues.plan.amountNgn.toLocaleString()}` : null, dues.plan.amountUsd ? `$${dues.plan.amountUsd.toLocaleString()}` : null]
@@ -100,29 +102,48 @@ function MemberHome() {
                 {ballot?.election ? `Live election · ${ballot.election.year}` : "Elections"}
               </p>
               <h2 className="mt-1 font-display text-xl font-bold">
-                {ballot?.election ? "Cast your vote" : "No election running"}
+                {!ballot?.election ? "No election running" : hasVoted ? "Your choices" : "Cast your vote"}
               </h2>
             </div>
             {ballot?.election && (
               <Link to="/member/elections" className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
-                Cast vote <ArrowUpRight className="h-3 w-3" />
+                {hasVoted ? "View" : "Cast vote"} <ArrowUpRight className="h-3 w-3" />
               </Link>
             )}
           </div>
           {ballot?.election ? (
-            <ul className="mt-5 space-y-3">
-              {ballot.positions.slice(0, 2).map((p) => (
-                <li key={p.id} className="rounded-xl border border-border p-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{p.role}</span>
-                    <span className="text-xs text-muted-foreground">{p.candidates.length} candidates</span>
-                  </div>
-                </li>
-              ))}
-              {ballot.positions.length === 0 && (
-                <p className="text-sm text-muted-foreground">No positions are open for this cycle yet.</p>
-              )}
-            </ul>
+            ballot.positions.length === 0 ? (
+              <p className="mt-4 text-sm text-muted-foreground">No positions are open for this cycle yet.</p>
+            ) : (
+              <>
+                <ul className="mt-5 space-y-3">
+                  {ballot.positions.slice(0, hasVoted ? 4 : 2).map((p) => {
+                    const chosen = p.myVote ? p.candidates.find((c) => c.id === p.myVote) : null;
+                    return (
+                      <li key={p.id} className="rounded-xl border border-border p-3 text-sm">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-medium">{p.role}</span>
+                          {chosen ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-success/15 px-2 py-0.5 text-xs font-semibold text-success">
+                              <Check className="h-3 w-3" /> {chosen.name}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              {p.candidates.length} candidates{hasVoted ? " · not voted" : ""}
+                            </span>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {hasVoted && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    You've already voted in this cycle. Your choices are locked in.
+                  </p>
+                )}
+              </>
+            )
           ) : (
             <p className="mt-4 text-sm text-muted-foreground">Check back once your admin starts a new election cycle.</p>
           )}
@@ -159,6 +180,9 @@ function MemberHome() {
           <p className="mt-1 text-xs opacity-80">
             {dues.plan ? `${dues.plan.interval.charAt(0).toUpperCase()}${dues.plan.interval.slice(1)}` : "Ask your admin to set up dues"}
           </p>
+          {dues.coverage.nextDue && (
+            <p className="mt-2 text-xs opacity-80">Next due from {formatYm(parseYm(dues.coverage.nextDue))}</p>
+          )}
           <Link to="/member/dues" className="mt-4 inline-flex items-center gap-1 rounded-full bg-primary-foreground/15 px-3 py-1.5 text-xs font-semibold">Pay now <ArrowUpRight className="h-3 w-3" /></Link>
         </div>
 

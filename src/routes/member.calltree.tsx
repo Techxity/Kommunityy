@@ -102,7 +102,18 @@ function MemberCallTree() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold">{p.name}</p>
-                        {p.email && <p className="truncate text-xs text-muted-foreground">{p.email}</p>}
+                        {p.phone && (
+                          <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Phone className="h-3 w-3 shrink-0" />
+                            <a href={`tel:${p.phone}`} className="hover:text-foreground">{p.phone}</a>
+                          </p>
+                        )}
+                        {p.email && (
+                          <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                            <Mail className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{p.email}</span>
+                          </p>
+                        )}
                       </div>
                       <div className="ml-auto flex gap-1">
                         {p.phone && (
