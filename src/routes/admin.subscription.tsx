@@ -13,6 +13,7 @@ type Community = Awaited<ReturnType<typeof getMyCommunity>>;
 
 function Subscription() {
   const [currency, setCurrency] = useState<"USD" | "NGN">("NGN");
+  const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
   const [community, setCommunity] = useState<Community>(null);
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [subscribing, setSubscribing] = useState<string | null>(null);
@@ -59,7 +60,7 @@ function Subscription() {
         await subscribeToPlan({ data: { tierId: tier.id } });
         refresh();
       } else {
-        const checkout = await startPlanCheckout({ data: { tierId: tier.id, currency } });
+        const checkout = await startPlanCheckout({ data: { tierId: tier.id, currency, billing } });
         window.location.href = checkout.authorization_url;
         return;
       }
@@ -100,7 +101,7 @@ function Subscription() {
           <p className="flex items-center gap-2 text-sm font-semibold">
             <Sparkles className="h-4 w-4" /> Trial ends in {community.trialDaysLeft} days — choose a plan to avoid interruption.
           </p>
-          <CurrencyToggle currency={currency} setCurrency={setCurrency} />
+          <PlanControls currency={currency} setCurrency={setCurrency} billing={billing} setBilling={setBilling} />
         </div>
       ) : community?.isPaidTier && community.renewsAt ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-emerald-800">
@@ -110,12 +111,12 @@ function Subscription() {
               ? `Renews in ${community.renewalDaysLeft} day${community.renewalDaysLeft === 1 ? "" : "s"} — ${new Date(community.renewsAt).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}`
               : `Renewal was due ${new Date(community.renewsAt).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })} — reach out whenever you're ready to renew.`}
           </p>
-          <CurrencyToggle currency={currency} setCurrency={setCurrency} />
+          <PlanControls currency={currency} setCurrency={setCurrency} billing={billing} setBilling={setBilling} />
         </div>
       ) : community ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4">
           <p className="text-sm font-semibold text-muted-foreground">You're on the {community.tierName ?? "free"} plan.</p>
-          <CurrencyToggle currency={currency} setCurrency={setCurrency} />
+          <PlanControls currency={currency} setCurrency={setCurrency} billing={billing} setBilling={setBilling} />
         </div>
       ) : null}
 
@@ -129,11 +130,27 @@ function Subscription() {
               {isCurrent && (
                 <span className="absolute -top-2.5 left-6 rounded-full bg-accent px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent-foreground">Current</span>
               )}
-              <p className={`text-xs font-semibold uppercase tracking-wider ${isCurrent ? "text-primary-foreground/70" : "text-accent"}`}>{p.name}</p>
-              <p className="mt-3 font-display text-4xl font-bold">
-                {currency === "USD" ? `$${p.monthly_price_usd}` : `₦${p.monthly_price_ngn.toLocaleString()}`}
-                <span className={`text-sm font-medium ${isCurrent ? "text-primary-foreground/60" : "text-muted-foreground"}`}>/mo</span>
-              </p>
+              {(() => {
+                const monthly = currency === "USD" ? p.monthly_price_usd : p.monthly_price_ngn;
+                const shown = billing === "yearly" ? monthly * 10 : monthly;
+                const sym = currency === "USD" ? "$" : "₦";
+                return (
+                  <>
+                    <p className={`text-xs font-semibold uppercase tracking-wider ${isCurrent ? "text-primary-foreground/70" : "text-accent"}`}>{p.name}</p>
+                    <p className="mt-3 font-display text-4xl font-bold">
+                      {sym}{shown.toLocaleString()}
+                      <span className={`text-sm font-medium ${isCurrent ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
+                        {billing === "yearly" ? "/yr" : "/mo"}
+                      </span>
+                    </p>
+                    {billing === "yearly" && monthly > 0 && (
+                      <p className={`mt-0.5 text-xs ${isCurrent ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                        {sym}{monthly.toLocaleString()}/mo · 2 months free
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
               <p className={`mt-1 text-xs ${isCurrent ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
                 Up to {p.maxMembers == null ? "unlimited" : p.maxMembers.toLocaleString()} members
               </p>
@@ -174,24 +191,41 @@ function Subscription() {
   );
 }
 
-function CurrencyToggle({
+function PlanControls({
   currency,
   setCurrency,
+  billing,
+  setBilling,
 }: {
   currency: "USD" | "NGN";
   setCurrency: (c: "USD" | "NGN") => void;
+  billing: "monthly" | "yearly";
+  setBilling: (b: "monthly" | "yearly") => void;
 }) {
   return (
-    <div className="inline-flex rounded-full border border-border bg-card p-1 text-xs">
-      {(["USD", "NGN"] as const).map((c) => (
-        <button
-          key={c}
-          onClick={() => setCurrency(c)}
-          className={`rounded-full px-3 py-1 font-semibold ${currency === c ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
-        >
-          {c === "USD" ? "$ USD" : "₦ NGN"}
-        </button>
-      ))}
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="inline-flex rounded-full border border-border bg-card p-1 text-xs">
+        {(["USD", "NGN"] as const).map((c) => (
+          <button
+            key={c}
+            onClick={() => setCurrency(c)}
+            className={`rounded-full px-3 py-1 font-semibold ${currency === c ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+          >
+            {c === "USD" ? "$ USD" : "₦ NGN"}
+          </button>
+        ))}
+      </div>
+      <div className="inline-flex rounded-full border border-border bg-card p-1 text-xs">
+        {(["monthly", "yearly"] as const).map((b) => (
+          <button
+            key={b}
+            onClick={() => setBilling(b)}
+            className={`rounded-full px-3 py-1 font-semibold capitalize ${billing === b ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+          >
+            {b}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

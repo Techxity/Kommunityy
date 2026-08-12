@@ -255,9 +255,22 @@ export const removeModuleFromCatalog = createServerFn({ method: "POST" })
 // is NOT applied yet — that only happens once the paystack-webhook confirms
 // charge.success (see src/routes/api/public/paystack-webhook.ts), so an
 // abandoned checkout never grants access for free.
+// Number of months a yearly plan payment covers, and therefore the price
+// multiplier: paying yearly costs 10× the monthly price (2 months free).
+export const YEARLY_MONTHS = 12;
+export const YEARLY_PRICE_MULTIPLIER = 10;
+
 export const startPlanCheckout = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((i) => z.object({ tierId: z.string().uuid(), currency: z.enum(["NGN", "USD"]) }).parse(i))
+  .inputValidator((i) =>
+    z
+      .object({
+        tierId: z.string().uuid(),
+        currency: z.enum(["NGN", "USD"]),
+        billing: z.enum(["monthly", "yearly"]).default("monthly"),
+      })
+      .parse(i),
+  )
   .handler(async ({ data, context }) => {
     const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
@@ -267,8 +280,13 @@ export const startPlanCheckout = createServerFn({ method: "POST" })
     if (!tier) throw new Error("Plan not found.");
     if (!tier.active) throw new Error("This plan is no longer available.");
 
-    const amount = data.currency === "NGN" ? Number(tier.monthly_price_ngn) : Number(tier.monthly_price_usd);
-    if (!amount) throw new Error(`${tier.name} isn't priced in ${data.currency}.`);
+    const monthly = data.currency === "NGN" ? Number(tier.monthly_price_ngn) : Number(tier.monthly_price_usd);
+    if (!monthly) throw new Error(`${tier.name} isn't priced in ${data.currency}.`);
+
+    // Yearly = 10 months' price (2 free); monthly = 1 month.
+    const yearly = data.billing === "yearly";
+    const amount = yearly ? monthly * YEARLY_PRICE_MULTIPLIER : monthly;
+    const periodMonths = yearly ? YEARLY_MONTHS : 1;
 
     const userRows = await sql`SELECT email FROM public.users WHERE id = ${context.userId}::uuid`;
     const email = (userRows[0]?.email as string | undefined) ?? "";
@@ -281,7 +299,7 @@ export const startPlanCheckout = createServerFn({ method: "POST" })
       amount,
       currency: data.currency,
       callback_url,
-      metadata: { kind: "plan", community_id: communityId, tier_id: data.tierId },
+      metadata: { kind: "plan", community_id: communityId, tier_id: data.tierId, period_months: periodMonths },
     });
 
     return { authorization_url: tx.authorization_url, reference: tx.reference };

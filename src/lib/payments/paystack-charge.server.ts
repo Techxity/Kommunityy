@@ -101,11 +101,12 @@ export async function applyVerifiedCharge(
   }
 
   if (meta.kind === "plan" && meta.community_id && meta.tier_id) {
+    const periodMonths = Number(meta.period_months) === 12 ? 12 : 1;
     await sql`
       INSERT INTO public.plan_payments
-        (community_id, tier_id, amount, currency, provider, provider_ref, status)
+        (community_id, tier_id, amount, currency, provider, provider_ref, status, period_months)
       VALUES
-        (${meta.community_id}, ${meta.tier_id}, ${gross}, ${currency}, 'paystack', ${reference}, 'paid')
+        (${meta.community_id}, ${meta.tier_id}, ${gross}, ${currency}, 'paystack', ${reference}, 'paid', ${periodMonths})
       ON CONFLICT (provider, provider_ref) DO NOTHING
     `;
     await sql`

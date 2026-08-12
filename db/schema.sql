@@ -172,6 +172,8 @@ CREATE TABLE IF NOT EXISTS public.plan_payments (
   provider_ref text NOT NULL,
   status public.payment_status NOT NULL DEFAULT 'paid',
   paid_at timestamptz NOT NULL DEFAULT now(),
+  -- Months this payment covers: 1 for monthly, 12 for yearly.
+  period_months int NOT NULL DEFAULT 1,
   UNIQUE (provider, provider_ref)
 );
 

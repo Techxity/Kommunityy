@@ -51,7 +51,10 @@ export const getMyCommunity = createServerFn({ method: "POST" })
              t.name AS tier_name, t.monthly_price_ngn, t.monthly_price_usd,
              (SELECT paid_at FROM public.plan_payments
                 WHERE community_id = c.id
-                ORDER BY paid_at DESC LIMIT 1) AS last_payment_at
+                ORDER BY paid_at DESC LIMIT 1) AS last_payment_at,
+             (SELECT period_months FROM public.plan_payments
+                WHERE community_id = c.id
+                ORDER BY paid_at DESC LIMIT 1) AS last_period_months
       FROM public.communities c
       JOIN public.user_roles ur ON ur.community_id = c.id
       LEFT JOIN public.subscription_tiers t ON t.id = c.tier_id
@@ -71,15 +74,17 @@ export const getMyCommunity = createServerFn({ method: "POST" })
 
     // The app bills plans as one-time charges, not a recurring subscription
     // (no auto-charge, nothing gets cut off) — this is only an informational
-    // "next renewal" estimate for the UI: one month on from the last actual
-    // payment, so admins know when they'll need to pay again.
+    // "next renewal" estimate for the UI: the last payment's coverage period
+    // (1 month for monthly, 12 for yearly) on from the last actual payment, so
+    // admins know when they'll next need to pay.
     const isPaidTier = Number(row.monthly_price_ngn ?? 0) > 0 || Number(row.monthly_price_usd ?? 0) > 0;
     const lastPaymentAt = row.last_payment_at as string | null;
+    const lastPeriodMonths = Number(row.last_period_months ?? 1) || 1;
     let renewsAt: string | null = null;
     let renewalDaysLeft: number | null = null;
     if (!onTrial && isPaidTier && lastPaymentAt) {
       const d = new Date(lastPaymentAt);
-      d.setUTCMonth(d.getUTCMonth() + 1);
+      d.setUTCMonth(d.getUTCMonth() + lastPeriodMonths);
       renewsAt = d.toISOString();
       renewalDaysLeft = Math.ceil((d.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
     }

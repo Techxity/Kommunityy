@@ -38,6 +38,7 @@ function planFeatures(tier: Tier): string[] {
 
 function Pricing() {
   const [currency, setCurrency] = useState<"USD" | "NGN">("USD");
+  const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
   const [tiers, setTiers] = useState<Tier[] | null>(null);
   const [trial, setTrial] = useState<Trial | null>(null);
 
@@ -66,18 +67,38 @@ function Pricing() {
           <h1 className="mt-3 font-display text-5xl font-bold tracking-tight">Plans that scale with your community.</h1>
           <p className="mt-4 text-muted-foreground">{trialNote}</p>
 
-          <div className="mx-auto mt-8 inline-flex rounded-full border border-border bg-card p-1 text-sm">
-            {(["USD", "NGN"] as const).map((c) => (
-              <button
-                key={c}
-                onClick={() => setCurrency(c)}
-                className={`rounded-full px-5 py-1.5 font-semibold transition ${
-                  currency === c ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-                }`}
-              >
-                {c === "USD" ? "$ Dollars" : "₦ Naira"}
-              </button>
-            ))}
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <div className="inline-flex rounded-full border border-border bg-card p-1 text-sm">
+              {(["USD", "NGN"] as const).map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setCurrency(c)}
+                  className={`rounded-full px-5 py-1.5 font-semibold transition ${
+                    currency === c ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                  }`}
+                >
+                  {c === "USD" ? "$ Dollars" : "₦ Naira"}
+                </button>
+              ))}
+            </div>
+            <div className="inline-flex items-center rounded-full border border-border bg-card p-1 text-sm">
+              {(["monthly", "yearly"] as const).map((b) => (
+                <button
+                  key={b}
+                  onClick={() => setBilling(b)}
+                  className={`rounded-full px-5 py-1.5 font-semibold capitalize transition ${
+                    billing === b ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                  }`}
+                >
+                  {b}
+                </button>
+              ))}
+            </div>
+            {billing === "yearly" && (
+              <span className="rounded-full bg-success/15 px-3 py-1 text-xs font-semibold text-success">
+                2 months free
+              </span>
+            )}
           </div>
         </div>
 
@@ -102,7 +123,9 @@ function Pricing() {
           <div className={`mt-14 grid gap-6 ${tiers.length >= 3 ? "md:grid-cols-3" : tiers.length === 2 ? "md:grid-cols-2" : "md:grid-cols-1 md:max-w-md md:mx-auto"}`}>
             {tiers.map((t, i) => {
               const highlight = i === highlightIndex;
-              const price = currency === "USD" ? t.monthly_price_usd : t.monthly_price_ngn;
+              const monthly = currency === "USD" ? t.monthly_price_usd : t.monthly_price_ngn;
+              // Yearly = 10 months' price (2 free).
+              const price = billing === "yearly" ? monthly * 10 : monthly;
               const priced = price > 0;
               // Truly free (0 in both) vs. simply not priced in the selected
               // currency (priced in the other one) — shown differently below.
@@ -124,12 +147,19 @@ function Pricing() {
                     {priced ? (
                       <>
                         {currency === "USD" ? `$${price.toLocaleString()}` : `₦${price.toLocaleString()}`}
-                        <span className={`text-base font-medium ${highlight ? "text-primary-foreground/60" : "text-muted-foreground"}`}>/mo</span>
+                        <span className={`text-base font-medium ${highlight ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
+                          {billing === "yearly" ? "/yr" : "/mo"}
+                        </span>
                       </>
                     ) : (
                       <span className="text-3xl">{freePlan ? "Free" : "—"}</span>
                     )}
                   </p>
+                  {priced && billing === "yearly" && (
+                    <p className={`mt-1 text-xs ${highlight ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                      {currency === "USD" ? `$${monthly.toLocaleString()}` : `₦${monthly.toLocaleString()}`}/mo billed yearly
+                    </p>
+                  )}
                   {!priced && !freePlan && (
                     <p className={`mt-1 text-xs ${highlight ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
                       Available in {currency === "USD" ? "Naira" : "Dollars"} — switch currency above

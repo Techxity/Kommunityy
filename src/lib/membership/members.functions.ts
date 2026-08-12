@@ -52,6 +52,7 @@ function mapRow(r: Record<string, unknown>) {
     address: (r.address as string | null) ?? "",
     extra: (r.extra as Record<string, string> | null) ?? {},
     hasAccount: !!r.user_id,
+    communityName: (r.community_name as string | null) ?? "",
   };
 }
 
@@ -65,14 +66,49 @@ export const getMyProfile = createServerFn({ method: "POST" })
     const active = await resolveActiveMember(context.userId, context.activeCommunityId);
     if (!active) return null;
     const rows = await sql`
-      SELECT m.*, c.name AS chapter_name
+      SELECT m.*, c.name AS chapter_name, comm.name AS community_name
       FROM public.members m
       LEFT JOIN public.chapters c ON c.id = m.chapter_id
+      LEFT JOIN public.communities comm ON comm.id = m.community_id
       WHERE m.id = ${active.memberId}::uuid
       LIMIT 1
     `;
     const row = rows[0];
     return row ? mapRow(row) : null;
+  });
+
+// Member: edit their own profile. Deliberately cannot change their email —
+// that's their login identity (and the invite/reset flows key off it), so it
+// stays admin-managed. Scoped to the member's currently-active community.
+export const updateMyProfile = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) =>
+    z
+      .object({
+        name: z.string().min(1).max(120),
+        phone: z.string().max(60).optional(),
+        whatsapp: z.string().max(60).optional(),
+        dob: z.string().max(20).optional(),
+        country: z.string().max(80).optional(),
+        address: z.string().max(200).optional(),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    const active = await resolveActiveMember(context.userId, context.activeCommunityId);
+    if (!active) throw new AppError("You don't have an active membership to update.");
+    await sql`
+      UPDATE public.members
+      SET name = ${data.name},
+          phone = ${data.phone ?? null},
+          whatsapp = ${data.whatsapp ?? null},
+          dob = ${data.dob ? data.dob : null}::date,
+          country = ${data.country ?? null},
+          address = ${data.address ?? null},
+          updated_at = now()
+      WHERE id = ${active.memberId}::uuid
+    `;
+    return { ok: true };
   });
 
 // Every "workspace" the signed-in account can act in: each community they

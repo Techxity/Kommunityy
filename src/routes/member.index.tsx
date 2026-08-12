@@ -87,7 +87,7 @@ function MemberHome() {
 
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">Welcome</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-accent">{me.communityName || "Welcome"}</p>
           <h1 className="font-display text-3xl font-bold">Hi, {me.name.split(" ")[0]} 👋</h1>
         </div>
         <Link to="/member/profile" className="text-xs font-semibold text-accent">View profile →</Link>

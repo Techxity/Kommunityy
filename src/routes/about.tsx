@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { MarketingNav, MarketingFooter } from "@/components/marketing-nav";
-import { ArrowLeft, Mail, MapPin, Phone, Send } from "lucide-react";
+import { ArrowLeft, Mail, MapPin, Phone, Send, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { submitContactMessage } from "@/lib/contact.functions";
 
 export const Route = createFileRoute("/about")({
   head: () => ({
@@ -18,11 +19,21 @@ export const Route = createFileRoute("/about")({
 function AboutPage() {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
   const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
     if (!form.name.trim() || !form.email.trim() || !form.message.trim()) return;
-    setSent(true);
+    setSending(true);
+    try {
+      await submitContactMessage({ data: { name: form.name.trim(), email: form.email.trim(), message: form.message.trim() } });
+      setSent(true);
+    } catch (err: any) {
+      setError(err?.message ?? "Couldn't send your message. Please email hello@akenrose.com.");
+      setSending(false);
+    }
   }
 
   return (
@@ -73,7 +84,7 @@ function AboutPage() {
                 </span>
                 <div>
                   <p className="text-sm font-medium text-foreground">Email</p>
-                  <p className="text-sm text-muted-foreground">hello@kommunity.app</p>
+                  <a href="mailto:hello@akenrose.com" className="text-sm text-muted-foreground hover:text-accent">hello@akenrose.com</a>
                 </div>
               </div>
               <div className="flex items-center gap-4">
@@ -82,7 +93,7 @@ function AboutPage() {
                 </span>
                 <div>
                   <p className="text-sm font-medium text-foreground">Phone</p>
-                  <p className="text-sm text-muted-foreground">+1 (555) 123-4567</p>
+                  <a href="tel:+2347089741989" className="text-sm text-muted-foreground hover:text-accent">+234 708 974 1989</a>
                 </div>
               </div>
               <div className="flex items-center gap-4">
@@ -91,7 +102,7 @@ function AboutPage() {
                 </span>
                 <div>
                   <p className="text-sm font-medium text-foreground">Address</p>
-                  <p className="text-sm text-muted-foreground">San Francisco, CA</p>
+                  <p className="text-sm text-muted-foreground">Lagos, Nigeria</p>
                 </div>
               </div>
             </div>
@@ -141,11 +152,13 @@ function AboutPage() {
                     placeholder="How can we help you?"
                   />
                 </div>
+                {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>}
                 <button
                   type="submit"
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-soft transition hover:opacity-90"
+                  disabled={sending}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-soft transition hover:opacity-90 disabled:opacity-60"
                 >
-                  Send message <Send className="h-4 w-4" />
+                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Send message <Send className="h-4 w-4" /></>}
                 </button>
               </form>
             )}
