@@ -5,8 +5,11 @@ import { hashPassword, verifyPassword, DUMMY_PASSWORD_HASH } from "./password";
 import { createSession, revokeAllSessionsForUser, revokeSessionToken } from "./session.server";
 import { setSessionCookie, clearSessionCookie, readSessionToken } from "./session-cookie.server";
 import { assertNotRateLimited, recordAttempt, clientIp } from "./rate-limit.server";
-import { getSessionUser } from "./require-auth.server";
+import { getSessionUser, requireAuth } from "./require-auth.server";
 import { uniqueCommunitySlug } from "@/lib/slug.server";
+import { errorBoundary } from "@/lib/error-boundary.server";
+import { AppError } from "@/lib/errors";
+import { createAndSendReset, hashResetToken } from "./password-reset.server";
 
 async function rolesFor(userId: string) {
   const rows = await sql`
@@ -157,3 +160,108 @@ export const me = createServerFn({ method: "POST" }).handler(async () => {
   const roles = await rolesFor(session.userId);
   return { id: user.id as string, email: user.email as string, name: (user.name as string | null) ?? null, ...roles };
 });
+
+// ── Password reset (forgot password, not signed in) ──────────────────────
+
+// Public: emails a reset link if an account exists for the address. Always
+// returns the same {ok:true} whether or not the email matched — never reveals
+// which addresses have accounts (enumeration defense) — and is rate-limited
+// per IP so it can't be used to spam arbitrary inboxes.
+export const requestPasswordReset = createServerFn({ method: "POST" })
+  .middleware([errorBoundary])
+  .inputValidator((i) => z.object({ email: z.string().email().max(200) }).parse(i))
+  .handler(async ({ data }) => {
+    const ip = clientIp();
+    await assertNotRateLimited(`pwreset:ip:${ip}`, 10, 60 * 60 * 1000);
+    await recordAttempt(`pwreset:ip:${ip}`);
+
+    const email = data.email.trim().toLowerCase();
+    const rows = await sql`SELECT id, email, name FROM public.users WHERE email = ${email} LIMIT 1`;
+    const user = rows[0];
+    if (user) {
+      await createAndSendReset({
+        id: user.id as string,
+        email: user.email as string,
+        name: (user.name as string | null) ?? null,
+      });
+    }
+    return { ok: true };
+  });
+
+// Public: what the reset page shows before the user types — the email the
+// token belongs to, or null if the link is invalid/expired/used.
+export const getResetInfo = createServerFn({ method: "POST" })
+  .inputValidator((i) => z.object({ token: z.string().min(10) }).parse(i))
+  .handler(async ({ data }) => {
+    const tokenHash = await hashResetToken(data.token);
+    const rows = await sql`
+      SELECT u.email
+      FROM public.password_resets pr
+      JOIN public.users u ON u.id = pr.user_id
+      WHERE pr.token_hash = ${tokenHash} AND pr.expires_at > now() AND pr.used_at IS NULL
+      LIMIT 1
+    `;
+    return rows[0] ? { email: rows[0].email as string } : null;
+  });
+
+// Public: sets a new password from a valid reset token, then signs the user
+// in. The token is single-use, and every existing session is revoked first so
+// a leaked/stolen session can't outlive a password reset.
+export const resetPassword = createServerFn({ method: "POST" })
+  .middleware([errorBoundary])
+  .inputValidator((i) => z.object({ token: z.string().min(10), password: z.string().min(8).max(200) }).parse(i))
+  .handler(async ({ data }) => {
+    const tokenHash = await hashResetToken(data.token);
+    const rows = await sql`
+      SELECT id, user_id FROM public.password_resets
+      WHERE token_hash = ${tokenHash} AND expires_at > now() AND used_at IS NULL
+      LIMIT 1
+    `;
+    const reset = rows[0];
+    if (!reset) throw new AppError("This reset link is invalid or has expired. Please request a new one.");
+
+    const userId = reset.user_id as string;
+    const passwordHash = await hashPassword(data.password);
+    await withTransaction((tx) => [
+      tx`UPDATE public.users SET password_hash = ${passwordHash}, updated_at = now() WHERE id = ${userId}::uuid`,
+      tx`UPDATE public.password_resets SET used_at = now() WHERE id = ${reset.id}::uuid`,
+    ]);
+
+    // Log out everywhere, then start a fresh session for this device.
+    await revokeAllSessionsForUser(userId);
+    const token = await createSession(userId);
+    setSessionCookie(token);
+
+    const roles = await rolesFor(userId);
+    return { ok: true, ...roles };
+  });
+
+// ── Change password (signed in) ──────────────────────────────────────────
+
+// Requires the current password (so a hijacked, still-open session can't
+// silently change it), then rotates every session and keeps this device
+// signed in on a fresh one.
+export const changePassword = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) =>
+    z.object({ currentPassword: z.string().min(1).max(200), newPassword: z.string().min(8).max(200) }).parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    const rows = await sql`SELECT password_hash FROM public.users WHERE id = ${context.userId}::uuid LIMIT 1`;
+    const user = rows[0];
+    if (!user) throw new AppError("Account not found.");
+
+    const ok = await verifyPassword(data.currentPassword, user.password_hash as string);
+    if (!ok) throw new AppError("Your current password is incorrect.");
+    if (data.newPassword === data.currentPassword) {
+      throw new AppError("Your new password must be different from your current one.");
+    }
+
+    const passwordHash = await hashPassword(data.newPassword);
+    await sql`UPDATE public.users SET password_hash = ${passwordHash}, updated_at = now() WHERE id = ${context.userId}::uuid`;
+
+    await revokeAllSessionsForUser(context.userId);
+    const token = await createSession(context.userId);
+    setSessionCookie(token);
+    return { ok: true };
+  });

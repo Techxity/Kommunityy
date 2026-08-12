@@ -67,6 +67,18 @@ CREATE TABLE IF NOT EXISTS public.sessions (
 CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON public.sessions(user_id);
 CREATE INDEX IF NOT EXISTS sessions_expires_at_idx ON public.sessions(expires_at);
 
+-- Password reset tokens ("forgot password"). Raw token lives only in the
+-- emailed link; a SHA-256 hash is stored. Single-use, short-lived.
+CREATE TABLE IF NOT EXISTS public.password_resets (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  token_hash text NOT NULL UNIQUE,
+  expires_at timestamptz NOT NULL,
+  used_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS password_resets_user_id_idx ON public.password_resets(user_id);
+
 -- Rate limiting for login attempts (per email or per IP — see auth.functions.ts).
 CREATE TABLE IF NOT EXISTS public.login_attempts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

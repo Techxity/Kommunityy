@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { getMyCommunity, updateCommunityBasics } from "@/lib/payments/communities.functions";
+import { ChangePasswordCard } from "@/components/change-password-card";
 import { Copy, Check, Save } from "lucide-react";
 
 export const Route = createFileRoute("/admin/settings")({
@@ -131,6 +132,8 @@ function Settings() {
           </button>
         </div>
       </div>
+
+      <ChangePasswordCard />
     </div>
   );
 }

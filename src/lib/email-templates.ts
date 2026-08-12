@@ -220,6 +220,29 @@ export function celebrantsDigestEmail({
   });
 }
 
+export function passwordResetEmail({
+  name,
+  resetUrl,
+}: {
+  name: string | null;
+  resetUrl: string;
+}): string {
+  const firstName = name ? name.split(" ")[0] : "";
+  return shell({
+    accentColor: "#0ea5e9",
+    badge: "🔒 Password reset",
+    heading: "Reset your password",
+    bodyHtml: `
+      <p style="margin:0 0 12px;">Hi${firstName ? ` ${escapeHtml(firstName)}` : ""},</p>
+      <p style="margin:0 0 12px;">We received a request to reset your Kommunity password. Choose a new one using the button below — the link expires in 1 hour and can only be used once.</p>
+      <p style="margin:0;font-size:13px;color:#6b7280;">Didn't request this? You can safely ignore this email; your password won't change.</p>
+    `,
+    ctaText: "Reset password",
+    ctaUrl: resetUrl,
+    footerNote: "For your security, this link expires in 1 hour and works only once.",
+  });
+}
+
 export function trialReminderEmail({
   adminName,
   communityName,

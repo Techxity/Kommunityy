@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { getMyProfile } from "@/lib/membership/members.functions";
+import { ChangePasswordCard } from "@/components/change-password-card";
 
 export const Route = createFileRoute("/member/profile")({
   component: Profile,
@@ -49,6 +50,8 @@ function Profile() {
           </dl>
         </div>
       )}
+
+      {me && <ChangePasswordCard />}
     </div>
   );
 }

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MemberRouteImport } from './routes/member'
 import { Route as PricingRouteImport } from './routes/pricing'
@@ -42,6 +43,7 @@ import { Route as MemberElectionsRouteImport } from './routes/member.elections'
 import { Route as MemberProfileRouteImport } from './routes/member.profile'
 import { Route as MemberUpdatesRouteImport } from './routes/member.updates'
 import { Route as PayDuesPlanIdRouteImport } from './routes/pay-dues.$planId'
+import { Route as ResetPasswordTokenRouteImport } from './routes/reset-password.$token'
 import { Route as SuperAdminIndexRouteImport } from './routes/super-admin.index'
 import { Route as SuperAdminAdminsRouteImport } from './routes/super-admin.admins'
 import { Route as SuperAdminAuditRouteImport } from './routes/super-admin.audit'
@@ -70,6 +72,11 @@ const AboutRoute = AboutRouteImport.update({
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -222,6 +229,11 @@ const PayDuesPlanIdRoute = PayDuesPlanIdRouteImport.update({
   path: '/pay-dues/$planId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResetPasswordTokenRoute = ResetPasswordTokenRouteImport.update({
+  id: '/reset-password/$token',
+  path: '/reset-password/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SuperAdminIndexRoute = SuperAdminIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -298,6 +310,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/admin': typeof AdminRouteWithChildren
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/member': typeof MemberRouteWithChildren
   '/pricing': typeof PricingRoute
@@ -326,6 +339,7 @@ export interface FileRoutesByFullPath {
   '/member/profile': typeof MemberProfileRoute
   '/member/updates': typeof MemberUpdatesRoute
   '/pay-dues/$planId': typeof PayDuesPlanIdRoute
+  '/reset-password/$token': typeof ResetPasswordTokenRoute
   '/super-admin/admins': typeof SuperAdminAdminsRoute
   '/super-admin/audit': typeof SuperAdminAuditRoute
   '/super-admin/billing': typeof SuperAdminBillingRoute
@@ -346,6 +360,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/pricing': typeof PricingRoute
   '/signup': typeof SignupRoute
@@ -371,6 +386,7 @@ export interface FileRoutesByTo {
   '/member/profile': typeof MemberProfileRoute
   '/member/updates': typeof MemberUpdatesRoute
   '/pay-dues/$planId': typeof PayDuesPlanIdRoute
+  '/reset-password/$token': typeof ResetPasswordTokenRoute
   '/super-admin/admins': typeof SuperAdminAdminsRoute
   '/super-admin/audit': typeof SuperAdminAuditRoute
   '/super-admin/billing': typeof SuperAdminBillingRoute
@@ -393,6 +409,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/admin': typeof AdminRouteWithChildren
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/member': typeof MemberRouteWithChildren
   '/pricing': typeof PricingRoute
@@ -421,6 +438,7 @@ export interface FileRoutesById {
   '/member/profile': typeof MemberProfileRoute
   '/member/updates': typeof MemberUpdatesRoute
   '/pay-dues/$planId': typeof PayDuesPlanIdRoute
+  '/reset-password/$token': typeof ResetPasswordTokenRoute
   '/super-admin/admins': typeof SuperAdminAdminsRoute
   '/super-admin/audit': typeof SuperAdminAuditRoute
   '/super-admin/billing': typeof SuperAdminBillingRoute
@@ -444,6 +462,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/admin'
+    | '/forgot-password'
     | '/login'
     | '/member'
     | '/pricing'
@@ -472,6 +491,7 @@ export interface FileRouteTypes {
     | '/member/profile'
     | '/member/updates'
     | '/pay-dues/$planId'
+    | '/reset-password/$token'
     | '/super-admin/admins'
     | '/super-admin/audit'
     | '/super-admin/billing'
@@ -492,6 +512,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/about'
+    | '/forgot-password'
     | '/login'
     | '/pricing'
     | '/signup'
@@ -517,6 +538,7 @@ export interface FileRouteTypes {
     | '/member/profile'
     | '/member/updates'
     | '/pay-dues/$planId'
+    | '/reset-password/$token'
     | '/super-admin/admins'
     | '/super-admin/audit'
     | '/super-admin/billing'
@@ -538,6 +560,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/admin'
+    | '/forgot-password'
     | '/login'
     | '/member'
     | '/pricing'
@@ -566,6 +589,7 @@ export interface FileRouteTypes {
     | '/member/profile'
     | '/member/updates'
     | '/pay-dues/$planId'
+    | '/reset-password/$token'
     | '/super-admin/admins'
     | '/super-admin/audit'
     | '/super-admin/billing'
@@ -588,6 +612,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
   AdminRoute: typeof AdminRouteWithChildren
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   MemberRoute: typeof MemberRouteWithChildren
   PricingRoute: typeof PricingRoute
@@ -599,6 +624,7 @@ export interface RootRouteChildren {
   JoinCommunityIdRoute: typeof JoinCommunityIdRoute
   LSlugRoute: typeof LSlugRoute
   PayDuesPlanIdRoute: typeof PayDuesPlanIdRoute
+  ResetPasswordTokenRoute: typeof ResetPasswordTokenRoute
   ApiCronBirthdaysRoute: typeof ApiCronBirthdaysRoute
   ApiCronTrialsRoute: typeof ApiCronTrialsRoute
   ApiPublicPaystackWebhookRoute: typeof ApiPublicPaystackWebhookRoute
@@ -625,6 +651,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -837,6 +870,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PayDuesPlanIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reset-password/$token': {
+      id: '/reset-password/$token'
+      path: '/reset-password/$token'
+      fullPath: '/reset-password/$token'
+      preLoaderRoute: typeof ResetPasswordTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/super-admin/': {
       id: '/super-admin/'
       path: '/'
@@ -1039,6 +1079,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   AdminRoute: AdminRouteWithChildren,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   MemberRoute: MemberRouteWithChildren,
   PricingRoute: PricingRoute,
@@ -1050,6 +1091,7 @@ const rootRouteChildren: RootRouteChildren = {
   JoinCommunityIdRoute: JoinCommunityIdRoute,
   LSlugRoute: LSlugRoute,
   PayDuesPlanIdRoute: PayDuesPlanIdRoute,
+  ResetPasswordTokenRoute: ResetPasswordTokenRoute,
   ApiCronBirthdaysRoute: ApiCronBirthdaysRoute,
   ApiCronTrialsRoute: ApiCronTrialsRoute,
   ApiPublicPaystackWebhookRoute: ApiPublicPaystackWebhookRoute,
