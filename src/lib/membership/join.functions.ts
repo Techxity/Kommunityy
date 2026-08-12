@@ -86,6 +86,28 @@ export const submitApplication = createServerFn({ method: "POST" })
 
     if (!columns.name) throw new Error("Name is required.");
 
+    // Guard against a duplicate membership in THIS community. The public form
+    // has no dedupe, so without this a person already in the community (or with
+    // an application still pending) could submit again and create a second
+    // member row. Scoped to active/pending only — someone previously rejected
+    // (or removed/inactive) is deliberately allowed to re-apply.
+    if (columns.email) {
+      const dupe = await sql`
+        SELECT status FROM public.members
+        WHERE community_id = ${data.communityId}::uuid
+          AND lower(email) = lower(${columns.email})
+          AND status IN ('active', 'pending')
+        LIMIT 1
+      `;
+      if (dupe[0]) {
+        throw new Error(
+          dupe[0].status === "active"
+            ? "You're already a member of this community. Sign in with your existing account instead."
+            : "You've already applied to this community — your application is pending review. Please wait for your admin to approve it.",
+        );
+      }
+    }
+
     // If this address was personally invited by the admin (sendInvites), and
     // the community still has room on its plan, skip the pending-approval
     // queue entirely: go active immediately and send the password-setup
