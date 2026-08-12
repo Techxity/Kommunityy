@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { periodsDue, laterYm, computeArrears } from "../src/lib/dues-arrears.ts";
+import { periodsDue, laterYm, computeArrears, resolveMemberDues } from "../src/lib/dues-arrears.ts";
 
 test("periodsDue counts the current period as owed (monthly)", () => {
   // Same month → 1 period due.
@@ -79,6 +79,33 @@ test("computeArrears: never-paid member (0 periods) owes the full elapsed span",
   });
   assert.equal(r.arrearsPeriods, 3);
   assert.equal(r.amountOwed, 7500);
+});
+
+test("resolveMemberDues: a USD-paying member owes in USD on a two-currency plan", () => {
+  // Plan priced ₦5,000 / $10; member last paid in USD.
+  const r = resolveMemberDues("USD", 5000, 10, "NGN");
+  assert.deepEqual(r, { currency: "USD", unitAmount: 10 });
+});
+
+test("resolveMemberDues: an NGN-paying member owes in NGN", () => {
+  const r = resolveMemberDues("NGN", 5000, 10, "NGN");
+  assert.deepEqual(r, { currency: "NGN", unitAmount: 5000 });
+});
+
+test("resolveMemberDues: a member who never paid falls back to the primary currency", () => {
+  const r = resolveMemberDues(null, 5000, 10, "NGN");
+  assert.deepEqual(r, { currency: "NGN", unitAmount: 5000 });
+});
+
+test("resolveMemberDues: chosen currency not offered → fall back to primary", () => {
+  // Member once paid USD, but the plan now only lists NGN.
+  const r = resolveMemberDues("USD", 5000, null, "NGN");
+  assert.deepEqual(r, { currency: "NGN", unitAmount: 5000 });
+});
+
+test("resolveMemberDues: single-currency USD plan bills everyone in USD", () => {
+  assert.deepEqual(resolveMemberDues(null, null, 10, "USD"), { currency: "USD", unitAmount: 10 });
+  assert.deepEqual(resolveMemberDues("USD", null, 10, "USD"), { currency: "USD", unitAmount: 10 });
 });
 
 test("computeArrears: quarterly plan tallies in quarters", () => {

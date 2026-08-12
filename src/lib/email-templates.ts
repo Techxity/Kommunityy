@@ -332,3 +332,52 @@ export function duesReminderEmail({
     footerNote: `You're receiving this because you're an active member of ${escapeHtml(communityName)}. If this looks wrong, reply to let your admin know.`,
   });
 }
+
+// A payment confirmation / receipt. `rows` are the detail lines (Paid to, For,
+// Period covered, …); `amountLabel` is the pre-formatted total (e.g. "₦15,000")
+// and `reference` the provider's transaction reference for the member's records.
+export function paymentReceiptEmail({
+  recipientName,
+  communityName,
+  heading,
+  amountLabel,
+  reference,
+  paidOn,
+  rows,
+}: {
+  recipientName: string;
+  communityName: string;
+  heading: string;
+  amountLabel: string;
+  reference: string;
+  paidOn: string;
+  rows: { label: string; value: string }[];
+}): string {
+  const firstName = recipientName.split(" ")[0] || recipientName;
+  const detailRows = rows
+    .map(
+      (r) => `
+        <tr>
+          <td style="padding:6px 0;font-size:13px;color:#6b7280;">${escapeHtml(r.label)}</td>
+          <td style="padding:6px 0;font-size:13px;color:#111827;text-align:right;font-weight:600;">${escapeHtml(r.value)}</td>
+        </tr>`,
+    )
+    .join("");
+  return shell({
+    accentColor: "#16a34a",
+    badge: "🧾 Payment receipt",
+    heading,
+    bodyHtml: `
+      <p style="margin:0 0 16px;">Hi ${escapeHtml(firstName)}, we've received your payment. Here's your receipt.</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border-top:1px solid #f0f0f0;border-bottom:1px solid #f0f0f0;margin:0 0 16px;">
+        ${detailRows}
+        <tr>
+          <td style="padding:12px 0 6px;font-size:14px;color:#111827;font-weight:700;">Amount paid</td>
+          <td style="padding:12px 0 6px;font-size:18px;color:#16a34a;text-align:right;font-weight:800;">${escapeHtml(amountLabel)}</td>
+        </tr>
+      </table>
+      <p style="margin:0;font-size:12px;color:#9ca3af;">Reference: ${escapeHtml(reference)} · ${escapeHtml(paidOn)}</p>
+    `,
+    footerNote: `A record of your payment to ${escapeHtml(communityName)}, powered by Kommunity. Keep this email for your records.`,
+  });
+}

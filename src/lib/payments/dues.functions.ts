@@ -281,19 +281,28 @@ export const getDuesArrears = createServerFn({ method: "POST" })
     const { plan, members } = await computeCommunityArrears(communityId);
     if (!plan) return { plan: null, summary: null, defaulters: [] as ArrearsDefaulter[] };
 
-    // Collection rate = value collected ÷ value expected, capping each member's
-    // paid periods at what they owe so an over-payer can't push it past 100%.
-    let expectedValue = 0;
-    let collectedValue = 0;
-    let totalOutstanding = 0;
+    // Collection rate is period-based (periods paid ÷ periods due), which is
+    // currency-agnostic — the right choice now that a community can owe in a
+    // mix of ₦ and $. Each member's paid periods are capped at what they owe so
+    // an over-payer can't push it past 100%. Outstanding money is tracked per
+    // currency so mixed-currency communities read correctly.
+    let expectedPeriods = 0;
+    let paidPeriods = 0;
     let defaulterCount = 0;
+    const outstanding: Record<"NGN" | "USD", number> = { NGN: 0, USD: 0 };
     for (const m of members) {
-      expectedValue += m.expectedPeriods * plan.unitAmount;
-      collectedValue += Math.min(m.paidPeriods, m.expectedPeriods) * plan.unitAmount;
-      totalOutstanding += m.amountOwed;
+      expectedPeriods += m.expectedPeriods;
+      paidPeriods += Math.min(m.paidPeriods, m.expectedPeriods);
+      outstanding[m.currency] += m.amountOwed;
       if (m.periodsBehind > 0) defaulterCount++;
     }
-    const collectionRate = expectedValue > 0 ? Math.round((collectedValue / expectedValue) * 100) : 100;
+    const collectionRate = expectedPeriods > 0 ? Math.round((paidPeriods / expectedPeriods) * 100) : 100;
+
+    // "₦45,000 · $120" — only currencies with something outstanding.
+    const outParts: string[] = [];
+    if (outstanding.NGN > 0) outParts.push(formatMoney("NGN", outstanding.NGN));
+    if (outstanding.USD > 0) outParts.push(formatMoney("USD", outstanding.USD));
+    const totalOutstandingLabel = outParts.length > 0 ? outParts.join(" · ") : formatMoney(plan.primaryCurrency, 0);
 
     const defaulters: ArrearsDefaulter[] = members
       .filter((m) => m.periodsBehind > 0)
@@ -302,23 +311,24 @@ export const getDuesArrears = createServerFn({ method: "POST" })
         name: m.name,
         email: m.email,
         phone: m.phone,
+        currency: m.currency,
         periodsBehind: m.periodsBehind,
         amountOwed: m.amountOwed,
-        amountLabel: formatMoney(plan.currency, m.amountOwed),
+        amountLabel: formatMoney(m.currency, m.amountOwed),
         lastPaidAt: m.lastPaidAt,
         lastRemindedAt: m.lastRemindedAt,
         hasEmail: !!m.email,
       }));
 
     return {
-      plan: { interval: plan.interval, currency: plan.currency, unitAmount: plan.unitAmount },
+      plan: { interval: plan.interval },
       summary: {
-        currency: plan.currency,
         activeMembers: members.length,
         defaulters: defaulterCount,
         collectionRate,
-        totalOutstanding,
-        totalOutstandingLabel: formatMoney(plan.currency, totalOutstanding),
+        outstandingNgn: outstanding.NGN,
+        outstandingUsd: outstanding.USD,
+        totalOutstandingLabel,
       },
       defaulters,
     };
@@ -329,6 +339,7 @@ type ArrearsDefaulter = {
   name: string;
   email: string | null;
   phone: string | null;
+  currency: "NGN" | "USD";
   periodsBehind: number;
   amountOwed: number;
   amountLabel: string;
@@ -376,7 +387,7 @@ export const sendDuesReminders = createServerFn({ method: "POST" })
       html: duesReminderEmail({
         memberName: m.name,
         communityName,
-        amountLabel: formatMoney(plan.currency, m.amountOwed),
+        amountLabel: formatMoney(m.currency, m.amountOwed),
         periodsBehind: m.periodsBehind,
         periodWord,
         payUrl,

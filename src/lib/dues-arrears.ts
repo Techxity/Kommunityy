@@ -29,6 +29,28 @@ export function laterYm(a: Ym, b: Ym): Ym {
   return a.y * 12 + a.m >= b.y * 12 + b.m ? a : b;
 }
 
+// A plan can price dues in NGN, USD, or both. A member is billed in the
+// currency they actually pay in (taken from their latest payment); a member
+// who has never paid falls back to the plan's primary currency. If the chosen
+// currency isn't offered by the plan (e.g. they once paid USD but the plan now
+// only lists NGN), fall back to the primary currency so we never value their
+// arrears at 0 by accident.
+export function resolveMemberDues(
+  lastPaidCurrency: "NGN" | "USD" | null | undefined,
+  amountNgn: number | null,
+  amountUsd: number | null,
+  primaryCurrency: "NGN" | "USD",
+): { currency: "NGN" | "USD"; unitAmount: number } {
+  const unitFor = (c: "NGN" | "USD") => (c === "NGN" ? amountNgn : amountUsd);
+  let currency = lastPaidCurrency ?? primaryCurrency;
+  let unit = unitFor(currency);
+  if (unit == null) {
+    currency = primaryCurrency;
+    unit = unitFor(primaryCurrency);
+  }
+  return { currency, unitAmount: unit ?? 0 };
+}
+
 export type ArrearsResult = {
   expectedPeriods: number;
   paidPeriods: number;

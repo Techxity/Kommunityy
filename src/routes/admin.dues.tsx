@@ -242,7 +242,7 @@ function Dues() {
             <div className="grid gap-4 border-b border-border p-4 sm:grid-cols-3">
               <MiniStat icon={TrendingUp} label="Collection rate" value={`${arrears?.summary?.collectionRate ?? 0}%`} tone="default" />
               <MiniStat icon={AlertTriangle} label="Defaulters" value={`${arrears?.summary?.defaulters ?? 0}`} tone={arrears?.summary && arrears.summary.defaulters > 0 ? "warn" : "default"} />
-              <MiniStat icon={Banknote} label="Total outstanding" value={arrears?.summary?.totalOutstandingLabel ?? "—"} tone={arrears?.summary && arrears.summary.totalOutstanding > 0 ? "warn" : "default"} />
+              <MiniStat icon={Banknote} label="Total outstanding" value={arrears?.summary?.totalOutstandingLabel ?? "—"} tone={arrears?.summary && (arrears.summary.outstandingNgn > 0 || arrears.summary.outstandingUsd > 0) ? "warn" : "default"} />
             </div>
 
             {remindMsg && <p className="px-4 pt-3 text-xs text-muted-foreground">{remindMsg}</p>}

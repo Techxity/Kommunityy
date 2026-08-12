@@ -61,7 +61,7 @@ export async function runDuesReminderJob(baseUrl: string): Promise<DuesReminderJ
       html: duesReminderEmail({
         memberName: m.name,
         communityName,
-        amountLabel: `${plan.currency === "NGN" ? "₦" : "$"}${Math.round(m.amountOwed).toLocaleString()}`,
+        amountLabel: `${m.currency === "NGN" ? "₦" : "$"}${Math.round(m.amountOwed).toLocaleString()}`,
         periodsBehind: m.periodsBehind,
         periodWord,
         payUrl,
