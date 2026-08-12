@@ -4,6 +4,7 @@ import { getMyCommunity, getDashboardStats } from "@/lib/payments/communities.fu
 import { listMyDonations } from "@/lib/payments/donations.functions";
 import { listDuesPayments } from "@/lib/payments/dues.functions";
 import { getElectionsAdminData } from "@/lib/membership/elections.functions";
+import { birthdayView } from "@/lib/birthday-view";
 import {
   Users,
   Cake,
@@ -19,23 +20,11 @@ import {
 type BirthdayStat = { id: string; name: string; dob: string; sentThisYear: boolean };
 type ElectionData = Awaited<ReturnType<typeof getElectionsAdminData>>["election"];
 
-// Given a member's birthday (bare "YYYY-MM-DD") and whether their message has
-// gone out this year, decide how it should appear on the dashboard:
-//  - keep it in the list only until 2 days after the birthday, then clear it;
-//  - label it "Sent" once the message has gone out, "Scheduled" while it's
-//    still upcoming, and "Missed" if the day passed without a send.
-// All date math is in UTC to match the app's timezone-safe date handling.
-function birthdayView(dob: string, sentThisYear: boolean): { show: boolean; label: "Sent" | "Scheduled" | "Missed"; tone: string } {
-  const [, month, day] = dob.split("-").map(Number);
-  const now = new Date();
-  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  const bday = Date.UTC(now.getUTCFullYear(), (month || 1) - 1, day || 1);
-  const daysSince = Math.round((today - bday) / 86_400_000);
-  const show = daysSince <= 2; // future, today, or up to 2 days after
-  if (sentThisYear) return { show, label: "Sent", tone: "bg-success/15 text-success" };
-  if (daysSince > 0) return { show, label: "Missed", tone: "bg-warning/20 text-warning-foreground" };
-  return { show, label: "Scheduled", tone: "bg-accent/15 text-accent" };
-}
+const BIRTHDAY_TONE: Record<string, string> = {
+  Sent: "bg-success/15 text-success",
+  Missed: "bg-warning/20 text-warning-foreground",
+  Scheduled: "bg-accent/15 text-accent",
+};
 
 export const Route = createFileRoute("/admin/")({
   component: Dashboard,
@@ -124,7 +113,7 @@ function Dashboard() {
                     <p className="text-sm font-semibold">{m.name}</p>
                     <p className="text-xs text-muted-foreground">{formatDob(m.dob)}</p>
                   </div>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${m.view.tone}`}>{m.view.label}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${BIRTHDAY_TONE[m.view.label]}`}>{m.view.label}</span>
                 </li>
               ))}
             </ul>

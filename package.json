@@ -10,6 +10,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "test:watch": "node --test --watch \"test/**/*.test.ts\"",
     "cron:birthdays": "node scripts/send-birthday-emails.mjs",
     "cron:trials": "node scripts/trial-lifecycle.mjs"
   },

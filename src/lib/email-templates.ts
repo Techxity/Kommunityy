@@ -90,7 +90,7 @@ export function birthdayEmail({
   return shell({
     accentColor: "#f59e0b",
     badge: "🎂 Birthday wishes",
-    heading: `Happy birthday, ${firstName}!`,
+    heading: `Happy birthday, ${escapeHtml(firstName)}!`,
     bodyHtml: `
       <p style="margin:0 0 12px;">Dear ${escapeHtml(memberName)},</p>
       <p style="margin:0;">${escapeHtml(message)}</p>
@@ -109,7 +109,7 @@ export function broadcastEmail({
   return shell({
     accentColor: "#4f46e5",
     badge: "📣 Community update",
-    heading: `A message from ${communityName}`,
+    heading: `A message from ${escapeHtml(communityName)}`,
     bodyHtml: `<p style="margin:0;white-space:pre-wrap;">${escapeHtml(bodyText)}</p>`,
     footerNote: `You're receiving this because you're an active member of ${escapeHtml(communityName)}.`,
   });
@@ -125,7 +125,7 @@ export function joinInviteEmail({
   return shell({
     accentColor: "#0ea5e9",
     badge: "✉️ You're invited",
-    heading: `${communityName} invited you to join`,
+    heading: `${escapeHtml(communityName)} invited you to join`,
     bodyHtml: `<p style="margin:0;">Fill out a short form to apply — your community admin will review it and get you set up with a member account.</p>`,
     ctaText: "Fill out the join form",
     ctaUrl: joinUrl,
@@ -145,7 +145,7 @@ export function memberAccountReadyEmail({
   return shell({
     accentColor: "#16a34a",
     badge: "✅ Membership approved",
-    heading: `You're in, ${memberName.split(" ")[0]}!`,
+    heading: `You're in, ${escapeHtml(memberName.split(" ")[0])}!`,
     bodyHtml: `
       <p style="margin:0 0 12px;">Your membership at <strong>${escapeHtml(communityName)}</strong> has been approved. Set a password to access your member portal.</p>
       <p style="margin:0;font-size:13px;color:#6b7280;">This link expires in 7 days.</p>
@@ -257,7 +257,7 @@ export function trialReminderEmail({
   return shell({
     accentColor: "#f59e0b",
     badge: "⏳ Trial reminder",
-    heading: daysLeft === 1 ? `${communityName}'s trial ends tomorrow` : `${communityName}'s trial ends in 2 days`,
+    heading: daysLeft === 1 ? `${escapeHtml(communityName)}'s trial ends tomorrow` : `${escapeHtml(communityName)}'s trial ends in 2 days`,
     bodyHtml: `
       <p style="margin:0 0 12px;">Hi ${escapeHtml(adminName)},</p>
       <p style="margin:0;">
@@ -283,7 +283,7 @@ export function trialEndedEmail({
   return shell({
     accentColor: "#e11d48",
     badge: "⏸️ Trial ended",
-    heading: `${communityName}'s trial has ended`,
+    heading: `${escapeHtml(communityName)}'s trial has ended`,
     bodyHtml: `
       <p style="margin:0 0 12px;">Hi ${escapeHtml(adminName)},</p>
       <p style="margin:0;">We've paused <strong>${escapeHtml(communityName)}</strong> while you pick a plan. Nothing has been deleted — sign in and choose a plan any time to pick up right where you left off.</p>

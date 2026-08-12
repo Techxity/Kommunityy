@@ -49,7 +49,13 @@ export function toTimestampIso(v: unknown): string {
   if (v instanceof Date) {
     return Number.isNaN(v.getTime()) ? "" : v.toISOString();
   }
-  const s = String(v).replace(" ", "T");
+  // Postgres emits timestamptz text as "2025-08-06 20:15:00.123+00" — a space
+  // separator and a *two-digit* timezone offset. `new Date()` needs the "T"
+  // separator and a spec-compliant offset ("+00:00"/"Z"), and returns Invalid
+  // Date for the bare "+00" form. Normalize both before parsing.
+  const s = String(v)
+    .replace(" ", "T")
+    .replace(/([+-]\d{2})$/, "$1:00");
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? "" : d.toISOString();
 }

@@ -60,7 +60,7 @@ export function birthdayEmail({ memberName, communityName, message }) {
   return shell({
     accentColor: "#f59e0b",
     badge: "🎂 Birthday wishes",
-    heading: `Happy birthday, ${firstName}!`,
+    heading: `Happy birthday, ${escapeHtml(firstName)}!`,
     bodyHtml: `
       <p style="margin:0 0 12px;">Dear ${escapeHtml(memberName)},</p>
       <p style="margin:0;">${escapeHtml(message)}</p>
@@ -101,7 +101,7 @@ export function trialReminderEmail({ adminName, communityName, daysLeft, subscri
   return shell({
     accentColor: "#f59e0b",
     badge: "⏳ Trial reminder",
-    heading: daysLeft === 1 ? `${communityName}'s trial ends tomorrow` : `${communityName}'s trial ends in 2 days`,
+    heading: daysLeft === 1 ? `${escapeHtml(communityName)}'s trial ends tomorrow` : `${escapeHtml(communityName)}'s trial ends in 2 days`,
     bodyHtml: `
       <p style="margin:0 0 12px;">Hi ${escapeHtml(adminName)},</p>
       <p style="margin:0;">
@@ -118,7 +118,7 @@ export function trialEndedEmail({ adminName, communityName, subscriptionUrl }) {
   return shell({
     accentColor: "#e11d48",
     badge: "⏸️ Trial ended",
-    heading: `${communityName}'s trial has ended`,
+    heading: `${escapeHtml(communityName)}'s trial has ended`,
     bodyHtml: `
       <p style="margin:0 0 12px;">Hi ${escapeHtml(adminName)},</p>
       <p style="margin:0;">We've paused <strong>${escapeHtml(communityName)}</strong> while you pick a plan. Nothing has been deleted — sign in and choose a plan any time to pick up right where you left off.</p>
