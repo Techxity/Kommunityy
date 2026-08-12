@@ -293,3 +293,42 @@ export function trialEndedEmail({
     footerNote: "You're receiving this because you're the admin of a community on Kommunity.",
   });
 }
+
+// Sent to a member who is behind on their dues. `amountLabel` is the
+// pre-formatted total owed (e.g. "₦15,000"), `periodsBehind` how many billing
+// periods they've missed, and `periodWord` the interval unit ("month",
+// "quarter", "year"). payUrl points at their community's pay-dues link.
+export function duesReminderEmail({
+  memberName,
+  communityName,
+  amountLabel,
+  periodsBehind,
+  periodWord,
+  payUrl,
+}: {
+  memberName: string;
+  communityName: string;
+  amountLabel: string;
+  periodsBehind: number;
+  periodWord: string;
+  payUrl?: string;
+}): string {
+  const firstName = memberName.split(" ")[0] || memberName;
+  const periodsText = `${periodsBehind} ${periodWord}${periodsBehind === 1 ? "" : "s"}`;
+  return shell({
+    accentColor: "#0d9488",
+    badge: "💳 Dues reminder",
+    heading: `A friendly reminder about your dues`,
+    bodyHtml: `
+      <p style="margin:0 0 12px;">Hi ${escapeHtml(firstName)},</p>
+      <p style="margin:0 0 12px;">
+        Our records show your dues at <strong>${escapeHtml(communityName)}</strong> are
+        <strong>${periodsText}</strong> behind, for a total of <strong>${escapeHtml(amountLabel)}</strong> outstanding.
+      </p>
+      <p style="margin:0;">If you've already paid, thank you — please ignore this note. Otherwise you can settle up in a couple of taps below.</p>
+    `,
+    ctaText: payUrl ? "Pay my dues" : undefined,
+    ctaUrl: payUrl,
+    footerNote: `You're receiving this because you're an active member of ${escapeHtml(communityName)}. If this looks wrong, reply to let your admin know.`,
+  });
+}

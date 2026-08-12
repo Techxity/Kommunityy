@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { getMyDuesPlan, saveDuesPlan, listDuesPayments } from "@/lib/payments/dues.functions";
+import { getMyDuesPlan, saveDuesPlan, listDuesPayments, getDuesArrears, sendDuesReminders } from "@/lib/payments/dues.functions";
 import { getDashboardStats } from "@/lib/payments/communities.functions";
 import {
   Dialog,
@@ -10,7 +10,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Banknote, Calendar, Users, Settings } from "lucide-react";
+import { Banknote, Calendar, Users, Settings, AlertTriangle, Bell, TrendingUp } from "lucide-react";
 import { requireModule } from "@/lib/module-gate";
 
 export const Route = createFileRoute("/admin/dues")({
@@ -20,12 +20,20 @@ export const Route = createFileRoute("/admin/dues")({
 
 type Plan = Awaited<ReturnType<typeof getMyDuesPlan>>;
 type Payment = Awaited<ReturnType<typeof listDuesPayments>>[number];
+type Arrears = Awaited<ReturnType<typeof getDuesArrears>>;
+
+function fmtDate(iso: string | null): string {
+  return iso ? new Date(iso).toLocaleDateString() : "—";
+}
 
 function Dues() {
   const [open, setOpen] = useState(false);
   const [plan, setPlan] = useState<Plan>(null);
   const [history, setHistory] = useState<Payment[]>([]);
   const [activeMembers, setActiveMembers] = useState(0);
+  const [arrears, setArrears] = useState<Arrears | null>(null);
+  const [reminding, setReminding] = useState<string | "all" | null>(null);
+  const [remindMsg, setRemindMsg] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -38,6 +46,24 @@ function Dues() {
     getMyDuesPlan().then(setPlan);
     listDuesPayments().then(setHistory);
     getDashboardStats().then((s) => setActiveMembers(s.activeMembers));
+    getDuesArrears().then(setArrears);
+  }
+
+  async function remind(memberIds?: string[]) {
+    setReminding(memberIds && memberIds.length === 1 ? memberIds[0] : "all");
+    setRemindMsg("");
+    try {
+      const r = await sendDuesReminders({ data: memberIds ? { memberIds } : {} });
+      const parts = [`${r.sent} reminder${r.sent === 1 ? "" : "s"} sent`];
+      if (r.failed) parts.push(`${r.failed} failed`);
+      if (r.skipped) parts.push(`${r.skipped} skipped (no email on file)`);
+      setRemindMsg(parts.join(" · "));
+      getDuesArrears().then(setArrears);
+    } catch (err: any) {
+      setRemindMsg(err?.message ?? "Couldn't send reminders.");
+    } finally {
+      setReminding(null);
+    }
   }
 
   useEffect(() => {
@@ -188,6 +214,88 @@ function Dues() {
         />
       </div>
 
+      {/* Arrears & defaulters */}
+      <div className="rounded-2xl border border-border bg-card shadow-soft">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
+          <div>
+            <h2 className="font-display text-lg font-semibold">Arrears &amp; defaulters</h2>
+            <p className="text-xs text-muted-foreground">
+              Members behind on dues, counting each {plan ? plan.interval.replace("ly", "") : "period"} since they joined.
+            </p>
+          </div>
+          {arrears?.summary && arrears.summary.defaulters > 0 && (
+            <Button
+              onClick={() => remind()}
+              disabled={reminding !== null}
+              className="gap-2"
+            >
+              <Bell className="h-4 w-4" />
+              {reminding === "all" ? "Sending…" : `Remind all (${arrears.summary.defaulters})`}
+            </Button>
+          )}
+        </div>
+
+        {!plan ? (
+          <p className="p-6 text-sm text-muted-foreground">Set up a dues plan above to start tracking who's paid and who's behind.</p>
+        ) : (
+          <>
+            <div className="grid gap-4 border-b border-border p-4 sm:grid-cols-3">
+              <MiniStat icon={TrendingUp} label="Collection rate" value={`${arrears?.summary?.collectionRate ?? 0}%`} tone="default" />
+              <MiniStat icon={AlertTriangle} label="Defaulters" value={`${arrears?.summary?.defaulters ?? 0}`} tone={arrears?.summary && arrears.summary.defaulters > 0 ? "warn" : "default"} />
+              <MiniStat icon={Banknote} label="Total outstanding" value={arrears?.summary?.totalOutstandingLabel ?? "—"} tone={arrears?.summary && arrears.summary.totalOutstanding > 0 ? "warn" : "default"} />
+            </div>
+
+            {remindMsg && <p className="px-4 pt-3 text-xs text-muted-foreground">{remindMsg}</p>}
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Member</th>
+                    <th className="px-4 py-3 font-medium">Behind</th>
+                    <th className="px-4 py-3 font-medium">Owed</th>
+                    <th className="px-4 py-3 font-medium">Last paid</th>
+                    <th className="px-4 py-3 font-medium">Last reminded</th>
+                    <th className="px-4 py-3 font-medium text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(arrears?.defaulters ?? []).map((d) => (
+                    <tr key={d.memberId} className="border-t border-border">
+                      <td className="px-4 py-3">
+                        <div className="font-medium">{d.name}</div>
+                        <div className="text-xs text-muted-foreground">{d.email || (d.phone ? d.phone : "No email on file")}</div>
+                      </td>
+                      <td className="px-4 py-3">{d.periodsBehind} {plan.interval.replace("ly", "")}{d.periodsBehind === 1 ? "" : "s"}</td>
+                      <td className="px-4 py-3 font-semibold">{d.amountLabel}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{fmtDate(d.lastPaidAt)}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{fmtDate(d.lastRemindedAt)}</td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => remind([d.memberId])}
+                          disabled={reminding !== null || !d.hasEmail}
+                          title={d.hasEmail ? "Send a reminder email" : "No email on file for this member"}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-semibold hover:bg-muted disabled:opacity-50"
+                        >
+                          <Bell className="h-3 w-3" /> {reminding === d.memberId ? "Sending…" : "Remind"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {arrears && arrears.defaulters.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        Everyone's paid up. 🎉
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+
       <div className="rounded-2xl border border-border bg-card shadow-soft">
         <div className="flex items-center justify-between border-b border-border p-4">
           <h2 className="font-display text-lg font-semibold">Payment history</h2>
@@ -233,6 +341,27 @@ function Dues() {
           </table>
         </div>
       </div>
+    </div>
+  );
+}
+
+function MiniStat({
+  icon: Icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: typeof Banknote;
+  label: string;
+  value: string;
+  tone: "default" | "warn";
+}) {
+  return (
+    <div className={`rounded-xl border p-4 ${tone === "warn" ? "border-amber-500/30 bg-amber-500/5" : "border-border bg-muted/30"}`}>
+      <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
+        <Icon className={`h-3.5 w-3.5 ${tone === "warn" ? "text-amber-600" : "text-accent"}`} /> {label}
+      </div>
+      <p className="mt-1.5 font-display text-2xl font-bold">{value}</p>
     </div>
   );
 }

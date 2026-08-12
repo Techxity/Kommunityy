@@ -56,6 +56,7 @@ import { Route as SuperAdminSupportRouteImport } from './routes/super-admin.supp
 import { Route as AdminMembersIndexRouteImport } from './routes/admin.members.index'
 import { Route as AdminMembersPendingRouteImport } from './routes/admin.members.pending'
 import { Route as ApiCronBirthdaysRouteImport } from './routes/api/cron/birthdays'
+import { Route as ApiCronDuesRemindersRouteImport } from './routes/api/cron/dues-reminders'
 import { Route as ApiCronTrialsRouteImport } from './routes/api/cron/trials'
 import { Route as ApiPublicPaystackWebhookRouteImport } from './routes/api/public/paystack-webhook'
 
@@ -294,6 +295,11 @@ const ApiCronBirthdaysRoute = ApiCronBirthdaysRouteImport.update({
   path: '/api/cron/birthdays',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronDuesRemindersRoute = ApiCronDuesRemindersRouteImport.update({
+  id: '/api/cron/dues-reminders',
+  path: '/api/cron/dues-reminders',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronTrialsRoute = ApiCronTrialsRouteImport.update({
   id: '/api/cron/trials',
   path: '/api/cron/trials',
@@ -353,6 +359,7 @@ export interface FileRoutesByFullPath {
   '/super-admin/': typeof SuperAdminIndexRoute
   '/admin/members/pending': typeof AdminMembersPendingRoute
   '/api/cron/birthdays': typeof ApiCronBirthdaysRoute
+  '/api/cron/dues-reminders': typeof ApiCronDuesRemindersRoute
   '/api/cron/trials': typeof ApiCronTrialsRoute
   '/api/public/paystack-webhook': typeof ApiPublicPaystackWebhookRoute
   '/admin/members/': typeof AdminMembersIndexRoute
@@ -400,6 +407,7 @@ export interface FileRoutesByTo {
   '/super-admin': typeof SuperAdminIndexRoute
   '/admin/members/pending': typeof AdminMembersPendingRoute
   '/api/cron/birthdays': typeof ApiCronBirthdaysRoute
+  '/api/cron/dues-reminders': typeof ApiCronDuesRemindersRoute
   '/api/cron/trials': typeof ApiCronTrialsRoute
   '/api/public/paystack-webhook': typeof ApiPublicPaystackWebhookRoute
   '/admin/members': typeof AdminMembersIndexRoute
@@ -452,6 +460,7 @@ export interface FileRoutesById {
   '/super-admin/': typeof SuperAdminIndexRoute
   '/admin/members/pending': typeof AdminMembersPendingRoute
   '/api/cron/birthdays': typeof ApiCronBirthdaysRoute
+  '/api/cron/dues-reminders': typeof ApiCronDuesRemindersRoute
   '/api/cron/trials': typeof ApiCronTrialsRoute
   '/api/public/paystack-webhook': typeof ApiPublicPaystackWebhookRoute
   '/admin/members/': typeof AdminMembersIndexRoute
@@ -505,6 +514,7 @@ export interface FileRouteTypes {
     | '/super-admin/'
     | '/admin/members/pending'
     | '/api/cron/birthdays'
+    | '/api/cron/dues-reminders'
     | '/api/cron/trials'
     | '/api/public/paystack-webhook'
     | '/admin/members/'
@@ -552,6 +562,7 @@ export interface FileRouteTypes {
     | '/super-admin'
     | '/admin/members/pending'
     | '/api/cron/birthdays'
+    | '/api/cron/dues-reminders'
     | '/api/cron/trials'
     | '/api/public/paystack-webhook'
     | '/admin/members'
@@ -603,6 +614,7 @@ export interface FileRouteTypes {
     | '/super-admin/'
     | '/admin/members/pending'
     | '/api/cron/birthdays'
+    | '/api/cron/dues-reminders'
     | '/api/cron/trials'
     | '/api/public/paystack-webhook'
     | '/admin/members/'
@@ -626,6 +638,7 @@ export interface RootRouteChildren {
   PayDuesPlanIdRoute: typeof PayDuesPlanIdRoute
   ResetPasswordTokenRoute: typeof ResetPasswordTokenRoute
   ApiCronBirthdaysRoute: typeof ApiCronBirthdaysRoute
+  ApiCronDuesRemindersRoute: typeof ApiCronDuesRemindersRoute
   ApiCronTrialsRoute: typeof ApiCronTrialsRoute
   ApiPublicPaystackWebhookRoute: typeof ApiPublicPaystackWebhookRoute
 }
@@ -961,6 +974,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronBirthdaysRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/dues-reminders': {
+      id: '/api/cron/dues-reminders'
+      path: '/api/cron/dues-reminders'
+      fullPath: '/api/cron/dues-reminders'
+      preLoaderRoute: typeof ApiCronDuesRemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/trials': {
       id: '/api/cron/trials'
       path: '/api/cron/trials'
@@ -1093,6 +1113,7 @@ const rootRouteChildren: RootRouteChildren = {
   PayDuesPlanIdRoute: PayDuesPlanIdRoute,
   ResetPasswordTokenRoute: ResetPasswordTokenRoute,
   ApiCronBirthdaysRoute: ApiCronBirthdaysRoute,
+  ApiCronDuesRemindersRoute: ApiCronDuesRemindersRoute,
   ApiCronTrialsRoute: ApiCronTrialsRoute,
   ApiPublicPaystackWebhookRoute: ApiPublicPaystackWebhookRoute,
 }

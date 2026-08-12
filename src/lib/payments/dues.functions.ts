@@ -9,7 +9,14 @@ import { errorBoundary } from "@/lib/error-boundary.server";
 import { communityIdForAdmin } from "./communities.functions";
 import { resolveActiveMember } from "@/lib/membership/active-member.server";
 import { toDateOnlyString } from "@/lib/date-only";
-import { monthsPerPeriod, parseYm, addMonths, ymToDateStr, ymAfter } from "@/lib/dues-period";
+import { monthsPerPeriod, parseYm, addMonths, ymToDateStr, ymAfter, periodUnit } from "@/lib/dues-period";
+import { computeCommunityArrears } from "@/lib/dues-arrears.server";
+import { sendEmailsBatch } from "@/lib/email";
+import { duesReminderEmail } from "@/lib/email-templates";
+
+function formatMoney(currency: "NGN" | "USD", amount: number): string {
+  return `${currency === "NGN" ? "₦" : "$"}${Math.round(amount).toLocaleString()}`;
+}
 
 const StartDuesInput = z.object({
   plan_id: z.string().uuid(),
@@ -258,6 +265,135 @@ export const listDuesPayments = createServerFn({ method: "POST" })
       paidAt: r.paid_at as string, // ISO, for programmatic date filtering
       date: new Date(r.paid_at as string).toLocaleDateString(),
     }));
+  });
+
+// ── Admin: arrears ledger + reminders ──────────────────────────────────
+
+// The dues-arrears ledger for the admin's community: a per-member "who's
+// behind and by how much", plus headline collection stats. Members array is
+// the defaulters only (those with 1+ periods outstanding), most-behind first.
+export const getDuesArrears = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) return { plan: null, summary: null, defaulters: [] as ArrearsDefaulter[] };
+
+    const { plan, members } = await computeCommunityArrears(communityId);
+    if (!plan) return { plan: null, summary: null, defaulters: [] as ArrearsDefaulter[] };
+
+    // Collection rate = value collected ÷ value expected, capping each member's
+    // paid periods at what they owe so an over-payer can't push it past 100%.
+    let expectedValue = 0;
+    let collectedValue = 0;
+    let totalOutstanding = 0;
+    let defaulterCount = 0;
+    for (const m of members) {
+      expectedValue += m.expectedPeriods * plan.unitAmount;
+      collectedValue += Math.min(m.paidPeriods, m.expectedPeriods) * plan.unitAmount;
+      totalOutstanding += m.amountOwed;
+      if (m.periodsBehind > 0) defaulterCount++;
+    }
+    const collectionRate = expectedValue > 0 ? Math.round((collectedValue / expectedValue) * 100) : 100;
+
+    const defaulters: ArrearsDefaulter[] = members
+      .filter((m) => m.periodsBehind > 0)
+      .map((m) => ({
+        memberId: m.memberId,
+        name: m.name,
+        email: m.email,
+        phone: m.phone,
+        periodsBehind: m.periodsBehind,
+        amountOwed: m.amountOwed,
+        amountLabel: formatMoney(plan.currency, m.amountOwed),
+        lastPaidAt: m.lastPaidAt,
+        lastRemindedAt: m.lastRemindedAt,
+        hasEmail: !!m.email,
+      }));
+
+    return {
+      plan: { interval: plan.interval, currency: plan.currency, unitAmount: plan.unitAmount },
+      summary: {
+        currency: plan.currency,
+        activeMembers: members.length,
+        defaulters: defaulterCount,
+        collectionRate,
+        totalOutstanding,
+        totalOutstandingLabel: formatMoney(plan.currency, totalOutstanding),
+      },
+      defaulters,
+    };
+  });
+
+type ArrearsDefaulter = {
+  memberId: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  periodsBehind: number;
+  amountOwed: number;
+  amountLabel: string;
+  lastPaidAt: string | null;
+  lastRemindedAt: string | null;
+  hasEmail: boolean;
+};
+
+// Emails a dues reminder to defaulters. With `memberIds`, reminds exactly those
+// (that are still in arrears and have an email); with none, reminds every
+// defaulter with an email. Records last_dues_reminder_at for everyone actually
+// emailed. This is the manual "Send reminders" path — the cron path
+// (runDuesReminderJob) reuses the same arrears + template, but self-throttles.
+export const sendDuesReminders = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) =>
+    z.object({ memberIds: z.array(z.string().uuid()).max(5000).optional() }).parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) throw new Error("You don't manage a community yet.");
+
+    const { plan, members } = await computeCommunityArrears(communityId);
+    if (!plan) throw new Error("Set up a dues plan before sending reminders.");
+
+    const commRows = await sql`SELECT name FROM public.communities WHERE id = ${communityId}::uuid LIMIT 1`;
+    const communityName = (commRows[0]?.name as string | undefined) ?? "your community";
+
+    const host = getRequestHost();
+    const proto = host.includes("localhost") ? "http" : "https";
+    const payUrl = `${proto}://${host}/pay-dues/${plan.id}`;
+    const periodWord = periodUnit(plan.interval);
+
+    const wanted = data.memberIds ? new Set(data.memberIds) : null;
+    const targets = members.filter(
+      (m) => m.periodsBehind > 0 && m.email && (!wanted || wanted.has(m.memberId)),
+    );
+    if (targets.length === 0) return { sent: 0, failed: 0, skipped: 0 };
+
+    const messages = targets.map((m) => ({
+      to: m.email as string,
+      id: m.memberId,
+      subject: `Dues reminder — ${communityName}`,
+      fromName: communityName,
+      html: duesReminderEmail({
+        memberName: m.name,
+        communityName,
+        amountLabel: formatMoney(plan.currency, m.amountOwed),
+        periodsBehind: m.periodsBehind,
+        periodWord,
+        payUrl,
+      }),
+    }));
+
+    const { sent, failed, okIds } = await sendEmailsBatch(messages);
+    if (okIds.length > 0) {
+      await sql`
+        UPDATE public.members
+        SET last_dues_reminder_at = now()
+        WHERE id = ANY(${okIds}::uuid[])
+      `;
+    }
+    // Members skipped because we have no email on file for them.
+    const skipped = members.filter((m) => m.periodsBehind > 0 && !m.email && (!wanted || wanted.has(m.memberId))).length;
+    return { sent, failed, skipped };
   });
 
 // Public: the id of the most recently created active dues plan, so members

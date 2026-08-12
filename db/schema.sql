@@ -219,7 +219,8 @@ CREATE TABLE IF NOT EXISTS public.members (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   last_birthday_sent_year int,
-  last_birthday_sent_at timestamptz
+  last_birthday_sent_at timestamptz,
+  last_dues_reminder_at timestamptz
 );
 CREATE INDEX IF NOT EXISTS members_community_id_idx ON public.members(community_id);
 CREATE INDEX IF NOT EXISTS members_status_idx ON public.members(community_id, status);
