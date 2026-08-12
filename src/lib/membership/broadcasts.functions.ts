@@ -3,6 +3,7 @@ import { z } from "zod";
 import { sql } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth/require-auth.server";
 import { communityIdForAdmin } from "@/lib/payments/communities.functions";
+import { resolveActiveMember } from "./active-member.server";
 import { sendEmailsBatch } from "@/lib/email";
 import { broadcastEmail } from "@/lib/email-templates";
 
@@ -33,11 +34,12 @@ export const listBroadcasts = createServerFn({ method: "POST" })
 export const listMyBroadcasts = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
+    const active = await resolveActiveMember(context.userId, context.activeCommunityId);
+    if (!active) return [];
     const rows = await sql`
       SELECT b.id, b.subject, b.body, b.sent_at
       FROM public.broadcasts b
-      JOIN public.members m ON m.community_id = b.community_id
-      WHERE m.user_id = ${context.userId}::uuid AND m.status = 'active'
+      WHERE b.community_id = ${active.communityId}::uuid
       ORDER BY b.sent_at DESC
       LIMIT 20
     `;

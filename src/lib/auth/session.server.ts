@@ -34,15 +34,26 @@ export async function createSession(userId: string): Promise<string> {
   return token;
 }
 
-export async function verifySessionToken(token: string): Promise<{ userId: string } | null> {
+export async function verifySessionToken(
+  token: string,
+): Promise<{ userId: string; activeCommunityId: string | null } | null> {
   const tokenHash = await hashToken(token);
   const rows = await sql`
-    SELECT user_id FROM public.sessions
+    SELECT user_id, active_community_id FROM public.sessions
     WHERE token_hash = ${tokenHash} AND expires_at > now()
     LIMIT 1
   `;
   const row = rows[0];
-  return row ? { userId: row.user_id as string } : null;
+  return row
+    ? { userId: row.user_id as string, activeCommunityId: (row.active_community_id as string | null) ?? null }
+    : null;
+}
+
+// Pins this session to a community (the member's currently-viewed one). Looked
+// up by the same token hash the cookie carries.
+export async function setSessionActiveCommunity(token: string, communityId: string | null): Promise<void> {
+  const tokenHash = await hashToken(token);
+  await sql`UPDATE public.sessions SET active_community_id = ${communityId} WHERE token_hash = ${tokenHash}`;
 }
 
 export async function revokeSessionToken(token: string): Promise<void> {

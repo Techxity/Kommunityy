@@ -2,7 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { sql, withTransaction } from "@/lib/db/client";
 import { hashPassword, verifyPassword, DUMMY_PASSWORD_HASH } from "./password";
-import { createSession, revokeAllSessionsForUser, revokeSessionToken } from "./session.server";
+import { createSession, revokeAllSessionsForUser, revokeSessionToken, setSessionActiveCommunity } from "./session.server";
+import { resolveActiveMember } from "@/lib/membership/active-member.server";
 import { setSessionCookie, clearSessionCookie, readSessionToken } from "./session-cookie.server";
 import { assertNotRateLimited, recordAttempt, clientIp } from "./rate-limit.server";
 import { getSessionUser, requireAuth } from "./require-auth.server";
@@ -96,7 +97,15 @@ export const signup = createServerFn({ method: "POST" })
 
 export const login = createServerFn({ method: "POST" })
   .inputValidator((i) =>
-    z.object({ email: z.string().email().max(200), password: z.string().min(1).max(200) }).parse(i),
+    z
+      .object({
+        email: z.string().email().max(200),
+        password: z.string().min(1).max(200),
+        // Set when signing in via a community's branded /l/<slug> link — pins
+        // the member portal to that community.
+        communitySlug: z.string().min(1).max(80).optional(),
+      })
+      .parse(i),
   )
   .handler(async ({ data }) => {
     const ip = clientIp();
@@ -134,6 +143,27 @@ export const login = createServerFn({ method: "POST" })
     await revokeAllSessionsForUser(user.id as string);
     const token = await createSession(user.id as string);
     setSessionCookie(token);
+
+    // Pin the member portal's active community: the one whose login link they
+    // used (if they're a member there), else their earliest membership. Purely
+    // for members — admins-only accounts leave it null and use /admin.
+    let pinId: string | null = null;
+    if (data.communitySlug) {
+      const crows = await sql`SELECT id FROM public.communities WHERE slug = ${data.communitySlug} LIMIT 1`;
+      const cid = crows[0]?.id as string | undefined;
+      if (cid) {
+        const mrows = await sql`
+          SELECT 1 FROM public.members
+          WHERE user_id = ${user.id}::uuid AND community_id = ${cid}::uuid AND status = 'active' LIMIT 1
+        `;
+        if (mrows[0]) pinId = cid;
+      }
+    }
+    if (!pinId) {
+      const active = await resolveActiveMember(user.id as string, null);
+      pinId = active?.communityId ?? null;
+    }
+    if (pinId) await setSessionActiveCommunity(token, pinId);
 
     return { ok: true, ...roles };
   });

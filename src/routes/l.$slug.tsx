@@ -39,7 +39,7 @@ function EstateLogin() {
     setError("");
     setLoading(true);
     try {
-      const result = await login({ data: { email, password } });
+      const result = await login({ data: { email, password, communitySlug: slug } });
       // Honor a ?next= return path (e.g. an invite the member was linking) —
       // but only a same-origin relative path, never an absolute/external URL,
       // so this can't be abused as an open redirect.

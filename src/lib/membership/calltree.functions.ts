@@ -5,6 +5,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import { sql } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth/require-auth.server";
 import { communityIdForAdmin } from "@/lib/payments/communities.functions";
+import { resolveActiveMember } from "./active-member.server";
 import { sendEmail } from "@/lib/email";
 import { callTreePairingEmail } from "@/lib/email-templates";
 import { toTimestampIso } from "@/lib/date-only";
@@ -298,18 +299,10 @@ export const closeCallTreeSession = createServerFn({ method: "POST" })
 
 // ── Member: my call tree history ─────────────────────────────────────────
 
-async function activeMemberFor(userId: string): Promise<{ memberId: string; communityId: string } | null> {
-  const rows = await sql`
-    SELECT id, community_id FROM public.members WHERE user_id = ${userId}::uuid AND status = 'active' LIMIT 1
-  `;
-  const row = rows[0];
-  return row ? { memberId: row.id as string, communityId: row.community_id as string } : null;
-}
-
 export const getMyCallTreeHistory = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const me = await activeMemberFor(context.userId);
+    const me = await resolveActiveMember(context.userId, context.activeCommunityId);
     if (!me) return [];
 
     const rows = await sql`

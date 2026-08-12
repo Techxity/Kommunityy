@@ -11,7 +11,7 @@ import { readSessionToken } from "./session-cookie.server";
 import { verifySessionToken } from "./session.server";
 import { errorBoundary } from "@/lib/error-boundary.server";
 
-export async function getSessionUser(): Promise<{ userId: string } | null> {
+export async function getSessionUser(): Promise<{ userId: string; activeCommunityId: string | null } | null> {
   const token = readSessionToken();
   if (!token) return null;
   return verifySessionToken(token);
@@ -20,10 +20,12 @@ export async function getSessionUser(): Promise<{ userId: string } | null> {
 // Attach to any server function that reads or writes private data. Chaining
 // errorBoundary here means every authenticated server function automatically
 // gets internal-error sanitization too — no per-function wiring needed.
+// activeCommunityId is threaded into context so member-facing queries can
+// scope to the community a multi-community member is currently viewing.
 export const requireAuth = createMiddleware({ type: "function" })
   .middleware([errorBoundary])
   .server(async ({ next }) => {
     const session = await getSessionUser();
     if (!session) throw new Error("Unauthorized: no active session");
-    return next({ context: { userId: session.userId } });
+    return next({ context: { userId: session.userId, activeCommunityId: session.activeCommunityId } });
   });

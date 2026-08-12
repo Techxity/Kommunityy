@@ -4,6 +4,10 @@ import { sql } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth/require-auth.server";
 import { communityIdForAdmin } from "@/lib/payments/communities.functions";
 import { ensureMemberInvite } from "./member-invite.server";
+import { resolveActiveMember } from "./active-member.server";
+import { readSessionToken } from "@/lib/auth/session-cookie.server";
+import { setSessionActiveCommunity } from "@/lib/auth/session.server";
+import { AppError } from "@/lib/errors";
 import { toDateOnlyString, toTimestampIso } from "@/lib/date-only";
 
 // Enforces the community's plan member cap (subscription_tiers.max_members)
@@ -56,15 +60,65 @@ function mapRow(r: Record<string, unknown>) {
 export const getMyProfile = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
+    // Scope to the community the member is currently viewing, not an arbitrary
+    // membership (a person can be a member of several communities).
+    const active = await resolveActiveMember(context.userId, context.activeCommunityId);
+    if (!active) return null;
     const rows = await sql`
       SELECT m.*, c.name AS chapter_name
       FROM public.members m
       LEFT JOIN public.chapters c ON c.id = m.chapter_id
-      WHERE m.user_id = ${context.userId}::uuid
+      WHERE m.id = ${active.memberId}::uuid
       LIMIT 1
     `;
     const row = rows[0];
     return row ? mapRow(row) : null;
+  });
+
+// Every community the signed-in user is an active member of, with which one is
+// currently active — powers the member-portal community switcher.
+export const listMyCommunities = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const rows = await sql`
+      SELECT c.id, c.name, m.joined_at
+      FROM public.members m
+      JOIN public.communities c ON c.id = m.community_id
+      WHERE m.user_id = ${context.userId}::uuid AND m.status = 'active'
+      ORDER BY c.name ASC
+    `;
+    // The active one is the session's pin if it's still a valid membership,
+    // otherwise the earliest-joined (matching resolveActiveMember's fallback).
+    const pinned = context.activeCommunityId && rows.some((r) => r.id === context.activeCommunityId)
+      ? (context.activeCommunityId as string)
+      : null;
+    let activeId = pinned;
+    if (!activeId && rows.length > 0) {
+      const earliest = rows.reduce((a, b) => {
+        const at = a.joined_at ? new Date(a.joined_at as string).getTime() : Infinity;
+        const bt = b.joined_at ? new Date(b.joined_at as string).getTime() : Infinity;
+        return bt < at ? b : a;
+      });
+      activeId = earliest.id as string;
+    }
+    return rows.map((r) => ({ id: r.id as string, name: r.name as string, active: r.id === activeId }));
+  });
+
+// Switch which community the member portal shows. Validates active membership,
+// then pins it onto this session so every member query resolves to it.
+export const setMyActiveCommunity = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => z.object({ communityId: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const rows = await sql`
+      SELECT id FROM public.members
+      WHERE user_id = ${context.userId}::uuid AND community_id = ${data.communityId}::uuid AND status = 'active'
+      LIMIT 1
+    `;
+    if (!rows[0]) throw new AppError("You're not an active member of that community.");
+    const token = readSessionToken();
+    if (token) await setSessionActiveCommunity(token, data.communityId);
+    return { ok: true };
   });
 
 // Member: fellow active members who hold a named role (executive/officer
@@ -75,11 +129,12 @@ export const getMyProfile = createServerFn({ method: "POST" })
 export const listMyExecutives = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
+    const active = await resolveActiveMember(context.userId, context.activeCommunityId);
+    if (!active) return [];
     const rows = await sql`
       SELECT m2.id, m2.name, m2.role, m2.email, m2.phone
-      FROM public.members me
-      JOIN public.members m2 ON m2.community_id = me.community_id
-      WHERE me.user_id = ${context.userId}::uuid AND me.status = 'active'
+      FROM public.members m2
+      WHERE m2.community_id = ${active.communityId}::uuid
         AND m2.status = 'active' AND m2.role IS NOT NULL AND m2.role <> ''
       ORDER BY m2.role ASC, m2.name ASC
       LIMIT 12

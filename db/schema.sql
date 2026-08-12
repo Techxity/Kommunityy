@@ -62,7 +62,9 @@ CREATE TABLE IF NOT EXISTS public.sessions (
   user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   token_hash text NOT NULL UNIQUE,
   created_at timestamptz NOT NULL DEFAULT now(),
-  expires_at timestamptz NOT NULL
+  expires_at timestamptz NOT NULL,
+  -- Which community the member is currently viewing (multi-community members).
+  active_community_id uuid REFERENCES public.communities(id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON public.sessions(user_id);
 CREATE INDEX IF NOT EXISTS sessions_expires_at_idx ON public.sessions(expires_at);

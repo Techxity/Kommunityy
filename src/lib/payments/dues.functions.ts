@@ -7,6 +7,7 @@ import { applyVerifiedCharge } from "./paystack-charge.server";
 import { requireAuth } from "@/lib/auth/require-auth.server";
 import { errorBoundary } from "@/lib/error-boundary.server";
 import { communityIdForAdmin } from "./communities.functions";
+import { resolveActiveMember } from "@/lib/membership/active-member.server";
 import { toDateOnlyString } from "@/lib/date-only";
 import { monthsPerPeriod, parseYm, addMonths, ymToDateStr, ymAfter } from "@/lib/dues-period";
 
@@ -112,22 +113,12 @@ export const getDuesPlan = createServerFn({ method: "POST" })
     return plan;
   });
 
-// Shared by member-facing dues functions below — resolves the logged-in
-// user's own active membership row (id, community, email on file).
-async function activeMemberFor(userId: string): Promise<{ memberId: string; communityId: string; email: string | null } | null> {
-  const rows = await sql`
-    SELECT id, community_id, email FROM public.members WHERE user_id = ${userId}::uuid AND status = 'active' LIMIT 1
-  `;
-  const row = rows[0];
-  return row ? { memberId: row.id as string, communityId: row.community_id as string, email: (row.email as string | null) ?? null } : null;
-}
-
 // ── Member: dues status + own payment history ───────────────────────────
 
 export const getMyDuesInfo = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const member = await activeMemberFor(context.userId);
+    const member = await resolveActiveMember(context.userId, context.activeCommunityId);
     if (!member) {
       return {
         plan: null as { interval: "monthly" | "quarterly" | "yearly"; amountNgn: number | null; amountUsd: number | null } | null,
@@ -277,7 +268,7 @@ export const listDuesPayments = createServerFn({ method: "POST" })
 export const getActiveDuesPlanId = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const member = await activeMemberFor(context.userId);
+    const member = await resolveActiveMember(context.userId, context.activeCommunityId);
     if (!member) return null;
     const rows = await sql`
       SELECT id

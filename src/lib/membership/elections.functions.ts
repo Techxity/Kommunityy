@@ -3,6 +3,7 @@ import { z } from "zod";
 import { sql, withTransaction } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth/require-auth.server";
 import { communityIdForAdmin } from "@/lib/payments/communities.functions";
+import { resolveActiveMember } from "./active-member.server";
 
 function toDateStr(v: unknown): string {
   if (!v) return "";
@@ -263,14 +264,6 @@ export const updateCandidates = createServerFn({ method: "POST" })
 
 // ── Member voting ───────────────────────────────────────────────────────
 
-async function activeMemberFor(userId: string): Promise<{ memberId: string; communityId: string } | null> {
-  const rows = await sql`
-    SELECT id, community_id FROM public.members WHERE user_id = ${userId}::uuid AND status = 'active' LIMIT 1
-  `;
-  const row = rows[0];
-  return row ? { memberId: row.id as string, communityId: row.community_id as string } : null;
-}
-
 type BallotPosition = {
   id: string;
   role: string;
@@ -281,7 +274,7 @@ type BallotPosition = {
 export const getMyBallot = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const voter = await activeMemberFor(context.userId);
+    const voter = await resolveActiveMember(context.userId, context.activeCommunityId);
     if (!voter) return null;
 
     const elections = await sql`
@@ -341,7 +334,7 @@ export const getMyBallot = createServerFn({ method: "POST" })
 export const getMyElectionHistory = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const voter = await activeMemberFor(context.userId);
+    const voter = await resolveActiveMember(context.userId, context.activeCommunityId);
     if (!voter) return [];
 
     const elections = await sql`
@@ -409,7 +402,7 @@ export const submitBallot = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i) => z.object({ votes: z.record(z.string().uuid(), z.string().uuid()) }).parse(i))
   .handler(async ({ data, context }) => {
-    const voter = await activeMemberFor(context.userId);
+    const voter = await resolveActiveMember(context.userId, context.activeCommunityId);
     if (!voter) throw new Error("You need an active membership to vote.");
 
     const positionIds = Object.keys(data.votes);
