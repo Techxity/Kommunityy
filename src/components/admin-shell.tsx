@@ -21,6 +21,7 @@ import {
   Lock,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 
 // `module`, when set, ties a nav entry to a plan module (see
 // src/lib/module-gate.ts) — the item still shows, but locked/disabled with
@@ -227,6 +228,7 @@ export function AdminShell() {
             <p className="font-display text-lg font-semibold">{community?.name || "—"}</p>
           </div>
           <div className="flex items-center gap-3">
+            <WorkspaceSwitcher current="admin" />
             <button className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground">
               <Bell className="h-4 w-4" />
             </button>

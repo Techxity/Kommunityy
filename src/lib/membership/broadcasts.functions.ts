@@ -10,7 +10,7 @@ import { broadcastEmail } from "@/lib/email-templates";
 export const listBroadcasts = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) return [];
     const rows = await sql`
       SELECT id, subject, reach, sent_at
@@ -55,7 +55,7 @@ export const sendBroadcast = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i) => z.object({ subject: z.string().min(1).max(200), body: z.string().min(1).max(10000) }).parse(i))
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
 
     const communities = await sql`SELECT name FROM public.communities WHERE id = ${communityId}::uuid`;

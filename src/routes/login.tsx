@@ -22,8 +22,8 @@ function Login() {
     setLoading(true);
     try {
       const result = await login({ data: { email, password } });
-      if (result.isSuperAdmin) navigate({ to: "/super-admin" });
-      else if (result.communityAdminOf) navigate({ to: "/admin" });
+      if (result.redirectTo === "/super-admin") navigate({ to: "/super-admin" });
+      else if (result.redirectTo === "/admin") navigate({ to: "/admin" });
       else navigate({ to: "/member" });
     } catch (e: any) {
       setError(e?.message ?? "Could not sign in. Please try again.");

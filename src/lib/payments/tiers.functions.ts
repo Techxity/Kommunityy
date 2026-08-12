@@ -259,7 +259,7 @@ export const startPlanCheckout = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i) => z.object({ tierId: z.string().uuid(), currency: z.enum(["NGN", "USD"]) }).parse(i))
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
 
     const tiers = await sql`SELECT id, name, monthly_price_ngn, monthly_price_usd, active FROM public.subscription_tiers WHERE id = ${data.tierId}::uuid`;
@@ -297,7 +297,7 @@ export const verifyPlanPayment = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i) => z.object({ reference: z.string().min(1) }).parse(i))
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
 
     const tx = await verifyTransaction(data.reference);
@@ -316,7 +316,7 @@ export const verifyPlanPayment = createServerFn({ method: "POST" })
 export const getMyModules = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) return [] as string[];
     const rows = await sql`
       SELECT t.modules

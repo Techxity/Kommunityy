@@ -1,53 +1,7 @@
 import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { Home, User, Banknote, Vote, Megaphone, Users2, LogOut, PhoneCall, ChevronsUpDown } from "lucide-react";
+import { Home, User, Banknote, Vote, Megaphone, Users2, LogOut, PhoneCall } from "lucide-react";
 import { logout } from "@/lib/auth/auth.functions";
-import { listMyCommunities, setMyActiveCommunity } from "@/lib/membership/members.functions";
-
-// Only shown when the signed-in member belongs to more than one community —
-// lets them switch which community the portal displays. Switching re-pins the
-// session server-side, then reloads so every page re-reads the new community.
-function CommunitySwitcher() {
-  const [communities, setCommunities] = useState<{ id: string; name: string; active: boolean }[]>([]);
-  const [switching, setSwitching] = useState(false);
-
-  useEffect(() => {
-    listMyCommunities().then(setCommunities).catch(() => {});
-  }, []);
-
-  if (communities.length < 2) return null;
-  const active = communities.find((c) => c.active) ?? communities[0];
-
-  async function onChange(id: string) {
-    if (switching || id === active.id) return;
-    setSwitching(true);
-    try {
-      await setMyActiveCommunity({ data: { communityId: id } });
-      window.location.assign("/member");
-    } catch {
-      setSwitching(false);
-    }
-  }
-
-  return (
-    <div className="relative">
-      <select
-        value={active.id}
-        disabled={switching}
-        onChange={(e) => onChange(e.target.value)}
-        aria-label="Switch community"
-        className="appearance-none rounded-full border border-border bg-card py-1.5 pl-3 pr-8 text-xs font-semibold text-foreground outline-none hover:bg-muted focus:border-ring disabled:opacity-60"
-      >
-        {communities.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
-      </select>
-      <ChevronsUpDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-    </div>
-  );
-}
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 
 type NavItem = { to: string; label: string; icon: typeof Home; exact?: boolean };
 const nav: NavItem[] = [
@@ -97,7 +51,7 @@ export function MemberShell() {
             })}
           </nav>
           <div className="flex items-center gap-3">
-            <CommunitySwitcher />
+            <WorkspaceSwitcher current="member" />
             <button
               type="button"
               onClick={handleSignOut}

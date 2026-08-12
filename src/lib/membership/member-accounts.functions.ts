@@ -15,7 +15,7 @@ export const resendMemberInvite = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i) => z.object({ memberId: z.string().uuid() }).parse(i))
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
     const rows = await sql`
       SELECT id FROM public.members WHERE id = ${data.memberId}::uuid AND community_id = ${communityId}::uuid

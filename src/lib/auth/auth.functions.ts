@@ -144,28 +144,53 @@ export const login = createServerFn({ method: "POST" })
     const token = await createSession(user.id as string);
     setSessionCookie(token);
 
-    // Pin the member portal's active community: the one whose login link they
-    // used (if they're a member there), else their earliest membership. Purely
-    // for members — admins-only accounts leave it null and use /admin.
+    // Decide which workspace to land in and pin the session to it. The branded
+    // /l/<slug> link is authoritative: land in that community in whatever role
+    // the user holds there. Otherwise fall back to role priority
+    // (super admin → community admin → member).
+    let redirectTo: "/super-admin" | "/admin" | "/member" = "/member";
     let pinId: string | null = null;
+
     if (data.communitySlug) {
       const crows = await sql`SELECT id FROM public.communities WHERE slug = ${data.communitySlug} LIMIT 1`;
       const cid = crows[0]?.id as string | undefined;
       if (cid) {
-        const mrows = await sql`
-          SELECT 1 FROM public.members
-          WHERE user_id = ${user.id}::uuid AND community_id = ${cid}::uuid AND status = 'active' LIMIT 1
+        const isAdminThere = await sql`
+          SELECT 1 FROM public.user_roles
+          WHERE user_id = ${user.id}::uuid AND community_id = ${cid}::uuid AND role = 'community_admin' LIMIT 1
         `;
-        if (mrows[0]) pinId = cid;
+        if (isAdminThere[0]) {
+          redirectTo = "/admin";
+          pinId = cid;
+        } else {
+          const isMemberThere = await sql`
+            SELECT 1 FROM public.members
+            WHERE user_id = ${user.id}::uuid AND community_id = ${cid}::uuid AND status = 'active' LIMIT 1
+          `;
+          if (isMemberThere[0]) {
+            redirectTo = "/member";
+            pinId = cid;
+          }
+        }
       }
     }
+
     if (!pinId) {
-      const active = await resolveActiveMember(user.id as string, null);
-      pinId = active?.communityId ?? null;
+      if (roles.isSuperAdmin) {
+        redirectTo = "/super-admin";
+      } else if (roles.communityAdminOf) {
+        redirectTo = "/admin";
+        pinId = roles.communityAdminOf;
+      } else {
+        const active = await resolveActiveMember(user.id as string, null);
+        redirectTo = "/member";
+        pinId = active?.communityId ?? null;
+      }
     }
+
     if (pinId) await setSessionActiveCommunity(token, pinId);
 
-    return { ok: true, ...roles };
+    return { ok: true, redirectTo, ...roles };
   });
 
 export const logout = createServerFn({ method: "POST" }).handler(async () => {

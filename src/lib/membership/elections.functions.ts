@@ -20,7 +20,7 @@ function toDateStr(v: unknown): string {
 export const getElectionsAdminData = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) return { roles: [] as string[], election: null, history: [], currentExecutives: [], memberOptions: [] };
 
     const communities = await sql`SELECT election_roles FROM public.communities WHERE id = ${communityId}::uuid`;
@@ -96,7 +96,7 @@ export const saveElectionRoles = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i) => z.object({ roles: z.array(z.string().min(1).max(80)) }).parse(i))
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
     await sql`
       UPDATE public.communities SET election_roles = ${JSON.stringify(data.roles)}::jsonb, updated_at = now()
@@ -117,7 +117,7 @@ export const startElectionCycle = createServerFn({ method: "POST" })
       .parse(i),
   )
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
 
     const live = await sql`SELECT id FROM public.elections WHERE community_id = ${communityId}::uuid AND status = 'live' LIMIT 1`;
@@ -161,7 +161,7 @@ export const endElection = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i) => z.object({ electionId: z.string().uuid() }).parse(i))
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
     await sql`
       UPDATE public.elections SET status = 'ended', ended_at = now()
@@ -174,7 +174,7 @@ export const restartElection = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i) => z.object({ electionId: z.string().uuid() }).parse(i))
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
     const rows = await sql`SELECT id FROM public.elections WHERE id = ${data.electionId}::uuid AND community_id = ${communityId}::uuid`;
     if (!rows[0]) throw new Error("Election not found.");
@@ -198,7 +198,7 @@ export const updateCandidates = createServerFn({ method: "POST" })
       .parse(i),
   )
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
     const rows = await sql`SELECT status FROM public.elections WHERE id = ${data.electionId}::uuid AND community_id = ${communityId}::uuid`;
     const election = rows[0];

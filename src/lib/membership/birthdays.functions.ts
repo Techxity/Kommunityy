@@ -16,7 +16,7 @@ const MONTHS = [
 export const getBirthdayMessages = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) return {};
     const rows = await sql`SELECT birthday_messages FROM public.communities WHERE id = ${communityId}::uuid`;
     return (rows[0]?.birthday_messages as Record<string, string> | undefined) ?? {};
@@ -26,7 +26,7 @@ export const saveBirthdayMessage = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i) => z.object({ month: z.enum(MONTHS), message: z.string().max(2000) }).parse(i))
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
     await sql`
       UPDATE public.communities
@@ -42,7 +42,7 @@ export const saveBirthdayMessage = createServerFn({ method: "POST" })
 export const listMembersWithBirthdays = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) return [];
     const rows = await sql`
       SELECT id, name, email, whatsapp, dob, last_birthday_sent_at, last_birthday_sent_year
@@ -76,7 +76,7 @@ export const sendBirthdayMessages = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i) => z.object({ memberIds: z.array(z.string().uuid()).min(1) }).parse(i))
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
 
     const communities = await sql`SELECT name, birthday_messages FROM public.communities WHERE id = ${communityId}::uuid`;

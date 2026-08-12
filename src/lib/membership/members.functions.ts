@@ -75,47 +75,77 @@ export const getMyProfile = createServerFn({ method: "POST" })
     return row ? mapRow(row) : null;
   });
 
-// Every community the signed-in user is an active member of, with which one is
-// currently active — powers the member-portal community switcher.
-export const listMyCommunities = createServerFn({ method: "POST" })
+// Every "workspace" the signed-in account can act in: each community they
+// administer (role: admin), each community they're an active member of (role:
+// member), and the platform console if they're a super admin. Powers the
+// unified workspace switcher shown in every shell. `active` marks the one the
+// session is currently pinned to.
+export type Workspace = {
+  communityId: string | null;
+  name: string;
+  role: "admin" | "member" | "super";
+  active: boolean;
+};
+
+export const listMyWorkspaces = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .handler(async ({ context }) => {
-    const rows = await sql`
-      SELECT c.id, c.name, m.joined_at
+  .handler(async ({ context }): Promise<Workspace[]> => {
+    const roleRows = await sql`SELECT role FROM public.user_roles WHERE user_id = ${context.userId}::uuid`;
+    const isSuperAdmin = roleRows.some((r) => r.role === "super_admin");
+
+    const adminRows = await sql`
+      SELECT c.id, c.name
+      FROM public.user_roles ur
+      JOIN public.communities c ON c.id = ur.community_id
+      WHERE ur.user_id = ${context.userId}::uuid AND ur.role = 'community_admin'
+    `;
+    const memberRows = await sql`
+      SELECT c.id, c.name
       FROM public.members m
       JOIN public.communities c ON c.id = m.community_id
       WHERE m.user_id = ${context.userId}::uuid AND m.status = 'active'
-      ORDER BY c.name ASC
     `;
-    // The active one is the session's pin if it's still a valid membership,
-    // otherwise the earliest-joined (matching resolveActiveMember's fallback).
-    const pinned = context.activeCommunityId && rows.some((r) => r.id === context.activeCommunityId)
-      ? (context.activeCommunityId as string)
-      : null;
-    let activeId = pinned;
-    if (!activeId && rows.length > 0) {
-      const earliest = rows.reduce((a, b) => {
-        const at = a.joined_at ? new Date(a.joined_at as string).getTime() : Infinity;
-        const bt = b.joined_at ? new Date(b.joined_at as string).getTime() : Infinity;
-        return bt < at ? b : a;
-      });
-      activeId = earliest.id as string;
+
+    const workspaces: Workspace[] = [];
+    for (const r of adminRows) {
+      workspaces.push({ communityId: r.id as string, name: r.name as string, role: "admin", active: r.id === context.activeCommunityId });
     }
-    return rows.map((r) => ({ id: r.id as string, name: r.name as string, active: r.id === activeId }));
+    for (const r of memberRows) {
+      workspaces.push({ communityId: r.id as string, name: r.name as string, role: "member", active: r.id === context.activeCommunityId });
+    }
+    if (isSuperAdmin) {
+      workspaces.push({ communityId: null, name: "Platform admin", role: "super", active: false });
+    }
+    // Alphabetical, with the platform console pinned to the bottom.
+    workspaces.sort((a, b) =>
+      a.role === "super" ? 1 : b.role === "super" ? -1 : a.name.localeCompare(b.name),
+    );
+    return workspaces;
   });
 
-// Switch which community the member portal shows. Validates active membership,
-// then pins it onto this session so every member query resolves to it.
-export const setMyActiveCommunity = createServerFn({ method: "POST" })
+// Switch the active workspace: pins the chosen community onto this session so
+// both admin resolution (communityIdForAdmin) and member resolution
+// (resolveActiveMember) point at it. Validated: the caller must actually
+// administer or be an active member of that community.
+export const setActiveWorkspace = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i) => z.object({ communityId: z.string().uuid() }).parse(i))
   .handler(async ({ data, context }) => {
-    const rows = await sql`
-      SELECT id FROM public.members
-      WHERE user_id = ${context.userId}::uuid AND community_id = ${data.communityId}::uuid AND status = 'active'
+    const admin = await sql`
+      SELECT 1 FROM public.user_roles
+      WHERE user_id = ${context.userId}::uuid AND community_id = ${data.communityId}::uuid AND role = 'community_admin'
       LIMIT 1
     `;
-    if (!rows[0]) throw new AppError("You're not an active member of that community.");
+    let ok = !!admin[0];
+    if (!ok) {
+      const member = await sql`
+        SELECT 1 FROM public.members
+        WHERE user_id = ${context.userId}::uuid AND community_id = ${data.communityId}::uuid AND status = 'active'
+        LIMIT 1
+      `;
+      ok = !!member[0];
+    }
+    if (!ok) throw new AppError("You don't have access to that community.");
     const token = readSessionToken();
     if (token) await setSessionActiveCommunity(token, data.communityId);
     return { ok: true };
@@ -153,7 +183,7 @@ export const listMembers = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i: unknown) => z.object({ status: z.enum(["pending", "active", "inactive", "rejected"]).optional() }).optional().parse(i) ?? {})
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) return [];
 
     const rows = data?.status
@@ -193,7 +223,7 @@ export const updateMember = createServerFn({ method: "POST" })
       .parse(i),
   )
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
 
     if (data.status === "active") {
@@ -257,7 +287,7 @@ export const bulkCreateMembers = createServerFn({ method: "POST" })
       .parse(i),
   )
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
 
     // De-dupe the incoming batch itself (e.g. the same person listed twice
@@ -349,7 +379,7 @@ export const setMembersStatus = createServerFn({ method: "POST" })
     z.object({ ids: z.array(z.string().uuid()).min(1), status: z.enum(["pending", "active", "inactive", "rejected"]) }).parse(i),
   )
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
 
     if (data.status === "active") {

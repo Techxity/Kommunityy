@@ -187,7 +187,7 @@ export const getMyDuesInfo = createServerFn({ method: "POST" })
 export const getMyDuesPlan = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) return null;
     const rows = await sql`
       SELECT id, name, interval, amount_ngn, amount_usd, created_at
@@ -223,7 +223,7 @@ export const saveDuesPlan = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     if (!data.amountNgn && !data.amountUsd) throw new Error("Set an amount in at least one currency.");
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
 
     await sql`UPDATE public.dues_plans SET active = false WHERE community_id = ${communityId}::uuid AND active = true`;
@@ -239,7 +239,7 @@ export const saveDuesPlan = createServerFn({ method: "POST" })
 export const listDuesPayments = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) return [];
     const rows = await sql`
       SELECT dp.id, dp.member_name, dp.amount, dp.currency, dp.status, dp.paid_at

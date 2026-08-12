@@ -9,7 +9,18 @@ import { toDateOnlyString } from "@/lib/date-only";
 // community does this logged-in admin manage" without duplicating the
 // user_roles lookup. Returns null if the user isn't a community_admin of
 // any community (e.g. they're only a super_admin, or a plain member).
-export async function communityIdForAdmin(userId: string): Promise<string | null> {
+export async function communityIdForAdmin(userId: string, activeCommunityId?: string | null): Promise<string | null> {
+  // If the session is pinned to a community this user actually administers,
+  // use it — so an admin of multiple communities sees the one they switched
+  // to. Otherwise fall back to their first (earliest-granted) admin community.
+  if (activeCommunityId) {
+    const pinned = await sql`
+      SELECT community_id FROM public.user_roles
+      WHERE user_id = ${userId}::uuid AND role = 'community_admin' AND community_id = ${activeCommunityId}::uuid
+      LIMIT 1
+    `;
+    if (pinned[0]) return pinned[0].community_id as string;
+  }
   const rows = await sql`
     SELECT community_id FROM public.user_roles
     WHERE user_id = ${userId}::uuid AND role = 'community_admin'
@@ -95,7 +106,7 @@ export const subscribeToPlan = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i) => z.object({ tierId: z.string().uuid() }).parse(i))
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
 
     const tiers = await sql`SELECT id, active, max_members, monthly_price_ngn, monthly_price_usd FROM public.subscription_tiers WHERE id = ${data.tierId}::uuid`;
@@ -137,7 +148,7 @@ export const updateCommunityBasics = createServerFn({ method: "POST" })
       .parse(i),
   )
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
     await sql`
       UPDATE public.communities
@@ -153,7 +164,7 @@ export const updateCommunityBasics = createServerFn({ method: "POST" })
 export const getDashboardStats = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) {
       return {
         activeMembers: 0,
@@ -216,7 +227,7 @@ export const getDashboardStats = createServerFn({ method: "POST" })
 export const getMyOnboardingFields = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) return { communityId: null, fields: [] as string[] };
     const rows = await sql`SELECT onboarding_fields FROM public.communities WHERE id = ${communityId}::uuid`;
     const fields = (rows[0]?.onboarding_fields as string[] | undefined) ?? [];
@@ -227,7 +238,7 @@ export const saveOnboardingFields = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i) => z.object({ fields: z.array(z.enum(FIELD_LIBRARY)) }).parse(i))
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
     await sql`
       UPDATE public.communities

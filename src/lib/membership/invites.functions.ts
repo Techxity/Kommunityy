@@ -31,7 +31,7 @@ export const sendInvites = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i) => z.object({ emails: z.array(z.string().email()).min(1).max(200) }).parse(i))
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
 
     const rows = await sql`SELECT name FROM public.communities WHERE id = ${communityId}::uuid`;

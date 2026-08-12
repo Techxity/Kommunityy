@@ -70,7 +70,7 @@ export const startDonationCheckout = createServerFn({ method: "POST" })
 export const listMyDonations = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) return [];
     const rows = await sql`
       SELECT
@@ -109,7 +109,7 @@ export const createDonation = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     if (!data.targetNgn && !data.targetUsd) throw new Error("Set a target in at least one currency.");
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
     const slug = slugify(data.purpose);
     await sql`
@@ -134,7 +134,7 @@ export const updateDonation = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     if (!data.targetNgn && !data.targetUsd) throw new Error("Set a target in at least one currency.");
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
     await sql`
       UPDATE public.donations
@@ -149,7 +149,7 @@ export const endDonation = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i) => z.object({ id: z.string().uuid() }).parse(i))
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
     await sql`
       UPDATE public.donations SET status = 'closed', updated_at = now()
@@ -162,7 +162,7 @@ export const listDonationPayers = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i) => z.object({ donationId: z.string().uuid() }).parse(i))
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) return [];
     const rows = await sql`
       SELECT dp.payer_name, dp.amount, dp.currency, dp.paid_at

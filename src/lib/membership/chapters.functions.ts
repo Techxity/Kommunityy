@@ -21,7 +21,7 @@ export const listChaptersForCommunity = createServerFn({ method: "POST" })
 export const listMyChapters = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) return [];
     const rows = await sql`
       SELECT c.id, c.name, c.region, c.coordinator,
@@ -45,7 +45,7 @@ export const createChapter = createServerFn({ method: "POST" })
     z.object({ name: z.string().min(1).max(120), region: z.string().max(120).optional(), coordinator: z.string().max(120).optional() }).parse(i),
   )
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
     await sql`
       INSERT INTO public.chapters (community_id, name, region, coordinator)
@@ -67,7 +67,7 @@ export const updateChapter = createServerFn({ method: "POST" })
       .parse(i),
   )
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
     await sql`
       UPDATE public.chapters
@@ -81,7 +81,7 @@ export const deleteChapter = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i) => z.object({ id: z.string().uuid() }).parse(i))
   .handler(async ({ data, context }) => {
-    const communityId = await communityIdForAdmin(context.userId);
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
     await sql`DELETE FROM public.chapters WHERE id = ${data.id}::uuid AND community_id = ${communityId}::uuid`;
     return { ok: true };

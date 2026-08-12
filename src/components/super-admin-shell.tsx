@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { logout } from "@/lib/auth/auth.functions";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import {
   LayoutDashboard,
   ShieldCheck,
@@ -190,6 +191,7 @@ export function SuperAdminShell() {
             <p className="font-display text-lg font-semibold">Kommunity Control Center</p>
           </div>
           <div className="flex items-center gap-3">
+            <WorkspaceSwitcher current="super" />
             <button className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground">
               <Bell className="h-4 w-4" />
             </button>
