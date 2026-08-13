@@ -44,6 +44,7 @@ function Signup() {
   const [contactEmail, setContactEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -73,7 +74,7 @@ function Signup() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!nameValid || !pricingValid || !passwordValid || !contactName || !contactEmail) return;
+    if (!nameValid || !pricingValid || !passwordValid || !contactName || !contactEmail || !agreed) return;
     setError("");
     setLoading(true);
     const chosenTierId = pricingPlan === "trial" ? undefined : pricingPlan;
@@ -317,11 +318,25 @@ function Signup() {
             <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-600">{error}</p>
           )}
 
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-            <p className="text-xs text-muted-foreground">By submitting you agree to our terms and privacy.</p>
+          <label className="flex items-start gap-2.5 pt-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-primary)]"
+            />
+            <span>
+              I agree to Kommunity's{" "}
+              <Link to="/terms" target="_blank" className="text-accent underline">Terms of Service</Link>{" "}
+              and{" "}
+              <Link to="/privacy" target="_blank" className="text-accent underline">Privacy Policy</Link>.
+            </span>
+          </label>
+
+          <div className="flex justify-end pt-1">
             <button
               type="submit"
-              disabled={!nameValid || !pricingValid || !passwordValid || loading}
+              disabled={!nameValid || !pricingValid || !passwordValid || !agreed || loading}
               className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-soft transition hover:opacity-90 disabled:opacity-40"
             >
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
