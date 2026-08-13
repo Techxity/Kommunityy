@@ -8,6 +8,7 @@ import {
   Users,
   Cake,
   Megaphone,
+  MessageSquare,
   PhoneCall,
   Banknote,
   HeartHandshake,
@@ -59,6 +60,7 @@ const nav: NavGroup[] = [
   },
   { to: "/admin/elections", label: "Elections", icon: Vote, module: "Elections" },
   { to: "/admin/broadcast", label: "Broadcasts", icon: Megaphone, module: "Broadcasts" },
+  { to: "/admin/sms", label: "SMS", icon: MessageSquare },
   { to: "/admin/subscription", label: "Subscription", icon: CreditCard },
   { to: "/admin/settings", label: "Settings", icon: Settings2 },
 ];

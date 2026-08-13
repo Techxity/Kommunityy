@@ -16,6 +16,7 @@ import { sendEmail } from "@/lib/email";
 import { paymentReceiptEmail } from "@/lib/email-templates";
 import { monthsPerPeriod, parseYm, addMonths, formatYm } from "@/lib/dues-period";
 import { toDateOnlyString } from "@/lib/date-only";
+import { creditWallet } from "@/lib/sms/wallet.server";
 
 async function communityForDonation(donation_id: string) {
   const rows = await sql`SELECT community_id FROM public.donations WHERE id = ${donation_id} LIMIT 1`;
@@ -105,7 +106,7 @@ export type VerifiedPaystackTx = {
 
 export async function applyVerifiedCharge(
   tx: VerifiedPaystackTx,
-): Promise<{ applied: boolean; kind?: "donation" | "dues" | "plan" }> {
+): Promise<{ applied: boolean; kind?: "donation" | "dues" | "plan" | "sms_topup" }> {
   if (tx.status !== "success") return { applied: false };
 
   const meta = (tx.metadata ?? {}) as Record<string, any>;
@@ -114,6 +115,26 @@ export async function applyVerifiedCharge(
   const gross = Number(tx.amount) / 100;
   const paystack_fee = Number(tx.fees ?? 0) / 100;
   const email = tx.customer?.email;
+
+  // SMS wallet top-up — handled first and independently of the fee/settlement
+  // logic below. Credits the community's SMS wallet with the intended amount
+  // (from metadata, since the charge was grossed up to cover the Paystack fee),
+  // and NEVER touches dues/donation/payout math. Idempotent via the topup
+  // table's UNIQUE (provider, provider_ref).
+  if (meta.kind === "sms_topup" && meta.community_id) {
+    const topupKobo = Number(meta.topup_amount_kobo);
+    const credited = Number.isFinite(topupKobo) && topupKobo > 0 ? Math.round(topupKobo) : Math.round(gross * 100);
+    const inserted = await sql`
+      INSERT INTO public.sms_topups (community_id, amount_kobo, currency, provider, provider_ref, status)
+      VALUES (${meta.community_id}, ${credited}, ${currency}, 'paystack', ${reference}, 'paid')
+      ON CONFLICT (provider, provider_ref) DO NOTHING
+      RETURNING id
+    `;
+    if (inserted.length > 0) {
+      await creditWallet(meta.community_id as string, credited, "topup", reference, { via: "paystack" });
+    }
+    return { applied: true, kind: "sms_topup" };
+  }
 
   let community_id: string | null = null;
   if (meta.kind === "donation" && meta.donation_id) {

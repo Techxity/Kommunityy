@@ -30,6 +30,7 @@ import { Route as AdminMembersRouteImport } from './routes/admin.members'
 import { Route as AdminOnboardingRouteImport } from './routes/admin.onboarding'
 import { Route as AdminPayoutsRouteImport } from './routes/admin.payouts'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
+import { Route as AdminSmsRouteImport } from './routes/admin.sms'
 import { Route as AdminSubscriptionRouteImport } from './routes/admin.subscription'
 import { Route as DonateSlugRouteImport } from './routes/donate.$slug'
 import { Route as FeedbackTokenRouteImport } from './routes/feedback.$token'
@@ -163,6 +164,11 @@ const AdminPayoutsRoute = AdminPayoutsRouteImport.update({
 const AdminSettingsRoute = AdminSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminSmsRoute = AdminSmsRouteImport.update({
+  id: '/sms',
+  path: '/sms',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminSubscriptionRoute = AdminSubscriptionRouteImport.update({
@@ -333,6 +339,7 @@ export interface FileRoutesByFullPath {
   '/admin/onboarding': typeof AdminOnboardingRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/sms': typeof AdminSmsRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
   '/donate/$slug': typeof DonateSlugRoute
   '/feedback/$token': typeof FeedbackTokenRoute
@@ -381,6 +388,7 @@ export interface FileRoutesByTo {
   '/admin/onboarding': typeof AdminOnboardingRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/sms': typeof AdminSmsRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
   '/donate/$slug': typeof DonateSlugRoute
   '/feedback/$token': typeof FeedbackTokenRoute
@@ -434,6 +442,7 @@ export interface FileRoutesById {
   '/admin/onboarding': typeof AdminOnboardingRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/sms': typeof AdminSmsRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
   '/donate/$slug': typeof DonateSlugRoute
   '/feedback/$token': typeof FeedbackTokenRoute
@@ -488,6 +497,7 @@ export interface FileRouteTypes {
     | '/admin/onboarding'
     | '/admin/payouts'
     | '/admin/settings'
+    | '/admin/sms'
     | '/admin/subscription'
     | '/donate/$slug'
     | '/feedback/$token'
@@ -536,6 +546,7 @@ export interface FileRouteTypes {
     | '/admin/onboarding'
     | '/admin/payouts'
     | '/admin/settings'
+    | '/admin/sms'
     | '/admin/subscription'
     | '/donate/$slug'
     | '/feedback/$token'
@@ -588,6 +599,7 @@ export interface FileRouteTypes {
     | '/admin/onboarding'
     | '/admin/payouts'
     | '/admin/settings'
+    | '/admin/sms'
     | '/admin/subscription'
     | '/donate/$slug'
     | '/feedback/$token'
@@ -790,6 +802,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/admin/settings'
       preLoaderRoute: typeof AdminSettingsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/sms': {
+      id: '/admin/sms'
+      path: '/sms'
+      fullPath: '/admin/sms'
+      preLoaderRoute: typeof AdminSmsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/subscription': {
@@ -1024,6 +1043,7 @@ interface AdminRouteChildren {
   AdminOnboardingRoute: typeof AdminOnboardingRoute
   AdminPayoutsRoute: typeof AdminPayoutsRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
+  AdminSmsRoute: typeof AdminSmsRoute
   AdminSubscriptionRoute: typeof AdminSubscriptionRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
@@ -1040,6 +1060,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminOnboardingRoute: AdminOnboardingRoute,
   AdminPayoutsRoute: AdminPayoutsRoute,
   AdminSettingsRoute: AdminSettingsRoute,
+  AdminSmsRoute: AdminSmsRoute,
   AdminSubscriptionRoute: AdminSubscriptionRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
