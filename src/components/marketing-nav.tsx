@@ -35,9 +35,11 @@ export function MarketingFooter() {
     <footer className="border-t border-border/60 bg-background py-10">
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 text-sm text-muted-foreground md:flex-row">
         <p>© {new Date().getFullYear()} Kommunity. Built for communities.</p>
-        <div className="flex gap-6">
+        <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
           <Link to="/about" className="hover:text-foreground">About us</Link>
           <Link to="/pricing" className="hover:text-foreground">Pricing</Link>
+          <Link to="/terms" className="hover:text-foreground">Terms</Link>
+          <Link to="/privacy" className="hover:text-foreground">Privacy</Link>
           <Link to="/login" className="hover:text-foreground">Sign in</Link>
           <Link to="/signup" className="hover:text-foreground">Start trial</Link>
         </div>

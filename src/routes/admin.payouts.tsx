@@ -324,18 +324,12 @@ function BankSection({ community, onSaved }: { community: Community; onSaved: ()
 
       <div className="mt-5 grid gap-4 md:grid-cols-3">
         <Field label="Bank">
-          <select
-            className="input"
+          <BankCombobox
+            banks={banks}
             value={bankCode}
-            onChange={(e) => setBankCode(e.target.value)}
-          >
-            <option value="">Select bank…</option>
-            {banks.map((b) => (
-              <option key={b.code} value={b.code}>
-                {b.name}
-              </option>
-            ))}
-          </select>
+            initialName={community.bank_name}
+            onChange={setBankCode}
+          />
         </Field>
         <Field label="Account number">
           <input
@@ -359,6 +353,78 @@ function BankSection({ community, onSaved }: { community: Community; onSaved: ()
 
       <style>{`.input{width:100%;border-radius:0.5rem;border:1px solid var(--color-border);background:var(--color-background);padding:0.5rem 0.75rem;font-size:0.875rem;outline:none}.input:focus{border-color:var(--color-ring)}`}</style>
     </section>
+  );
+}
+
+// Type-ahead bank picker — Paystack returns 200+ Nigerian banks/MFBs, so a
+// searchable box beats scrolling a giant <select>. Typing after a selection
+// clears it, forcing a fresh pick so the saved code always matches the name.
+function BankCombobox({
+  banks,
+  value,
+  initialName,
+  onChange,
+}: {
+  banks: { name: string; code: string }[];
+  value: string;
+  initialName: string | null;
+  onChange: (code: string) => void;
+}) {
+  const [query, setQuery] = useState(initialName ?? "");
+  const [open, setOpen] = useState(false);
+
+  // Keep the box showing the selected bank's name once banks load / value set.
+  useEffect(() => {
+    if (value) {
+      const b = banks.find((x) => x.code === value);
+      if (b) setQuery(b.name);
+    }
+  }, [value, banks]);
+
+  const q = query.trim().toLowerCase();
+  const filtered = (q ? banks.filter((b) => b.name.toLowerCase().includes(q)) : banks).slice(0, 60);
+
+  return (
+    <div className="relative">
+      <input
+        className="input"
+        value={query}
+        placeholder="Type to search bank…"
+        autoComplete="off"
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setOpen(true);
+          if (value) onChange(""); // typing invalidates the previous pick
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {open && filtered.length > 0 && (
+        <ul className="absolute z-30 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-border bg-card shadow-lg">
+          {filtered.map((b) => (
+            <li key={b.code}>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onChange(b.code);
+                  setQuery(b.name);
+                  setOpen(false);
+                }}
+                className={`block w-full px-3 py-2 text-left text-sm hover:bg-muted ${b.code === value ? "bg-primary/5 font-medium" : ""}`}
+              >
+                {b.name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {open && q && filtered.length === 0 && (
+        <div className="absolute z-30 mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground shadow-lg">
+          No bank matches "{query}".
+        </div>
+      )}
+    </div>
   );
 }
 

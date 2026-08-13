@@ -16,8 +16,10 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MemberRouteImport } from './routes/member'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SuperAdminRouteImport } from './routes/super-admin'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminBirthdaysRouteImport } from './routes/admin.birthdays'
 import { Route as AdminBroadcastRouteImport } from './routes/admin.broadcast'
@@ -99,6 +101,11 @@ const PricingRoute = PricingRouteImport.update({
   path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -107,6 +114,11 @@ const SignupRoute = SignupRouteImport.update({
 const SuperAdminRoute = SuperAdminRouteImport.update({
   id: '/super-admin',
   path: '/super-admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -344,8 +356,10 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/member': typeof MemberRouteWithChildren
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
   '/super-admin': typeof SuperAdminRouteWithChildren
+  '/terms': typeof TermsRoute
   '/admin/birthdays': typeof AdminBirthdaysRoute
   '/admin/broadcast': typeof AdminBroadcastRoute
   '/admin/calltree': typeof AdminCalltreeRoute
@@ -398,7 +412,9 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
   '/admin/birthdays': typeof AdminBirthdaysRoute
   '/admin/broadcast': typeof AdminBroadcastRoute
   '/admin/calltree': typeof AdminCalltreeRoute
@@ -453,8 +469,10 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/member': typeof MemberRouteWithChildren
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
   '/super-admin': typeof SuperAdminRouteWithChildren
+  '/terms': typeof TermsRoute
   '/admin/birthdays': typeof AdminBirthdaysRoute
   '/admin/broadcast': typeof AdminBroadcastRoute
   '/admin/calltree': typeof AdminCalltreeRoute
@@ -511,8 +529,10 @@ export interface FileRouteTypes {
     | '/login'
     | '/member'
     | '/pricing'
+    | '/privacy'
     | '/signup'
     | '/super-admin'
+    | '/terms'
     | '/admin/birthdays'
     | '/admin/broadcast'
     | '/admin/calltree'
@@ -565,7 +585,9 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/pricing'
+    | '/privacy'
     | '/signup'
+    | '/terms'
     | '/admin/birthdays'
     | '/admin/broadcast'
     | '/admin/calltree'
@@ -619,8 +641,10 @@ export interface FileRouteTypes {
     | '/login'
     | '/member'
     | '/pricing'
+    | '/privacy'
     | '/signup'
     | '/super-admin'
+    | '/terms'
     | '/admin/birthdays'
     | '/admin/broadcast'
     | '/admin/calltree'
@@ -676,8 +700,10 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MemberRoute: typeof MemberRouteWithChildren
   PricingRoute: typeof PricingRoute
+  PrivacyRoute: typeof PrivacyRoute
   SignupRoute: typeof SignupRoute
   SuperAdminRoute: typeof SuperAdminRouteWithChildren
+  TermsRoute: typeof TermsRoute
   DonateSlugRoute: typeof DonateSlugRoute
   FeedbackTokenRoute: typeof FeedbackTokenRoute
   InviteTokenRoute: typeof InviteTokenRoute
@@ -743,6 +769,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/signup': {
       id: '/signup'
       path: '/signup'
@@ -755,6 +788,13 @@ declare module '@tanstack/react-router' {
       path: '/super-admin'
       fullPath: '/super-admin'
       preLoaderRoute: typeof SuperAdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -1186,8 +1226,10 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MemberRoute: MemberRouteWithChildren,
   PricingRoute: PricingRoute,
+  PrivacyRoute: PrivacyRoute,
   SignupRoute: SignupRoute,
   SuperAdminRoute: SuperAdminRouteWithChildren,
+  TermsRoute: TermsRoute,
   DonateSlugRoute: DonateSlugRoute,
   FeedbackTokenRoute: FeedbackTokenRoute,
   InviteTokenRoute: InviteTokenRoute,
