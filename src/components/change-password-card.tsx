@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { KeyRound, Loader2, Check } from "lucide-react";
 import { changePassword } from "@/lib/auth/auth.functions";
+import { PasswordInput } from "@/components/password-input";
 
 // Self-contained "change your password" card for any signed-in user — dropped
 // into the member profile and admin settings pages.
@@ -46,9 +47,8 @@ export function ChangePasswordCard() {
       <form onSubmit={submit} className="mt-5 space-y-4">
         <div>
           <label className="text-sm font-medium">Current password</label>
-          <input
+          <PasswordInput
             required
-            type="password"
             autoComplete="current-password"
             value={current}
             onChange={(e) => setCurrent(e.target.value)}
@@ -58,9 +58,8 @@ export function ChangePasswordCard() {
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="text-sm font-medium">New password</label>
-            <input
+            <PasswordInput
               required
-              type="password"
               autoComplete="new-password"
               value={next}
               onChange={(e) => setNext(e.target.value)}
@@ -70,9 +69,8 @@ export function ChangePasswordCard() {
           </div>
           <div>
             <label className="text-sm font-medium">Confirm new password</label>
-            <input
+            <PasswordInput
               required
-              type="password"
               autoComplete="new-password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}

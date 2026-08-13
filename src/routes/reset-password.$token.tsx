@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { KeyRound, Loader2, Check } from "lucide-react";
 import { getResetInfo, resetPassword } from "@/lib/auth/auth.functions";
+import { PasswordInput } from "@/components/password-input";
 
 export const Route = createFileRoute("/reset-password/$token")({
   head: () => ({ meta: [{ title: "Reset password — Kommunity" }] }),
@@ -76,9 +77,8 @@ function ResetPassword() {
         <form onSubmit={submit} className="mt-6 space-y-4 rounded-2xl border border-border bg-card p-6 shadow-soft">
           <div>
             <label className="text-sm font-medium">New password</label>
-            <input
+            <PasswordInput
               required
-              type="password"
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -88,9 +88,8 @@ function ResetPassword() {
           </div>
           <div>
             <label className="text-sm font-medium">Confirm new password</label>
-            <input
+            <PasswordInput
               required
-              type="password"
               autoComplete="new-password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}

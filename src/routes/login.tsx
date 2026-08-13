@@ -3,6 +3,7 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { useState } from "react";
 import { Users2, Loader2 } from "lucide-react";
 import { login } from "@/lib/auth/auth.functions";
+import { PasswordInput } from "@/components/password-input";
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Sign in — Kommunity" }] }),
@@ -66,9 +67,8 @@ function Login() {
                 Forgot password?
               </Link>
             </div>
-            <input
+            <PasswordInput
               required
-              type="password"
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

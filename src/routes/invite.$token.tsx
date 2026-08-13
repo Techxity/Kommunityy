@@ -7,6 +7,7 @@ import {
   linkExistingAccountToMembership,
 } from "@/lib/membership/member-accounts.functions";
 import { me } from "@/lib/auth/auth.functions";
+import { PasswordInput } from "@/components/password-input";
 
 export const Route = createFileRoute("/invite/$token")({
   head: () => ({ meta: [{ title: "Set your password — Kommunity" }] }),
@@ -227,9 +228,8 @@ function AcceptInvite() {
           </div>
           <div>
             <label className="text-sm font-medium">Password</label>
-            <input
+            <PasswordInput
               required
-              type="password"
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -239,9 +239,8 @@ function AcceptInvite() {
           </div>
           <div>
             <label className="text-sm font-medium">Confirm password</label>
-            <input
+            <PasswordInput
               required
-              type="password"
               autoComplete="new-password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}

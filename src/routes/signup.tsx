@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { signup } from "@/lib/auth/auth.functions";
 import { listSubscriptionTiers, getTrialSettings, startPlanCheckout } from "@/lib/payments/tiers.functions";
+import { PasswordInput } from "@/components/password-input";
 
 export const Route = createFileRoute("/signup")({
   head: () => ({
@@ -192,9 +193,8 @@ function Signup() {
           </div>
 
           <Field label="Password *" hint="Min 8 characters — this is what you'll use to sign in">
-            <input
+            <PasswordInput
               required
-              type="password"
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

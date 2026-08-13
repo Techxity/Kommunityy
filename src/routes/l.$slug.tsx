@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Users2, Loader2 } from "lucide-react";
 import { login } from "@/lib/auth/auth.functions";
 import { getCommunityBySlug } from "@/lib/payments/communities.functions";
+import { PasswordInput } from "@/components/password-input";
 
 // Branded, bookmarkable login page for one specific estate/community —
 // functionally identical to /login (same login() call, same global
@@ -115,9 +116,8 @@ function EstateLogin() {
                 Forgot password?
               </Link>
             </div>
-            <input
+            <PasswordInput
               required
-              type="password"
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
