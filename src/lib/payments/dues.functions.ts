@@ -13,6 +13,7 @@ import { monthsPerPeriod, parseYm, addMonths, ymToDateStr, ymAfter, periodUnit }
 import { computeCommunityArrears } from "@/lib/dues-arrears.server";
 import { sendEmailsBatch } from "@/lib/email";
 import { duesReminderEmail } from "@/lib/email-templates";
+import { sendCommunitySms, type SmsTarget } from "@/lib/sms/send.server";
 
 function formatMoney(currency: "NGN" | "USD", amount: number): string {
   return `${currency === "NGN" ? "₦" : "$"}${Math.round(amount).toLocaleString()}`;
@@ -404,8 +405,34 @@ export const sendDuesReminders = createServerFn({ method: "POST" })
     }
     // Members skipped because we have no email on file for them.
     const skipped = members.filter((m) => m.periodsBehind > 0 && !m.email && (!wanted || wanted.has(m.memberId))).length;
-    return { sent, failed, skipped };
+
+    // SMS reminders to the same defaulters (no-op unless the admin has SMS +
+    // the reminders channel on). Reaches members by phone even without email.
+    const smsTargets: SmsTarget[] = members
+      .filter((m) => m.periodsBehind > 0 && (!wanted || wanted.has(m.memberId)))
+      .map((m) => ({
+        memberId: m.memberId,
+        phone: m.phone,
+        optOut: m.smsOptOut,
+        body: buildReminderSms(m.name, communityName, m.periodsBehind, periodWord, formatMoney(m.currency, m.amountOwed), payUrl),
+      }));
+    const sms = await sendCommunitySms({ communityId, channel: "reminder", targets: smsTargets });
+
+    return { sent, failed, skipped, smsSent: sms.sent, smsFailed: sms.failed };
   });
+
+function buildReminderSms(
+  name: string,
+  communityName: string,
+  periodsBehind: number,
+  periodWord: string,
+  amountLabel: string,
+  payUrl: string,
+): string {
+  const first = name.split(" ")[0] || name;
+  const p = `${periodsBehind} ${periodWord}${periodsBehind === 1 ? "" : "s"}`;
+  return `Hi ${first}, your ${communityName} dues are ${p} behind (${amountLabel}). Pay: ${payUrl}`;
+}
 
 // Public: the id of the most recently created active dues plan, so members
 // can be routed to a pay link without exposing the whole table.

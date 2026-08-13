@@ -54,7 +54,8 @@ function Dues() {
     setRemindMsg("");
     try {
       const r = await sendDuesReminders({ data: memberIds ? { memberIds } : {} });
-      const parts = [`${r.sent} reminder${r.sent === 1 ? "" : "s"} sent`];
+      const parts = [`${r.sent} email${r.sent === 1 ? "" : "s"} sent`];
+      if (r.smsSent) parts.push(`${r.smsSent} text${r.smsSent === 1 ? "" : "s"} sent`);
       if (r.failed) parts.push(`${r.failed} failed`);
       if (r.skipped) parts.push(`${r.skipped} skipped (no email on file)`);
       setRemindMsg(parts.join(" · "));

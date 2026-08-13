@@ -15,6 +15,7 @@ export type ArrearsMemberRow = {
   email: string | null;
   phone: string | null;
   whatsapp: string | null;
+  smsOptOut: boolean;
   currency: "NGN" | "USD"; // the currency this member is billed/owes in
   expectedPeriods: number;
   paidPeriods: number;
@@ -61,7 +62,7 @@ export async function computeCommunityArrears(communityId: string): Promise<Comm
   const nowYm = currentYm();
 
   const memberRows = await sql`
-    SELECT id, name, email, phone, whatsapp,
+    SELECT id, name, email, phone, whatsapp, sms_opt_out,
            COALESCE(joined_at, created_at) AS since,
            last_dues_reminder_at
     FROM public.members
@@ -112,6 +113,7 @@ export async function computeCommunityArrears(communityId: string): Promise<Comm
       email,
       phone: (m.phone as string | null) ?? null,
       whatsapp: (m.whatsapp as string | null) ?? null,
+      smsOptOut: !!m.sms_opt_out,
       currency,
       expectedPeriods: a.expectedPeriods,
       paidPeriods: a.paidPeriods,

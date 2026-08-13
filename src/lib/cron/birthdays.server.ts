@@ -7,6 +7,7 @@ import { sql } from "@/lib/db/client";
 import { sendEmailsBatch } from "@/lib/email";
 import { birthdayEmail, celebrantsDigestEmail } from "@/lib/email-templates";
 import { sendWhatsAppTemplate, isWhatsAppConfigured } from "@/lib/whatsapp";
+import { sendCommunitySms, type SmsTarget } from "@/lib/sms/send.server";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -19,6 +20,8 @@ export type BirthdayJobResult = {
   emailFailed: number;
   whatsappSent: number;
   whatsappFailed: number;
+  smsSent: number;
+  smsFailed: number;
   digestsSent: number;
   digestsFailed: number;
 };
@@ -31,11 +34,11 @@ export async function runBirthdayJob(): Promise<BirthdayJobResult> {
   const monthName = MONTHS[month - 1];
 
   const rows = await sql`
-    SELECT m.id, m.name, m.email, m.whatsapp, c.id AS community_id, c.name AS community_name, c.birthday_messages
+    SELECT m.id, m.name, m.email, m.phone, m.whatsapp, m.sms_opt_out, c.id AS community_id, c.name AS community_name, c.birthday_messages
     FROM public.members m
     JOIN public.communities c ON c.id = m.community_id
     WHERE m.status = 'active'
-      AND (m.email IS NOT NULL OR m.whatsapp IS NOT NULL)
+      AND (m.email IS NOT NULL OR m.whatsapp IS NOT NULL OR m.phone IS NOT NULL)
       AND m.dob IS NOT NULL
       AND EXTRACT(MONTH FROM m.dob) = ${month}
       AND EXTRACT(DAY FROM m.dob) = ${day}
@@ -45,6 +48,7 @@ export async function runBirthdayJob(): Promise<BirthdayJobResult> {
   const celebrantsByCommunity = new Map<string, { communityName: string; celebrants: { name: string; message: string }[] }>();
   const emailJobs: { id: string; to: string; subject: string; html: string; fromName: string }[] = [];
   const waJobs: { id: string; to: string; firstName: string; message: string; communityName: string }[] = [];
+  const smsByCommunity = new Map<string, SmsTarget[]>();
   const waConfigured = isWhatsAppConfigured();
 
   for (const m of rows) {
@@ -70,6 +74,13 @@ export async function runBirthdayJob(): Promise<BirthdayJobResult> {
     if (waConfigured && m.whatsapp) {
       waJobs.push({ id: m.id as string, to: m.whatsapp as string, firstName, message, communityName });
     }
+    // SMS: prefer the phone field, fall back to whatsapp (also a mobile number).
+    const smsPhone = (m.phone as string | null) ?? (m.whatsapp as string | null) ?? null;
+    if (smsPhone) {
+      const list = smsByCommunity.get(communityId) ?? [];
+      list.push({ memberId: m.id as string, phone: smsPhone, optOut: !!m.sms_opt_out, body: `Happy birthday, ${firstName}! ${message}` });
+      smsByCommunity.set(communityId, list);
+    }
   }
 
   // Emails in batches; okIds tells us exactly who was accepted.
@@ -87,6 +98,17 @@ export async function runBirthdayJob(): Promise<BirthdayJobResult> {
     } else {
       whatsappFailed++;
     }
+  }
+
+  // SMS per community (no-op unless SMS + the birthday channel are on). A member
+  // reached by text is marked sent so they aren't messaged again this year.
+  let smsSent = 0;
+  let smsFailed = 0;
+  for (const [communityId, targets] of smsByCommunity) {
+    const r = await sendCommunitySms({ communityId, channel: "birthday", targets });
+    smsSent += r.sent;
+    smsFailed += r.failed;
+    for (const id of r.sentMemberIds) sentIds.add(id);
   }
 
   if (sentIds.size > 0) {
@@ -136,6 +158,8 @@ export async function runBirthdayJob(): Promise<BirthdayJobResult> {
     emailFailed: emailResult.failed,
     whatsappSent,
     whatsappFailed,
+    smsSent,
+    smsFailed,
     digestsSent,
     digestsFailed,
   };

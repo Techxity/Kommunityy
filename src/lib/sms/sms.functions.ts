@@ -12,6 +12,33 @@ import { initializeTransaction, verifyTransaction } from "@/lib/payments/paystac
 import { applyVerifiedCharge } from "@/lib/payments/paystack-charge.server";
 import { getSmsSettings, getBalanceKobo } from "./wallet.server";
 import { grossUpNgn } from "./paystack-fee";
+import { normalizeNgPhone } from "./phone";
+
+function rateKobo(route: "dnd" | "generic"): number {
+  const dnd = Number(process.env.SMS_RATE_DND_KOBO) || 400;
+  const generic = Number(process.env.SMS_RATE_GENERIC_KOBO) || 300;
+  return route === "dnd" ? dnd : generic;
+}
+
+// Everything the broadcast composer needs to show a live SMS cost estimate:
+// whether SMS broadcasting is usable, the wallet balance, the per-page rate,
+// and how many active members have a textable phone.
+export const getSmsComposeInfo = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) return { available: false, balanceKobo: 0, ratePerPageKobo: 0, recipients: 0 };
+    const settings = await getSmsSettings(communityId);
+    const available = settings.enabled && settings.chBroadcasts && !!settings.senderId;
+    const balanceKobo = await getBalanceKobo(communityId);
+    const rows = await sql`
+      SELECT phone FROM public.members
+      WHERE community_id = ${communityId}::uuid AND status = 'active'
+        AND phone IS NOT NULL AND sms_opt_out = false
+    `;
+    const recipients = rows.reduce((n, r) => n + (normalizeNgPhone(r.phone as string | null) ? 1 : 0), 0);
+    return { available, balanceKobo, ratePerPageKobo: rateKobo(settings.route), recipients };
+  });
 
 // Snapshot for the SMS admin page: settings, balance, and recent activity.
 export const getSmsOverview = createServerFn({ method: "POST" })

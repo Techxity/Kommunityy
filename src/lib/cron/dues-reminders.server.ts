@@ -10,6 +10,7 @@ import { sendEmailsBatch } from "@/lib/email";
 import { duesReminderEmail } from "@/lib/email-templates";
 import { periodUnit } from "@/lib/dues-period";
 import { computeCommunityArrears } from "@/lib/dues-arrears.server";
+import { sendCommunitySms } from "@/lib/sms/send.server";
 
 // Don't re-remind the same member more often than this. ~25 days means a
 // monthly-dues member is nudged roughly once per cycle, never twice.
@@ -19,6 +20,7 @@ export type DuesReminderJobResult = {
   communities: number;
   sent: number;
   failed: number;
+  smsSent: number;
 };
 
 export async function runDuesReminderJob(baseUrl: string): Promise<DuesReminderJobResult> {
@@ -35,6 +37,7 @@ export async function runDuesReminderJob(baseUrl: string): Promise<DuesReminderJ
 
   let totalSent = 0;
   let totalFailed = 0;
+  let totalSmsSent = 0;
 
   for (const c of communities) {
     const communityId = c.id as string;
@@ -46,35 +49,57 @@ export async function runDuesReminderJob(baseUrl: string): Promise<DuesReminderJ
     const payUrl = appUrl ? `${appUrl}/pay-dues/${plan.id}` : undefined;
     const periodWord = periodUnit(plan.interval);
 
-    const targets = members.filter((m) => {
-      if (m.periodsBehind <= 0 || !m.email) return false;
+    // Defaulters not reminded within the cooldown window, by any channel.
+    const eligible = members.filter((m) => {
+      if (m.periodsBehind <= 0) return false;
       if (m.lastRemindedAt && new Date(m.lastRemindedAt).getTime() > cutoffMs) return false;
       return true;
     });
-    if (targets.length === 0) continue;
+    if (eligible.length === 0) continue;
 
-    const messages = targets.map((m) => ({
-      to: m.email as string,
-      id: m.memberId,
-      subject: `Dues reminder — ${communityName}`,
-      fromName: communityName,
-      html: duesReminderEmail({
-        memberName: m.name,
-        communityName,
-        amountLabel: `${m.currency === "NGN" ? "₦" : "$"}${Math.round(m.amountOwed).toLocaleString()}`,
-        periodsBehind: m.periodsBehind,
-        periodWord,
-        payUrl,
-      }),
-    }));
+    const amountLabel = (m: (typeof eligible)[number]) => `${m.currency === "NGN" ? "₦" : "$"}${Math.round(m.amountOwed).toLocaleString()}`;
+
+    const messages = eligible
+      .filter((m) => m.email)
+      .map((m) => ({
+        to: m.email as string,
+        id: m.memberId,
+        subject: `Dues reminder — ${communityName}`,
+        fromName: communityName,
+        html: duesReminderEmail({
+          memberName: m.name,
+          communityName,
+          amountLabel: amountLabel(m),
+          periodsBehind: m.periodsBehind,
+          periodWord,
+          payUrl,
+        }),
+      }));
 
     const { sent, failed, okIds } = await sendEmailsBatch(messages);
     totalSent += sent;
     totalFailed += failed;
-    if (okIds.length > 0) {
-      await sql`UPDATE public.members SET last_dues_reminder_at = now() WHERE id = ANY(${okIds}::uuid[])`;
+
+    // SMS to the same eligible defaulters (no-op unless SMS + reminders are on).
+    const first = (name: string) => name.split(" ")[0] || name;
+    const sms = await sendCommunitySms({
+      communityId,
+      channel: "reminder",
+      targets: eligible.map((m) => ({
+        memberId: m.memberId,
+        phone: m.phone,
+        optOut: m.smsOptOut,
+        body: `Hi ${first(m.name)}, your ${communityName} dues are ${m.periodsBehind} ${periodWord}${m.periodsBehind === 1 ? "" : "s"} behind (${amountLabel(m)}).${payUrl ? ` Pay: ${payUrl}` : ""}`,
+      })),
+    });
+    totalSmsSent += sms.sent;
+
+    // Mark anyone reached by either channel so the cooldown applies.
+    const reached = Array.from(new Set([...okIds, ...sms.sentMemberIds]));
+    if (reached.length > 0) {
+      await sql`UPDATE public.members SET last_dues_reminder_at = now() WHERE id = ANY(${reached}::uuid[])`;
     }
   }
 
-  return { communities: communities.length, sent: totalSent, failed: totalFailed };
+  return { communities: communities.length, sent: totalSent, failed: totalFailed, smsSent: totalSmsSent };
 }
