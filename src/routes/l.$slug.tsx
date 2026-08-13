@@ -112,7 +112,7 @@ function EstateLogin() {
           <div>
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium">Password</label>
-              <Link to="/forgot-password" className="text-xs font-semibold text-accent hover:underline">
+              <Link to="/forgot-password" tabIndex={-1} className="text-xs font-semibold text-accent hover:underline">
                 Forgot password?
               </Link>
             </div>
