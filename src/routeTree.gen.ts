@@ -29,6 +29,7 @@ import { Route as AdminElectionsRouteImport } from './routes/admin.elections'
 import { Route as AdminMembersRouteImport } from './routes/admin.members'
 import { Route as AdminOnboardingRouteImport } from './routes/admin.onboarding'
 import { Route as AdminPayoutsRouteImport } from './routes/admin.payouts'
+import { Route as AdminReportsRouteImport } from './routes/admin.reports'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminSmsRouteImport } from './routes/admin.sms'
 import { Route as AdminSubscriptionRouteImport } from './routes/admin.subscription'
@@ -161,6 +162,11 @@ const AdminOnboardingRoute = AdminOnboardingRouteImport.update({
 const AdminPayoutsRoute = AdminPayoutsRouteImport.update({
   id: '/payouts',
   path: '/payouts',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminReportsRoute = AdminReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminSettingsRoute = AdminSettingsRouteImport.update({
@@ -350,6 +356,7 @@ export interface FileRoutesByFullPath {
   '/admin/members': typeof AdminMembersRouteWithChildren
   '/admin/onboarding': typeof AdminOnboardingRoute
   '/admin/payouts': typeof AdminPayoutsRoute
+  '/admin/reports': typeof AdminReportsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/sms': typeof AdminSmsRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
@@ -401,6 +408,7 @@ export interface FileRoutesByTo {
   '/admin/elections': typeof AdminElectionsRoute
   '/admin/onboarding': typeof AdminOnboardingRoute
   '/admin/payouts': typeof AdminPayoutsRoute
+  '/admin/reports': typeof AdminReportsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/sms': typeof AdminSmsRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
@@ -457,6 +465,7 @@ export interface FileRoutesById {
   '/admin/members': typeof AdminMembersRouteWithChildren
   '/admin/onboarding': typeof AdminOnboardingRoute
   '/admin/payouts': typeof AdminPayoutsRoute
+  '/admin/reports': typeof AdminReportsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/sms': typeof AdminSmsRoute
   '/admin/subscription': typeof AdminSubscriptionRoute
@@ -514,6 +523,7 @@ export interface FileRouteTypes {
     | '/admin/members'
     | '/admin/onboarding'
     | '/admin/payouts'
+    | '/admin/reports'
     | '/admin/settings'
     | '/admin/sms'
     | '/admin/subscription'
@@ -565,6 +575,7 @@ export interface FileRouteTypes {
     | '/admin/elections'
     | '/admin/onboarding'
     | '/admin/payouts'
+    | '/admin/reports'
     | '/admin/settings'
     | '/admin/sms'
     | '/admin/subscription'
@@ -620,6 +631,7 @@ export interface FileRouteTypes {
     | '/admin/members'
     | '/admin/onboarding'
     | '/admin/payouts'
+    | '/admin/reports'
     | '/admin/settings'
     | '/admin/sms'
     | '/admin/subscription'
@@ -820,6 +832,13 @@ declare module '@tanstack/react-router' {
       path: '/payouts'
       fullPath: '/admin/payouts'
       preLoaderRoute: typeof AdminPayoutsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/reports': {
+      id: '/admin/reports'
+      path: '/reports'
+      fullPath: '/admin/reports'
+      preLoaderRoute: typeof AdminReportsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/settings': {
@@ -1081,6 +1100,7 @@ interface AdminRouteChildren {
   AdminMembersRoute: typeof AdminMembersRouteWithChildren
   AdminOnboardingRoute: typeof AdminOnboardingRoute
   AdminPayoutsRoute: typeof AdminPayoutsRoute
+  AdminReportsRoute: typeof AdminReportsRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminSmsRoute: typeof AdminSmsRoute
   AdminSubscriptionRoute: typeof AdminSubscriptionRoute
@@ -1098,6 +1118,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminMembersRoute: AdminMembersRouteWithChildren,
   AdminOnboardingRoute: AdminOnboardingRoute,
   AdminPayoutsRoute: AdminPayoutsRoute,
+  AdminReportsRoute: AdminReportsRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   AdminSmsRoute: AdminSmsRoute,
   AdminSubscriptionRoute: AdminSubscriptionRoute,

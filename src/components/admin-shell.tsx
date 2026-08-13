@@ -56,6 +56,7 @@ const nav: NavGroup[] = [
       { to: "/admin/dues", label: "Dues", module: "Dues" },
       { to: "/admin/donations", label: "Donations", module: "Donations" },
       { to: "/admin/payouts", label: "Payouts" },
+      { to: "/admin/reports", label: "Financial Report" },
     ],
   },
   { to: "/admin/elections", label: "Elections", icon: Vote, module: "Elections" },
