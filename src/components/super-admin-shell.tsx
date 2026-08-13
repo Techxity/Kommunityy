@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Wallet,
   Users,
+  MessageSquare,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -51,6 +52,7 @@ const nav: NavEntry[] = [
       { to: "/super-admin/billing", label: "Billing & Revenue" },
     ],
   },
+  { to: "/super-admin/sms", label: "SMS Reserve", icon: MessageSquare },
   { to: "/super-admin/admins", label: "Platform Admins", icon: ShieldCheck },
   { to: "/super-admin/support", label: "Support", icon: LifeBuoy },
   { to: "/super-admin/audit", label: "Audit Log", icon: ScrollText },

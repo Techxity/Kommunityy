@@ -53,6 +53,7 @@ import { Route as SuperAdminCommunitiesRouteImport } from './routes/super-admin.
 import { Route as SuperAdminFeesRouteImport } from './routes/super-admin.fees'
 import { Route as SuperAdminPayoutsRouteImport } from './routes/super-admin.payouts'
 import { Route as SuperAdminPlansRouteImport } from './routes/super-admin.plans'
+import { Route as SuperAdminSmsRouteImport } from './routes/super-admin.sms'
 import { Route as SuperAdminSupportRouteImport } from './routes/super-admin.support'
 import { Route as AdminMembersIndexRouteImport } from './routes/admin.members.index'
 import { Route as AdminMembersPendingRouteImport } from './routes/admin.members.pending'
@@ -60,6 +61,7 @@ import { Route as ApiCronBirthdaysRouteImport } from './routes/api/cron/birthday
 import { Route as ApiCronDuesRemindersRouteImport } from './routes/api/cron/dues-reminders'
 import { Route as ApiCronTrialsRouteImport } from './routes/api/cron/trials'
 import { Route as ApiPublicPaystackWebhookRouteImport } from './routes/api/public/paystack-webhook'
+import { Route as ApiPublicTermiiDlrRouteImport } from './routes/api/public/termii-dlr'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -281,6 +283,11 @@ const SuperAdminPlansRoute = SuperAdminPlansRouteImport.update({
   path: '/plans',
   getParentRoute: () => SuperAdminRoute,
 } as any)
+const SuperAdminSmsRoute = SuperAdminSmsRouteImport.update({
+  id: '/sms',
+  path: '/sms',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
 const SuperAdminSupportRoute = SuperAdminSupportRouteImport.update({
   id: '/support',
   path: '/support',
@@ -317,6 +324,11 @@ const ApiPublicPaystackWebhookRoute =
     path: '/api/public/paystack-webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicTermiiDlrRoute = ApiPublicTermiiDlrRouteImport.update({
+  id: '/api/public/termii-dlr',
+  path: '/api/public/termii-dlr',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -360,6 +372,7 @@ export interface FileRoutesByFullPath {
   '/super-admin/fees': typeof SuperAdminFeesRoute
   '/super-admin/payouts': typeof SuperAdminPayoutsRoute
   '/super-admin/plans': typeof SuperAdminPlansRoute
+  '/super-admin/sms': typeof SuperAdminSmsRoute
   '/super-admin/support': typeof SuperAdminSupportRoute
   '/admin/': typeof AdminIndexRoute
   '/member/': typeof MemberIndexRoute
@@ -369,6 +382,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/dues-reminders': typeof ApiCronDuesRemindersRoute
   '/api/cron/trials': typeof ApiCronTrialsRoute
   '/api/public/paystack-webhook': typeof ApiPublicPaystackWebhookRoute
+  '/api/public/termii-dlr': typeof ApiPublicTermiiDlrRoute
   '/admin/members/': typeof AdminMembersIndexRoute
 }
 export interface FileRoutesByTo {
@@ -409,6 +423,7 @@ export interface FileRoutesByTo {
   '/super-admin/fees': typeof SuperAdminFeesRoute
   '/super-admin/payouts': typeof SuperAdminPayoutsRoute
   '/super-admin/plans': typeof SuperAdminPlansRoute
+  '/super-admin/sms': typeof SuperAdminSmsRoute
   '/super-admin/support': typeof SuperAdminSupportRoute
   '/admin': typeof AdminIndexRoute
   '/member': typeof MemberIndexRoute
@@ -418,6 +433,7 @@ export interface FileRoutesByTo {
   '/api/cron/dues-reminders': typeof ApiCronDuesRemindersRoute
   '/api/cron/trials': typeof ApiCronTrialsRoute
   '/api/public/paystack-webhook': typeof ApiPublicPaystackWebhookRoute
+  '/api/public/termii-dlr': typeof ApiPublicTermiiDlrRoute
   '/admin/members': typeof AdminMembersIndexRoute
 }
 export interface FileRoutesById {
@@ -463,6 +479,7 @@ export interface FileRoutesById {
   '/super-admin/fees': typeof SuperAdminFeesRoute
   '/super-admin/payouts': typeof SuperAdminPayoutsRoute
   '/super-admin/plans': typeof SuperAdminPlansRoute
+  '/super-admin/sms': typeof SuperAdminSmsRoute
   '/super-admin/support': typeof SuperAdminSupportRoute
   '/admin/': typeof AdminIndexRoute
   '/member/': typeof MemberIndexRoute
@@ -472,6 +489,7 @@ export interface FileRoutesById {
   '/api/cron/dues-reminders': typeof ApiCronDuesRemindersRoute
   '/api/cron/trials': typeof ApiCronTrialsRoute
   '/api/public/paystack-webhook': typeof ApiPublicPaystackWebhookRoute
+  '/api/public/termii-dlr': typeof ApiPublicTermiiDlrRoute
   '/admin/members/': typeof AdminMembersIndexRoute
 }
 export interface FileRouteTypes {
@@ -518,6 +536,7 @@ export interface FileRouteTypes {
     | '/super-admin/fees'
     | '/super-admin/payouts'
     | '/super-admin/plans'
+    | '/super-admin/sms'
     | '/super-admin/support'
     | '/admin/'
     | '/member/'
@@ -527,6 +546,7 @@ export interface FileRouteTypes {
     | '/api/cron/dues-reminders'
     | '/api/cron/trials'
     | '/api/public/paystack-webhook'
+    | '/api/public/termii-dlr'
     | '/admin/members/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -567,6 +587,7 @@ export interface FileRouteTypes {
     | '/super-admin/fees'
     | '/super-admin/payouts'
     | '/super-admin/plans'
+    | '/super-admin/sms'
     | '/super-admin/support'
     | '/admin'
     | '/member'
@@ -576,6 +597,7 @@ export interface FileRouteTypes {
     | '/api/cron/dues-reminders'
     | '/api/cron/trials'
     | '/api/public/paystack-webhook'
+    | '/api/public/termii-dlr'
     | '/admin/members'
   id:
     | '__root__'
@@ -620,6 +642,7 @@ export interface FileRouteTypes {
     | '/super-admin/fees'
     | '/super-admin/payouts'
     | '/super-admin/plans'
+    | '/super-admin/sms'
     | '/super-admin/support'
     | '/admin/'
     | '/member/'
@@ -629,6 +652,7 @@ export interface FileRouteTypes {
     | '/api/cron/dues-reminders'
     | '/api/cron/trials'
     | '/api/public/paystack-webhook'
+    | '/api/public/termii-dlr'
     | '/admin/members/'
   fileRoutesById: FileRoutesById
 }
@@ -653,6 +677,7 @@ export interface RootRouteChildren {
   ApiCronDuesRemindersRoute: typeof ApiCronDuesRemindersRoute
   ApiCronTrialsRoute: typeof ApiCronTrialsRoute
   ApiPublicPaystackWebhookRoute: typeof ApiPublicPaystackWebhookRoute
+  ApiPublicTermiiDlrRoute: typeof ApiPublicTermiiDlrRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -965,6 +990,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SuperAdminPlansRouteImport
       parentRoute: typeof SuperAdminRoute
     }
+    '/super-admin/sms': {
+      id: '/super-admin/sms'
+      path: '/sms'
+      fullPath: '/super-admin/sms'
+      preLoaderRoute: typeof SuperAdminSmsRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
     '/super-admin/support': {
       id: '/super-admin/support'
       path: '/support'
@@ -1012,6 +1044,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/paystack-webhook'
       fullPath: '/api/public/paystack-webhook'
       preLoaderRoute: typeof ApiPublicPaystackWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/termii-dlr': {
+      id: '/api/public/termii-dlr'
+      path: '/api/public/termii-dlr'
+      fullPath: '/api/public/termii-dlr'
+      preLoaderRoute: typeof ApiPublicTermiiDlrRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -1096,6 +1135,7 @@ interface SuperAdminRouteChildren {
   SuperAdminFeesRoute: typeof SuperAdminFeesRoute
   SuperAdminPayoutsRoute: typeof SuperAdminPayoutsRoute
   SuperAdminPlansRoute: typeof SuperAdminPlansRoute
+  SuperAdminSmsRoute: typeof SuperAdminSmsRoute
   SuperAdminSupportRoute: typeof SuperAdminSupportRoute
   SuperAdminIndexRoute: typeof SuperAdminIndexRoute
 }
@@ -1108,6 +1148,7 @@ const SuperAdminRouteChildren: SuperAdminRouteChildren = {
   SuperAdminFeesRoute: SuperAdminFeesRoute,
   SuperAdminPayoutsRoute: SuperAdminPayoutsRoute,
   SuperAdminPlansRoute: SuperAdminPlansRoute,
+  SuperAdminSmsRoute: SuperAdminSmsRoute,
   SuperAdminSupportRoute: SuperAdminSupportRoute,
   SuperAdminIndexRoute: SuperAdminIndexRoute,
 }
@@ -1137,6 +1178,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronDuesRemindersRoute: ApiCronDuesRemindersRoute,
   ApiCronTrialsRoute: ApiCronTrialsRoute,
   ApiPublicPaystackWebhookRoute: ApiPublicPaystackWebhookRoute,
+  ApiPublicTermiiDlrRoute: ApiPublicTermiiDlrRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

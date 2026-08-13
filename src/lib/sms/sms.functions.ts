@@ -13,6 +13,8 @@ import { applyVerifiedCharge } from "@/lib/payments/paystack-charge.server";
 import { getSmsSettings, getBalanceKobo } from "./wallet.server";
 import { grossUpNgn } from "./paystack-fee";
 import { normalizeNgPhone } from "./phone";
+import { assertSuperAdmin } from "@/lib/payments/authz";
+import { termii } from "./termii.server";
 
 function rateKobo(route: "dnd" | "generic"): number {
   const dnd = Number(process.env.SMS_RATE_DND_KOBO) || 400;
@@ -170,6 +172,48 @@ export const startSmsTopup = createServerFn({ method: "POST" })
       },
     });
     return { authorization_url: tx.authorization_url, reference: tx.reference, grossNgn };
+  });
+
+// Super-admin: the SMS float health. Communities' wallet balances are a
+// liability the shared Termii reserve must always cover; this surfaces both
+// numbers and the headroom so the reserve is topped up before it's exhausted.
+// See docs/sms-wallet-architecture.md §7a.
+export const getSmsReserveStatus = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    await assertSuperAdmin(context.userId);
+
+    const totals = await sql`
+      SELECT COALESCE(SUM(balance_kobo), 0) AS liabilities,
+             COUNT(*) FILTER (WHERE balance_kobo > 0) AS funded
+      FROM public.sms_wallets
+    `;
+    const liabilitiesKobo = Number(totals[0]?.liabilities ?? 0);
+    const fundedCommunities = Number(totals[0]?.funded ?? 0);
+
+    const rows = await sql`
+      SELECT c.name, w.balance_kobo
+      FROM public.sms_wallets w
+      JOIN public.communities c ON c.id = w.community_id
+      WHERE w.balance_kobo > 0
+      ORDER BY w.balance_kobo DESC
+      LIMIT 50
+    `;
+
+    // Termii account balance is NGN (float); express in kobo to compare like
+    // for like. null when Termii isn't configured / unreachable.
+    const termiiNgn = await termii.getAccountBalance();
+    const reserveKobo = termiiNgn == null || Number.isNaN(termiiNgn) ? null : Math.round(termiiNgn * 100);
+    const headroomKobo = reserveKobo == null ? null : reserveKobo - liabilitiesKobo;
+
+    return {
+      liabilitiesKobo,
+      fundedCommunities,
+      reserveKobo,
+      headroomKobo,
+      covered: headroomKobo == null ? null : headroomKobo >= 0,
+      communities: rows.map((r) => ({ name: r.name as string, balanceKobo: Number(r.balance_kobo) })),
+    };
   });
 
 // Confirms a just-completed top-up when the admin's browser lands back on the

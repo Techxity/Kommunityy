@@ -91,6 +91,7 @@ function EditForm({ me, onCancel, onSaved }: { me: NonNullable<Me>; onCancel: ()
     country: me.country,
     address: me.address,
   });
+  const [smsOptOut, setSmsOptOut] = useState(me.smsOptOut);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -111,6 +112,7 @@ function EditForm({ me, onCancel, onSaved }: { me: NonNullable<Me>; onCancel: ()
           dob: form.dob || undefined,
           country: form.country || undefined,
           address: form.address || undefined,
+          smsOptOut,
         },
       });
       onSaved();
@@ -145,6 +147,20 @@ function EditForm({ me, onCancel, onSaved }: { me: NonNullable<Me>; onCancel: ()
           <Field label="Address">
             <input value={form.address} onChange={set("address")} className="input" />
           </Field>
+        </div>
+        <div className="md:col-span-2">
+          <label className="flex items-center gap-2.5 rounded-lg border border-border bg-background px-3 py-2.5 text-sm">
+            <input
+              type="checkbox"
+              checked={!smsOptOut}
+              onChange={(e) => setSmsOptOut(!e.target.checked)}
+              className="h-4 w-4 accent-[var(--color-primary)]"
+            />
+            <span>
+              Receive SMS from my community
+              <span className="block text-xs text-muted-foreground">Birthday wishes, dues reminders and announcements by text. Untick to stop texts (email still applies).</span>
+            </span>
+          </label>
         </div>
       </div>
 

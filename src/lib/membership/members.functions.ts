@@ -53,6 +53,7 @@ function mapRow(r: Record<string, unknown>) {
     extra: (r.extra as Record<string, string> | null) ?? {},
     hasAccount: !!r.user_id,
     communityName: (r.community_name as string | null) ?? "",
+    smsOptOut: !!r.sms_opt_out,
   };
 }
 
@@ -91,6 +92,7 @@ export const updateMyProfile = createServerFn({ method: "POST" })
         dob: z.string().max(20).optional(),
         country: z.string().max(80).optional(),
         address: z.string().max(200).optional(),
+        smsOptOut: z.boolean().optional(),
       })
       .parse(i),
   )
@@ -105,6 +107,7 @@ export const updateMyProfile = createServerFn({ method: "POST" })
           dob = ${data.dob ? data.dob : null}::date,
           country = ${data.country ?? null},
           address = ${data.address ?? null},
+          sms_opt_out = ${data.smsOptOut ?? false},
           updated_at = now()
       WHERE id = ${active.memberId}::uuid
     `;
