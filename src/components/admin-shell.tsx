@@ -20,6 +20,8 @@ import {
   Users2,
   ChevronDown,
   Lock,
+  Menu,
+  X,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
@@ -175,11 +177,17 @@ export function AdminShell() {
   const navigate = useNavigate();
   const [community, setCommunity] = useState<{ id: string; name: string; trialDaysLeft: number; onTrial: boolean; tierName: string | null } | null>(null);
   const [modules, setModules] = useState<string[] | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     getMyCommunity().then(setCommunity).catch(() => setCommunity(null));
     getMyModules().then(setModules).catch(() => setModules([]));
   }, []);
+
+  // Close the mobile drawer whenever the route changes.
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   async function handleSignOut() {
     await logout();
@@ -188,6 +196,44 @@ export function AdminShell() {
 
   return (
     <div className="flex min-h-screen bg-muted/40">
+      {/* Mobile navigation drawer */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden" onClick={() => setMobileOpen(false)}>
+          <div className="absolute inset-0 bg-black/40" />
+          <aside
+            className="absolute left-0 top-0 flex h-full w-72 max-w-[82%] flex-col bg-sidebar text-sidebar-foreground shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-sidebar-border px-5 py-4">
+              <span className="flex items-center gap-2 font-display text-base font-bold">
+                <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-accent text-primary-foreground">
+                  <Users2 className="h-4 w-4" />
+                </span>
+                Kommunity
+              </span>
+              <button type="button" onClick={() => setMobileOpen(false)} aria-label="Close menu" className="text-sidebar-foreground/70 hover:text-sidebar-foreground">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            {/* Link clicks bubble here and close the drawer. */}
+            <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3" onClick={() => setMobileOpen(false)}>
+              {nav.map((group) => (
+                <GroupItem key={group.label} group={group} pathname={pathname} modules={modules} />
+              ))}
+            </nav>
+            <div className="border-t border-sidebar-border p-4">
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="flex items-center gap-2 text-xs text-sidebar-foreground/70 hover:text-sidebar-foreground"
+              >
+                <LogOut className="h-3.5 w-3.5" /> Sign out
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
+
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground md:flex">
         <div className="flex items-center gap-2 px-6 py-5 border-b border-sidebar-border">
           <span className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-accent text-primary-foreground">
@@ -225,10 +271,20 @@ export function AdminShell() {
         </div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/85 px-6 backdrop-blur">
-          <div>
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Workspace</p>
-            <p className="font-display text-lg font-semibold">{community?.name || "—"}</p>
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/85 px-4 backdrop-blur md:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setMobileOpen(true)}
+              aria-label="Open menu"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground md:hidden"
+            >
+              <Menu className="h-4 w-4" />
+            </button>
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Workspace</p>
+              <p className="truncate font-display text-lg font-semibold">{community?.name || "—"}</p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <WorkspaceSwitcher current="admin" />

@@ -260,7 +260,7 @@ function StatementCard({ ov }: { ov: NonNullable<Overview> }) {
         <div className="border-b border-border p-4">
           <h3 className="font-display text-sm font-semibold">Wallet statement</h3>
         </div>
-        <div className="max-h-80 overflow-y-auto">
+        <div className="max-h-80 overflow-auto">
           <table className="w-full text-sm">
             <tbody>
               {ov.ledger.map((l, i) => (
@@ -286,7 +286,7 @@ function StatementCard({ ov }: { ov: NonNullable<Overview> }) {
         <div className="border-b border-border p-4">
           <h3 className="font-display text-sm font-semibold">Recent messages</h3>
         </div>
-        <div className="max-h-80 overflow-y-auto">
+        <div className="max-h-80 overflow-auto">
           <table className="w-full text-sm">
             <tbody>
               {ov.messages.map((m, i) => (
