@@ -149,7 +149,8 @@ CREATE TABLE IF NOT EXISTS public.communities (
     DEFAULT '["President","Secretary","Treasurer","PRO","Welfare Officer"]'::jsonb,
   suspended boolean NOT NULL DEFAULT false,
   trial_warned_2_at timestamptz,
-  trial_warned_1_at timestamptz
+  trial_warned_1_at timestamptz,
+  expenses_reduce_held boolean NOT NULL DEFAULT false
 );
 
 CREATE TABLE IF NOT EXISTS public.platform_settings (
@@ -425,6 +426,9 @@ CREATE TABLE IF NOT EXISTS public.community_expenses (
   category text NOT NULL DEFAULT 'General',
   description text,
   spent_at date NOT NULL DEFAULT CURRENT_DATE,
+  receipt_base64 text,
+  receipt_mime text,
+  receipt_name text,
   created_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()

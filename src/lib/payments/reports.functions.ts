@@ -27,6 +27,9 @@ export const getFinancialReport = createServerFn({ method: "POST" })
     const from = data.from ?? null;
     const to = data.to ?? null;
 
+    const commRows = await sql`SELECT expenses_reduce_held FROM public.communities WHERE id = ${communityId}::uuid LIMIT 1`;
+    const reduceHeld = !!commRows[0]?.expenses_reduce_held;
+
     // Category totals per currency, within the selected range.
     const dues = await sql`
       SELECT dp.currency,
@@ -142,10 +145,17 @@ export const getFinancialReport = createServerFn({ method: "POST" })
       WHERE community_id = ${communityId}::uuid
       GROUP BY currency
     `;
-    const heldMap = new Map<Currency, { currency: Currency; net: number; paidOut: number; pending: number; held: number }>();
+    // Lifetime expenses per currency (all-time, not range) — used to reduce the
+    // held figure when the admin has opted in.
+    const lifetimeExpenses = await sql`
+      SELECT currency, COALESCE(SUM(amount), 0) AS total
+      FROM public.community_expenses WHERE community_id = ${communityId}::uuid
+      GROUP BY currency
+    `;
+    const heldMap = new Map<Currency, { currency: Currency; net: number; paidOut: number; pending: number; expenses: number; held: number }>();
     const ensureHeld = (c: Currency) => {
       let e = heldMap.get(c);
-      if (!e) { e = { currency: c, net: 0, paidOut: 0, pending: 0, held: 0 }; heldMap.set(c, e); }
+      if (!e) { e = { currency: c, net: 0, paidOut: 0, pending: 0, expenses: 0, held: 0 }; heldMap.set(c, e); }
       return e;
     };
     for (const r of lifetimeNet) ensureHeld(r.currency as Currency).net += n(r.net);
@@ -153,7 +163,10 @@ export const getFinancialReport = createServerFn({ method: "POST" })
       const e = ensureHeld(r.currency as Currency);
       e.paidOut += n(r.paid_out); e.pending += n(r.pending);
     }
-    for (const e of heldMap.values()) e.held = Math.max(0, e.net - e.paidOut);
+    for (const r of lifetimeExpenses) ensureHeld(r.currency as Currency).expenses += n(r.total);
+    for (const e of heldMap.values()) {
+      e.held = Math.max(0, e.net - e.paidOut - (reduceHeld ? e.expenses : 0));
+    }
 
     // Expenses in range, per currency + by category.
     const expenseRows = await sql`
@@ -185,6 +198,7 @@ export const getFinancialReport = createServerFn({ method: "POST" })
 
     return {
       range: { from, to },
+      expensePolicy: { reduceHeld },
       summary: Array.from(byCurrency.values()).sort((a, b) => (a.currency === "NGN" ? -1 : 1)),
       expenses: Array.from(expenseMap.values()).sort((a, b) => (a.currency === "NGN" ? -1 : 1)),
       netPosition,
@@ -269,7 +283,8 @@ export const listExpenses = createServerFn({ method: "POST" })
     const from = data.from ?? null;
     const to = data.to ?? null;
     const rows = await sql`
-      SELECT id, amount, currency, category, description, spent_at
+      SELECT id, amount, currency, category, description, spent_at,
+             (receipt_base64 IS NOT NULL) AS has_receipt, receipt_name
       FROM public.community_expenses
       WHERE community_id = ${communityId}::uuid
         AND (${from}::date IS NULL OR spent_at >= ${from}::date)
@@ -283,6 +298,8 @@ export const listExpenses = createServerFn({ method: "POST" })
       category: r.category as string,
       description: (r.description as string | null) ?? "",
       spentAt: new Date(r.spent_at as string).toISOString().slice(0, 10),
+      hasReceipt: !!r.has_receipt,
+      receiptName: (r.receipt_name as string | null) ?? null,
     }));
   });
 
@@ -329,5 +346,80 @@ export const deleteExpense = createServerFn({ method: "POST" })
     const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
     await sql`DELETE FROM public.community_expenses WHERE id = ${data.id}::uuid AND community_id = ${communityId}::uuid`;
+    return { ok: true };
+  });
+
+// ── Expense receipts (optional evidence, stored inline as base64) ────────
+
+const RECEIPT_MIMES = ["image/png", "image/jpeg", "image/webp", "application/pdf"] as const;
+// ~3.3MB raw ≈ 4.5M base64 chars. Keeps rows sane and RPC payloads reasonable.
+const MAX_RECEIPT_B64 = 4_500_000;
+
+export const uploadExpenseReceipt = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        name: z.string().min(1).max(200),
+        mime: z.enum(RECEIPT_MIMES),
+        dataBase64: z.string().min(1).max(MAX_RECEIPT_B64),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) throw new Error("You don't manage a community yet.");
+    const res = await sql`
+      UPDATE public.community_expenses
+      SET receipt_base64 = ${data.dataBase64}, receipt_mime = ${data.mime}, receipt_name = ${data.name}, updated_at = now()
+      WHERE id = ${data.id}::uuid AND community_id = ${communityId}::uuid
+      RETURNING id
+    `;
+    if (res.length === 0) throw new Error("Expense not found.");
+    return { ok: true };
+  });
+
+export const removeExpenseReceipt = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => z.object({ id: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) throw new Error("You don't manage a community yet.");
+    await sql`
+      UPDATE public.community_expenses
+      SET receipt_base64 = NULL, receipt_mime = NULL, receipt_name = NULL, updated_at = now()
+      WHERE id = ${data.id}::uuid AND community_id = ${communityId}::uuid
+    `;
+    return { ok: true };
+  });
+
+// Returns the receipt for inline viewing/download (admin-scoped).
+export const getExpenseReceipt = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => z.object({ id: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) return null;
+    const rows = await sql`
+      SELECT receipt_base64, receipt_mime, receipt_name
+      FROM public.community_expenses
+      WHERE id = ${data.id}::uuid AND community_id = ${communityId}::uuid AND receipt_base64 IS NOT NULL
+      LIMIT 1
+    `;
+    const r = rows[0];
+    if (!r) return null;
+    return { name: (r.receipt_name as string | null) ?? "receipt", mime: r.receipt_mime as string, dataBase64: r.receipt_base64 as string };
+  });
+
+// ── Expense policy: do expenses reduce the all-time funds position? ──────
+
+export const setExpensePolicy = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => z.object({ reduceHeld: z.boolean() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) throw new Error("You don't manage a community yet.");
+    await sql`UPDATE public.communities SET expenses_reduce_held = ${data.reduceHeld}, updated_at = now() WHERE id = ${communityId}::uuid`;
     return { ok: true };
   });

@@ -5,11 +5,38 @@ import {
   exportFinancialTransactions,
   listExpenses,
   addExpense,
+  updateExpense,
   deleteExpense,
+  uploadExpenseReceipt,
+  getExpenseReceipt,
+  removeExpenseReceipt,
+  setExpensePolicy,
   EXPENSE_CATEGORY_LIST,
 } from "@/lib/payments/reports.functions";
 import { downloadCsv } from "@/lib/export-csv";
-import { FileBarChart, Download, Banknote, Wallet, Receipt, Printer, Plus, Trash2, Scale } from "lucide-react";
+import { FileBarChart, Download, Banknote, Wallet, Receipt, Printer, Plus, Trash2, Scale, Pencil, Paperclip, Eye, X, Check } from "lucide-react";
+
+// Reliable base64 → new-tab open (works for images and PDF).
+function openBase64(mime: string, b64: string) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+  window.open(url, "_blank");
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const s = String(reader.result);
+      resolve(s.slice(s.indexOf(",") + 1));
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 export const Route = createFileRoute("/admin/reports")({
   component: Reports,
@@ -210,13 +237,19 @@ function Reports() {
 
           {/* All-time funds position */}
           {report.held.length > 0 && (
-            <Card title="Funds position (all-time)" subtitle="Net collected to date, what's been paid out, and what's still held.">
-              <table className="w-full text-sm">
+            <Card
+              title="Funds position (all-time)"
+              subtitle={report.expensePolicy.reduceHeld
+                ? "Net collected minus paid out and all recorded expenses = currently held."
+                : "Net collected to date, what's been paid out, and what's still held. (Expenses are shown but not deducted — toggle that on above.)"}
+            >
+              <table className="w-full min-w-[640px] text-sm">
                 <thead className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
                   <tr>
                     <th className="px-4 py-2.5 font-medium">Currency</th>
                     <th className="px-4 py-2.5 font-medium text-right">Net collected</th>
                     <th className="px-4 py-2.5 font-medium text-right">Paid out</th>
+                    <th className="px-4 py-2.5 font-medium text-right">Expenses</th>
                     <th className="px-4 py-2.5 font-medium text-right">Pending payout</th>
                     <th className="px-4 py-2.5 font-medium text-right">Currently held</th>
                   </tr>
@@ -227,6 +260,7 @@ function Reports() {
                       <td className="px-4 py-2.5 font-medium">{h.currency}</td>
                       <td className="px-4 py-2.5 text-right">{money(h.currency, h.net)}</td>
                       <td className="px-4 py-2.5 text-right">{money(h.currency, h.paidOut)}</td>
+                      <td className={`px-4 py-2.5 text-right ${report.expensePolicy.reduceHeld ? "text-destructive" : "text-muted-foreground"}`}>{money(h.currency, h.expenses)}</td>
                       <td className="px-4 py-2.5 text-right">{money(h.currency, h.pending)}</td>
                       <td className="px-4 py-2.5 text-right font-semibold">{money(h.currency, h.held)}</td>
                     </tr>
@@ -265,109 +299,178 @@ function NetCard({ np }: { np: { currency: "NGN" | "USD"; incomeNet: number; exp
 }
 
 function ExpensesSection({ expenses, report, onChanged }: { expenses: Expense[]; report: NonNullable<Report>; onChanged: () => void }) {
-  const [amount, setAmount] = useState("");
-  const [currency, setCurrency] = useState<"NGN" | "USD">("NGN");
-  const [category, setCategory] = useState("General");
-  const [description, setDescription] = useState("");
-  const [spentAt, setSpentAt] = useState(() => new Date().toISOString().slice(0, 10));
+  const empty = { amount: "", currency: "NGN" as "NGN" | "USD", category: "General", description: "", spentAt: new Date().toISOString().slice(0, 10) };
+  const [form, setForm] = useState(empty);
+  const [editId, setEditId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [policyBusy, setPolicyBusy] = useState(false);
 
-  async function add() {
-    const amt = Number(amount);
+  function startEdit(e: Expense) {
+    setEditId(e.id);
+    setForm({ amount: String(e.amount), currency: e.currency, category: e.category, description: e.description, spentAt: e.spentAt });
+    setError("");
+    if (typeof window !== "undefined") window.scrollTo({ top: window.scrollY });
+  }
+  function cancelEdit() {
+    setEditId(null);
+    setForm(empty);
+    setError("");
+  }
+
+  async function submit() {
+    const amt = Number(form.amount);
     if (!amt || amt <= 0) return setError("Enter a valid amount.");
     setBusy(true);
     setError("");
     try {
-      await addExpense({ data: { amount: amt, currency, category, description: description.trim() || undefined, spentAt } });
-      setAmount("");
-      setDescription("");
+      const payload = { amount: amt, currency: form.currency, category: form.category, description: form.description.trim() || undefined, spentAt: form.spentAt };
+      if (editId) await updateExpense({ data: { id: editId, ...payload } });
+      else await addExpense({ data: payload });
+      cancelEdit();
       onChanged();
     } catch (e: any) {
-      setError(e?.message ?? "Couldn't add expense.");
+      setError(e?.message ?? "Couldn't save expense.");
     } finally {
       setBusy(false);
     }
   }
 
-  async function remove(id: string) {
+  async function togglePolicy(next: boolean) {
+    setPolicyBusy(true);
     try {
-      await deleteExpense({ data: { id } });
+      await setExpensePolicy({ data: { reduceHeld: next } });
       onChanged();
-    } catch {
-      /* ignore */
+    } finally {
+      setPolicyBusy(false);
     }
   }
 
   return (
     <div className="rounded-2xl border border-border bg-card shadow-soft">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
         <div>
           <h2 className="font-display text-lg font-semibold">Expenses</h2>
-          <p className="text-xs text-muted-foreground">Record what the community spent so it sits beside income for this period.</p>
+          <p className="text-xs text-muted-foreground">Record what the community spent — with optional evidence — so it sits beside income for this period.</p>
         </div>
-        {report.expenses.length > 0 && (
-          <div className="text-xs text-muted-foreground">
-            {report.expenses.map((e) => (
-              <span key={e.currency} className="ml-3 font-medium text-foreground">{money(e.currency, e.total)}</span>
-            ))}
-            <span className="ml-1">total</span>
-          </div>
-        )}
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={report.expensePolicy.reduceHeld}
+            disabled={policyBusy}
+            onClick={() => togglePolicy(!report.expensePolicy.reduceHeld)}
+            className={`relative h-5 w-9 rounded-full transition ${report.expensePolicy.reduceHeld ? "bg-primary" : "bg-muted-foreground/30"}`}
+          >
+            <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${report.expensePolicy.reduceHeld ? "left-[1.125rem]" : "left-0.5"}`} />
+          </button>
+          Deduct expenses from funds position
+        </label>
       </div>
 
-      {/* Add form */}
+      {/* Add / edit form */}
       <div className="grid gap-2 border-b border-border p-4 md:grid-cols-12">
-        <input type="date" value={spentAt} onChange={(e) => setSpentAt(e.target.value)} className="rp-in md:col-span-2" />
-        <select value={category} onChange={(e) => setCategory(e.target.value)} className="rp-in md:col-span-2">
+        <input type="date" value={form.spentAt} onChange={(e) => setForm((f) => ({ ...f, spentAt: e.target.value }))} className="rp-in md:col-span-2" />
+        <select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} className="rp-in md:col-span-2">
           {EXPENSE_CATEGORY_LIST.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
-        <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description (optional)" className="rp-in md:col-span-4" />
-        <select value={currency} onChange={(e) => setCurrency(e.target.value as "NGN" | "USD")} className="rp-in md:col-span-1">
+        <input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Description (optional)" className="rp-in md:col-span-3" />
+        <select value={form.currency} onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value as "NGN" | "USD" }))} className="rp-in md:col-span-1">
           <option value="NGN">₦</option>
           <option value="USD">$</option>
         </select>
-        <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))} inputMode="decimal" placeholder="Amount" className="rp-in md:col-span-2" />
-        <button onClick={add} disabled={busy} className="inline-flex items-center justify-center gap-1 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60 md:col-span-1">
-          <Plus className="h-4 w-4" />
-        </button>
+        <input value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value.replace(/[^\d.]/g, "") }))} inputMode="decimal" placeholder="Amount" className="rp-in md:col-span-2" />
+        <div className="flex gap-2 md:col-span-2">
+          <button onClick={submit} disabled={busy} className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60">
+            {editId ? <><Check className="h-4 w-4" /> Save</> : <Plus className="h-4 w-4" />}
+          </button>
+          {editId && (
+            <button onClick={cancelEdit} className="inline-flex items-center justify-center rounded-lg border border-border px-2 text-muted-foreground hover:bg-muted" title="Cancel">
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
       {error && <p className="px-4 pt-2 text-xs text-destructive">{error}</p>}
 
       {/* List */}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[560px] text-sm">
+        <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
             <tr>
               <th className="px-4 py-2.5 font-medium">Date</th>
               <th className="px-4 py-2.5 font-medium">Category</th>
               <th className="px-4 py-2.5 font-medium">Description</th>
+              <th className="px-4 py-2.5 font-medium">Evidence</th>
               <th className="px-4 py-2.5 font-medium text-right">Amount</th>
-              <th className="px-4 py-2.5 font-medium text-right">·</th>
+              <th className="px-4 py-2.5 font-medium text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {expenses.map((e) => (
-              <tr key={e.id} className="border-t border-border">
-                <td className="px-4 py-2.5 text-muted-foreground">{e.spentAt}</td>
-                <td className="px-4 py-2.5">{e.category}</td>
-                <td className="px-4 py-2.5 text-muted-foreground">{e.description || "—"}</td>
-                <td className="px-4 py-2.5 text-right font-semibold">{money(e.currency, e.amount)}</td>
-                <td className="px-4 py-2.5 text-right">
-                  <button onClick={() => remove(e.id)} title="Delete" className="text-muted-foreground hover:text-destructive">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </td>
-              </tr>
+              <ExpenseRow key={e.id} e={e} editing={editId === e.id} onEdit={() => startEdit(e)} onChanged={onChanged} />
             ))}
             {expenses.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">No expenses recorded for this period. Add one above.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">No expenses recorded for this period. Add one above.</td></tr>
             )}
           </tbody>
         </table>
       </div>
       <style>{`.rp-in{width:100%;border-radius:0.5rem;border:1px solid var(--color-border);background:var(--color-background);padding:0.5rem 0.6rem;font-size:0.875rem;outline:none}.rp-in:focus{border-color:var(--color-ring)}`}</style>
     </div>
+  );
+}
+
+function ExpenseRow({ e, editing, onEdit, onChanged }: { e: Expense; editing: boolean; onEdit: () => void; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+
+  async function onFile(file: File | undefined) {
+    if (!file) return;
+    if (file.size > 3.3 * 1024 * 1024) return alert("File too large (max ~3MB).");
+    if (!["image/png", "image/jpeg", "image/webp", "application/pdf"].includes(file.type)) return alert("Please use a PNG, JPG, WebP, or PDF.");
+    setBusy(true);
+    try {
+      const dataBase64 = await fileToBase64(file);
+      await uploadExpenseReceipt({ data: { id: e.id, name: file.name, mime: file.type as any, dataBase64 } });
+      onChanged();
+    } catch {
+      alert("Upload failed. Try a smaller file.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function view() {
+    const r = await getExpenseReceipt({ data: { id: e.id } });
+    if (r) openBase64(r.mime, r.dataBase64);
+  }
+
+  return (
+    <tr className={`border-t border-border ${editing ? "bg-primary/5" : ""}`}>
+      <td className="px-4 py-2.5 text-muted-foreground">{e.spentAt}</td>
+      <td className="px-4 py-2.5">{e.category}</td>
+      <td className="px-4 py-2.5 text-muted-foreground">{e.description || "—"}</td>
+      <td className="px-4 py-2.5">
+        {e.hasReceipt ? (
+          <span className="inline-flex items-center gap-2">
+            <button onClick={view} className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline"><Eye className="h-3.5 w-3.5" /> View</button>
+            <button onClick={() => removeExpenseReceipt({ data: { id: e.id } }).then(onChanged)} title="Remove evidence" className="text-muted-foreground hover:text-destructive"><X className="h-3.5 w-3.5" /></button>
+          </span>
+        ) : (
+          <label className="inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground">
+            <Paperclip className="h-3.5 w-3.5" /> {busy ? "Uploading…" : "Attach"}
+            <input type="file" accept="image/png,image/jpeg,image/webp,application/pdf" className="hidden" onChange={(ev) => onFile(ev.target.files?.[0])} />
+          </label>
+        )}
+      </td>
+      <td className="px-4 py-2.5 text-right font-semibold">{money(e.currency, e.amount)}</td>
+      <td className="px-4 py-2.5 text-right">
+        <span className="inline-flex items-center gap-2">
+          <button onClick={onEdit} title="Edit" className="text-muted-foreground hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
+          <button onClick={() => deleteExpense({ data: { id: e.id } }).then(onChanged)} title="Delete" className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
+        </span>
+      </td>
+    </tr>
   );
 }
 
