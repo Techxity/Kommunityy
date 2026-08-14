@@ -1,17 +1,26 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { getFinancialReport, exportFinancialTransactions } from "@/lib/payments/reports.functions";
+import {
+  getFinancialReport,
+  exportFinancialTransactions,
+  listExpenses,
+  addExpense,
+  deleteExpense,
+  EXPENSE_CATEGORY_LIST,
+} from "@/lib/payments/reports.functions";
 import { downloadCsv } from "@/lib/export-csv";
-import { FileBarChart, Download, Banknote, Wallet, Receipt, Printer } from "lucide-react";
+import { FileBarChart, Download, Banknote, Wallet, Receipt, Printer, Plus, Trash2, Scale } from "lucide-react";
 
 export const Route = createFileRoute("/admin/reports")({
   component: Reports,
 });
 
 type Report = Awaited<ReturnType<typeof getFinancialReport>>;
+type Expense = Awaited<ReturnType<typeof listExpenses>>[number];
 
 function money(currency: "NGN" | "USD", amount: number): string {
-  return `${currency === "NGN" ? "₦" : "$"}${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  const sign = amount < 0 ? "-" : "";
+  return `${sign}${currency === "NGN" ? "₦" : "$"}${Math.abs(amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }
 
 function monthLabel(ym: string): string {
@@ -42,13 +51,19 @@ const PRESETS = [
 function Reports() {
   const [preset, setPreset] = useState("year");
   const [report, setReport] = useState<Report | null | undefined>(undefined);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [exporting, setExporting] = useState(false);
 
   const range = useMemo(() => presetRange(preset), [preset]);
 
+  function load() {
+    getFinancialReport({ data: range }).then(setReport).catch(() => setReport(null));
+    listExpenses({ data: range }).then(setExpenses).catch(() => setExpenses([]));
+  }
+
   useEffect(() => {
     setReport(undefined);
-    getFinancialReport({ data: range }).then(setReport).catch(() => setReport(null));
+    load();
   }, [range.from, range.to]);
 
   async function exportCsv() {
@@ -103,17 +118,24 @@ function Reports() {
         <div className="min-h-[30vh]" />
       ) : !report ? (
         <p className="text-sm text-muted-foreground">You don't manage a community yet.</p>
-      ) : report.summary.length === 0 ? (
-        <div className="rounded-2xl border border-border bg-card p-10 text-center shadow-soft">
-          <Receipt className="mx-auto h-8 w-8 text-muted-foreground" />
-          <p className="mt-3 text-sm text-muted-foreground">No payments recorded in this period.</p>
-        </div>
       ) : (
         <>
-          {/* Summary per currency */}
+          {/* Income vs expenses — net position (surplus/deficit) */}
+          {report.netPosition.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="font-display text-lg font-semibold">Income vs expenses</h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {report.netPosition.map((np) => (
+                  <NetCard key={np.currency} np={np} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Income summary per currency */}
           {report.summary.map((s) => (
             <div key={s.currency} className="space-y-3">
-              <h2 className="font-display text-lg font-semibold">{s.currency} summary</h2>
+              <h2 className="font-display text-lg font-semibold">{s.currency} income</h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <Tile icon={Banknote} label="Gross collected" value={money(s.currency, s.gross)} sub={`${s.count} payments`} />
                 <Tile icon={Receipt} label="Platform fees" value={money(s.currency, s.fees)} sub="deducted" />
@@ -123,8 +145,11 @@ function Reports() {
             </div>
           ))}
 
-          {/* Monthly */}
-          <Card title="Monthly breakdown">
+          {/* Expenses management + breakdown */}
+          <ExpensesSection expenses={expenses} report={report} onChanged={load} />
+
+          {report.monthly.length > 0 && (
+          <Card title="Monthly income breakdown">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
                 <tr>
@@ -148,8 +173,9 @@ function Reports() {
               </tbody>
             </table>
           </Card>
+          )}
 
-          {/* Member contributions */}
+          {report.members.length > 0 && (
           <Card title="Dues contributions by member" subtitle="Who paid, and how much, in this period.">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
@@ -180,6 +206,7 @@ function Reports() {
               </tbody>
             </table>
           </Card>
+          )}
 
           {/* All-time funds position */}
           {report.held.length > 0 && (
@@ -208,8 +235,138 @@ function Reports() {
               </table>
             </Card>
           )}
+
+          {report.summary.length === 0 && expenses.length === 0 && (
+            <div className="rounded-2xl border border-border bg-card p-10 text-center shadow-soft">
+              <Receipt className="mx-auto h-8 w-8 text-muted-foreground" />
+              <p className="mt-3 text-sm text-muted-foreground">No income or expenses recorded in this period yet.</p>
+            </div>
+          )}
         </>
       )}
+    </div>
+  );
+}
+
+function NetCard({ np }: { np: { currency: "NGN" | "USD"; incomeNet: number; expenses: number; net: number } }) {
+  const surplus = np.net >= 0;
+  return (
+    <div className={`rounded-2xl border p-5 shadow-soft ${surplus ? "border-emerald-500/30 bg-emerald-500/5" : "border-destructive/40 bg-destructive/5"}`}>
+      <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
+        <Scale className={`h-3.5 w-3.5 ${surplus ? "text-emerald-600" : "text-destructive"}`} /> {np.currency} · {surplus ? "Surplus" : "Deficit"}
+      </div>
+      <p className={`mt-1.5 font-display text-2xl font-bold ${surplus ? "text-emerald-700" : "text-destructive"}`}>{money(np.currency, np.net)}</p>
+      <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+        <span>Income (net): <span className="font-medium text-foreground">{money(np.currency, np.incomeNet)}</span></span>
+        <span>Expenses: <span className="font-medium text-foreground">{money(np.currency, np.expenses)}</span></span>
+      </div>
+    </div>
+  );
+}
+
+function ExpensesSection({ expenses, report, onChanged }: { expenses: Expense[]; report: NonNullable<Report>; onChanged: () => void }) {
+  const [amount, setAmount] = useState("");
+  const [currency, setCurrency] = useState<"NGN" | "USD">("NGN");
+  const [category, setCategory] = useState("General");
+  const [description, setDescription] = useState("");
+  const [spentAt, setSpentAt] = useState(() => new Date().toISOString().slice(0, 10));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function add() {
+    const amt = Number(amount);
+    if (!amt || amt <= 0) return setError("Enter a valid amount.");
+    setBusy(true);
+    setError("");
+    try {
+      await addExpense({ data: { amount: amt, currency, category, description: description.trim() || undefined, spentAt } });
+      setAmount("");
+      setDescription("");
+      onChanged();
+    } catch (e: any) {
+      setError(e?.message ?? "Couldn't add expense.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(id: string) {
+    try {
+      await deleteExpense({ data: { id } });
+      onChanged();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-border bg-card shadow-soft">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border p-4">
+        <div>
+          <h2 className="font-display text-lg font-semibold">Expenses</h2>
+          <p className="text-xs text-muted-foreground">Record what the community spent so it sits beside income for this period.</p>
+        </div>
+        {report.expenses.length > 0 && (
+          <div className="text-xs text-muted-foreground">
+            {report.expenses.map((e) => (
+              <span key={e.currency} className="ml-3 font-medium text-foreground">{money(e.currency, e.total)}</span>
+            ))}
+            <span className="ml-1">total</span>
+          </div>
+        )}
+      </div>
+
+      {/* Add form */}
+      <div className="grid gap-2 border-b border-border p-4 md:grid-cols-12">
+        <input type="date" value={spentAt} onChange={(e) => setSpentAt(e.target.value)} className="rp-in md:col-span-2" />
+        <select value={category} onChange={(e) => setCategory(e.target.value)} className="rp-in md:col-span-2">
+          {EXPENSE_CATEGORY_LIST.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description (optional)" className="rp-in md:col-span-4" />
+        <select value={currency} onChange={(e) => setCurrency(e.target.value as "NGN" | "USD")} className="rp-in md:col-span-1">
+          <option value="NGN">₦</option>
+          <option value="USD">$</option>
+        </select>
+        <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))} inputMode="decimal" placeholder="Amount" className="rp-in md:col-span-2" />
+        <button onClick={add} disabled={busy} className="inline-flex items-center justify-center gap-1 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60 md:col-span-1">
+          <Plus className="h-4 w-4" />
+        </button>
+      </div>
+      {error && <p className="px-4 pt-2 text-xs text-destructive">{error}</p>}
+
+      {/* List */}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[560px] text-sm">
+          <thead className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
+            <tr>
+              <th className="px-4 py-2.5 font-medium">Date</th>
+              <th className="px-4 py-2.5 font-medium">Category</th>
+              <th className="px-4 py-2.5 font-medium">Description</th>
+              <th className="px-4 py-2.5 font-medium text-right">Amount</th>
+              <th className="px-4 py-2.5 font-medium text-right">·</th>
+            </tr>
+          </thead>
+          <tbody>
+            {expenses.map((e) => (
+              <tr key={e.id} className="border-t border-border">
+                <td className="px-4 py-2.5 text-muted-foreground">{e.spentAt}</td>
+                <td className="px-4 py-2.5">{e.category}</td>
+                <td className="px-4 py-2.5 text-muted-foreground">{e.description || "—"}</td>
+                <td className="px-4 py-2.5 text-right font-semibold">{money(e.currency, e.amount)}</td>
+                <td className="px-4 py-2.5 text-right">
+                  <button onClick={() => remove(e.id)} title="Delete" className="text-muted-foreground hover:text-destructive">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {expenses.length === 0 && (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">No expenses recorded for this period. Add one above.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <style>{`.rp-in{width:100%;border-radius:0.5rem;border:1px solid var(--color-border);background:var(--color-background);padding:0.5rem 0.6rem;font-size:0.875rem;outline:none}.rp-in:focus{border-color:var(--color-ring)}`}</style>
     </div>
   );
 }

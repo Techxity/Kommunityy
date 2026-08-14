@@ -155,9 +155,39 @@ export const getFinancialReport = createServerFn({ method: "POST" })
     }
     for (const e of heldMap.values()) e.held = Math.max(0, e.net - e.paidOut);
 
+    // Expenses in range, per currency + by category.
+    const expenseRows = await sql`
+      SELECT currency, category, COALESCE(SUM(amount), 0) AS total
+      FROM public.community_expenses
+      WHERE community_id = ${communityId}::uuid
+        AND (${from}::date IS NULL OR spent_at >= ${from}::date)
+        AND (${to}::date IS NULL OR spent_at <= ${to}::date)
+      GROUP BY currency, category
+    `;
+    const expenseMap = new Map<Currency, { currency: Currency; total: number; byCategory: { category: string; amount: number }[] }>();
+    for (const r of expenseRows) {
+      const cur = r.currency as Currency;
+      let e = expenseMap.get(cur);
+      if (!e) { e = { currency: cur, total: 0, byCategory: [] }; expenseMap.set(cur, e); }
+      const amt = n(r.total);
+      e.total += amt;
+      e.byCategory.push({ category: (r.category as string) || "General", amount: amt });
+    }
+    for (const e of expenseMap.values()) e.byCategory.sort((a, b) => b.amount - a.amount);
+
+    // Net position for the period = income (net of fees) − expenses, per currency.
+    const netCurrencies = new Set<Currency>([...byCurrency.keys(), ...expenseMap.keys()]);
+    const netPosition = Array.from(netCurrencies).map((cur) => {
+      const incomeNet = byCurrency.get(cur)?.net ?? 0;
+      const expenses = expenseMap.get(cur)?.total ?? 0;
+      return { currency: cur, incomeNet, expenses, net: incomeNet - expenses };
+    }).sort((a, b) => (a.currency === "NGN" ? -1 : 1));
+
     return {
       range: { from, to },
       summary: Array.from(byCurrency.values()).sort((a, b) => (a.currency === "NGN" ? -1 : 1)),
+      expenses: Array.from(expenseMap.values()).sort((a, b) => (a.currency === "NGN" ? -1 : 1)),
+      netPosition,
       monthly: Array.from(monthMap.values()).sort((a, b) => a.month.localeCompare(b.month) || (a.currency === "NGN" ? -1 : 1)),
       members: memberRows.map((r) => ({
         name: r.name as string,
@@ -197,6 +227,15 @@ export const exportFinancialTransactions = createServerFn({ method: "POST" })
         WHERE d.community_id = ${communityId}::uuid AND dp.status = 'paid'
           AND (${from}::date IS NULL OR dp.paid_at >= ${from}::date)
           AND (${to}::date IS NULL OR dp.paid_at < (${to}::date + INTERVAL '1 day'))
+        UNION ALL
+        -- Expenses as outflows: net is negative so the Net column sums to the
+        -- true period surplus/deficit.
+        SELECT (e.spent_at)::timestamptz AS paid_at, 'Expense' AS kind, e.category AS name, '' AS email,
+               e.currency, e.amount AS gross, 0 AS fee, (-e.amount) AS net, COALESCE(e.description, '') AS reference
+        FROM public.community_expenses e
+        WHERE e.community_id = ${communityId}::uuid
+          AND (${from}::date IS NULL OR e.spent_at >= ${from}::date)
+          AND (${to}::date IS NULL OR e.spent_at <= ${to}::date)
       ) t
       ORDER BY paid_at DESC
     `;
@@ -211,4 +250,84 @@ export const exportFinancialTransactions = createServerFn({ method: "POST" })
       net: n(r.net),
       reference: (r.reference as string | null) ?? "",
     }));
+  });
+
+// ── Expense entries (admin-managed) ─────────────────────────────────────
+
+const EXPENSE_CATEGORIES = [
+  "Maintenance", "Utilities", "Events", "Stipends/Salaries", "Rent",
+  "Bank charges", "Security", "Supplies", "Transport", "General",
+] as const;
+export const EXPENSE_CATEGORY_LIST = EXPENSE_CATEGORIES;
+
+export const listExpenses = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => dateRange.parse(i))
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) return [];
+    const from = data.from ?? null;
+    const to = data.to ?? null;
+    const rows = await sql`
+      SELECT id, amount, currency, category, description, spent_at
+      FROM public.community_expenses
+      WHERE community_id = ${communityId}::uuid
+        AND (${from}::date IS NULL OR spent_at >= ${from}::date)
+        AND (${to}::date IS NULL OR spent_at <= ${to}::date)
+      ORDER BY spent_at DESC, created_at DESC
+    `;
+    return rows.map((r) => ({
+      id: r.id as string,
+      amount: n(r.amount),
+      currency: r.currency as Currency,
+      category: r.category as string,
+      description: (r.description as string | null) ?? "",
+      spentAt: new Date(r.spent_at as string).toISOString().slice(0, 10),
+    }));
+  });
+
+const expenseInput = z.object({
+  amount: z.number().positive().max(1_000_000_000),
+  currency: z.enum(["NGN", "USD"]),
+  category: z.string().min(1).max(60),
+  description: z.string().max(300).optional().nullable(),
+  spentAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+export const addExpense = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => expenseInput.parse(i))
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) throw new Error("You don't manage a community yet.");
+    await sql`
+      INSERT INTO public.community_expenses (community_id, amount, currency, category, description, spent_at, created_by)
+      VALUES (${communityId}::uuid, ${data.amount}, ${data.currency}, ${data.category}, ${data.description ?? null}, ${data.spentAt}::date, ${context.userId}::uuid)
+    `;
+    return { ok: true };
+  });
+
+export const updateExpense = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => expenseInput.extend({ id: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) throw new Error("You don't manage a community yet.");
+    await sql`
+      UPDATE public.community_expenses
+      SET amount = ${data.amount}, currency = ${data.currency}, category = ${data.category},
+          description = ${data.description ?? null}, spent_at = ${data.spentAt}::date, updated_at = now()
+      WHERE id = ${data.id}::uuid AND community_id = ${communityId}::uuid
+    `;
+    return { ok: true };
+  });
+
+export const deleteExpense = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => z.object({ id: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) throw new Error("You don't manage a community yet.");
+    await sql`DELETE FROM public.community_expenses WHERE id = ${data.id}::uuid AND community_id = ${communityId}::uuid`;
+    return { ok: true };
   });
