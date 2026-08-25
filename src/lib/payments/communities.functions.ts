@@ -46,6 +46,11 @@ export const getCommunityBySlug = createServerFn({ method: "POST" })
 export const getMyCommunity = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
+    // Honor the session's active-community pin (set by the workspace switcher)
+    // so an admin of several communities sees the one they switched to — not
+    // just their earliest.
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) return null;
     const rows = await sql`
       SELECT c.id, c.name, c.slug, c.type, c.trial_ends_at, c.tier_id,
              t.name AS tier_name, t.monthly_price_ngn, t.monthly_price_usd,
@@ -56,11 +61,8 @@ export const getMyCommunity = createServerFn({ method: "POST" })
                 WHERE community_id = c.id
                 ORDER BY paid_at DESC LIMIT 1) AS last_period_months
       FROM public.communities c
-      JOIN public.user_roles ur ON ur.community_id = c.id
       LEFT JOIN public.subscription_tiers t ON t.id = c.tier_id
-      WHERE ur.user_id = ${context.userId}::uuid
-        AND ur.role = 'community_admin'
-      ORDER BY c.created_at ASC
+      WHERE c.id = ${communityId}::uuid
       LIMIT 1
     `;
     const row = rows[0];
