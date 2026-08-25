@@ -53,7 +53,7 @@ export const signup = createServerFn({ method: "POST" })
 
     const email = data.email.trim().toLowerCase();
     const existing = await sql`SELECT id FROM public.users WHERE email = ${email} LIMIT 1`;
-    if (existing[0]) throw new Error("An account with that email already exists.");
+    if (existing[0]) throw new Error("An account with that email already exists. Please log in with it — once you're signed in you can add another community from the workspace switcher (top right).");
 
     let tierId: string | null = null;
     let trialEndsAt: string | null = null;
@@ -85,7 +85,7 @@ export const signup = createServerFn({ method: "POST" })
       ]);
     } catch (e: any) {
       if (String(e?.message ?? "").toLowerCase().includes("unique")) {
-        throw new Error("An account with that email already exists.");
+        throw new Error("An account with that email already exists. Please log in with it — once you're signed in you can add another community from the workspace switcher (top right).");
       }
       throw new Error("Could not create your account — please try again.");
     }
@@ -93,6 +93,61 @@ export const signup = createServerFn({ method: "POST" })
     const token = await createSession(userId);
     setSessionCookie(token);
     return { ok: true, communityId, needsPayment: !!data.tierId };
+  });
+
+// Whether the signed-in user may create ANOTHER community. Rule: they must
+// already administer at least one community on a PAID plan (an active tier with
+// no trial). Trial-only admins can't spin up extra communities.
+async function hasPaidAdminCommunity(userId: string): Promise<boolean> {
+  const rows = await sql`
+    SELECT 1
+    FROM public.user_roles ur
+    JOIN public.communities c ON c.id = ur.community_id
+    WHERE ur.user_id = ${userId}::uuid AND ur.role = 'community_admin'
+      AND c.tier_id IS NOT NULL AND c.trial_ends_at IS NULL AND c.suspended = false
+    LIMIT 1
+  `;
+  return !!rows[0];
+}
+
+export const getCommunityCreationEligibility = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    return { canCreate: await hasPaidAdminCommunity(context.userId) };
+  });
+
+// Creates an ADDITIONAL community for an already-signed-in admin (no new user,
+// no password). Gated to users who have a paid community; the new one always
+// starts on the free trial. Slots straight into the workspace switcher.
+export const createAnotherCommunity = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) =>
+    z.object({ communityName: z.string().min(2).max(120), communityType: z.string().max(60).optional() }).parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    if (!(await hasPaidAdminCommunity(context.userId))) {
+      throw new AppError(
+        "You can add another community once you have at least one community on a paid plan. Upgrade an existing community first — new communities start on a free trial.",
+      );
+    }
+
+    // New community always starts on the platform's configured trial.
+    const settings = await sql`SELECT trial_days, trial_tier_id FROM public.platform_settings WHERE id = true`;
+    const trialDays = Number(settings[0]?.trial_days ?? 14);
+    const tierId = (settings[0]?.trial_tier_id as string | null) ?? null;
+    const trialEndsAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString();
+
+    const communityId = crypto.randomUUID();
+    const slug = await uniqueCommunitySlug(data.communityName);
+    try {
+      await withTransaction((tx) => [
+        tx`INSERT INTO public.communities (id, name, slug, type, tier_id, trial_ends_at) VALUES (${communityId}::uuid, ${data.communityName}, ${slug}, ${data.communityType ?? null}, ${tierId}, ${trialEndsAt})`,
+        tx`INSERT INTO public.user_roles (user_id, role, community_id) VALUES (${context.userId}::uuid, 'community_admin', ${communityId}::uuid)`,
+      ]);
+    } catch {
+      throw new AppError("Couldn't create the community — please try again.");
+    }
+    return { ok: true, communityId, slug };
   });
 
 export const login = createServerFn({ method: "POST" })

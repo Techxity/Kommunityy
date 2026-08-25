@@ -315,7 +315,12 @@ function Signup() {
           </Field>
 
           {error && (
-            <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-600">{error}</p>
+            <div className="rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-600">
+              {error}
+              {/already exists/i.test(error) && (
+                <Link to="/login" className="ml-1 font-semibold underline">Log in instead →</Link>
+              )}
+            </div>
           )}
 
           <label className="flex items-start gap-2.5 pt-2 text-xs text-muted-foreground">
