@@ -9,6 +9,7 @@ import { readSessionToken } from "@/lib/auth/session-cookie.server";
 import { setSessionActiveCommunity } from "@/lib/auth/session.server";
 import { AppError } from "@/lib/errors";
 import { toDateOnlyString, toTimestampIso } from "@/lib/date-only";
+import { normalizeNgPhone } from "@/lib/sms/phone";
 
 // Enforces the community's plan member cap (subscription_tiers.max_members)
 // when activating members — otherwise "member limit" would just be a
@@ -312,7 +313,7 @@ export const bulkCreateMembers = createServerFn({ method: "POST" })
           .array(
             z.object({
               name: z.string().min(1).max(120),
-              email: z.string().email().max(200),
+              email: z.string().max(200).optional(),
               phone: z.string().max(60).optional(),
               whatsapp: z.string().max(60).optional(),
               dob: z.string().max(20).optional(),
@@ -329,11 +330,26 @@ export const bulkCreateMembers = createServerFn({ method: "POST" })
     const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
 
-    // De-dupe the incoming batch itself (e.g. the same person listed twice
-    // in the sheet) before touching the database.
+    // Normalize each row's identities (email or phone). A member needs at least
+    // one; rows with neither are dropped (the uploader already filters these).
+    type Norm = {
+      name: string; email: string | null; phone: string | null; phoneNorm: string | null;
+      whatsapp?: string; dob?: string; role?: string; chapter?: string;
+    };
+    const norm: Norm[] = [];
+    for (const r of data.rows) {
+      const email = (r.email ?? "").trim().toLowerCase() || null;
+      const phone = (r.phone ?? "").trim() || null;
+      const phoneNorm = phone ? normalizeNgPhone(phone) : null;
+      if (!email && !phoneNorm) continue;
+      norm.push({ name: r.name, email, phone, phoneNorm, whatsapp: r.whatsapp, dob: r.dob, role: r.role, chapter: r.chapter });
+    }
+    if (norm.length === 0) throw new Error("No valid rows — each member needs a name and an email or a phone number.");
+
+    // De-dupe the incoming batch by email or normalized phone.
     const seen = new Set<string>();
-    const rows = data.rows.filter((r) => {
-      const key = r.email.toLowerCase();
+    const rows = norm.filter((r) => {
+      const key = r.email ?? r.phoneNorm!;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -341,39 +357,35 @@ export const bulkCreateMembers = createServerFn({ method: "POST" })
 
     await assertMemberCapacity(communityId, rows.length);
 
-    const emails = rows.map((r) => r.email.toLowerCase());
-    const existingRows = await sql`
-      SELECT lower(email) AS email FROM public.members
-      WHERE community_id = ${communityId}::uuid AND lower(email) = ANY(${emails}::text[])
+    // Existing members in this community, to skip anyone already there (by
+    // email OR phone).
+    const existing = await sql`
+      SELECT lower(email) AS email, phone FROM public.members WHERE community_id = ${communityId}::uuid
     `;
-    const existingSet = new Set(existingRows.map((r) => r.email as string));
+    const existEmail = new Set<string>();
+    const existPhone = new Set<string>();
+    for (const e of existing) {
+      if (e.email) existEmail.add(e.email as string);
+      const pn = e.phone ? normalizeNgPhone(e.phone as string) : null;
+      if (pn) existPhone.add(pn);
+    }
+    const isDupe = (r: Norm) => !!((r.email && existEmail.has(r.email)) || (r.phoneNorm && existPhone.has(r.phoneNorm)));
 
     const chapterRows = await sql`SELECT id, name FROM public.chapters WHERE community_id = ${communityId}::uuid`;
     const chapterByName = new Map(chapterRows.map((c) => [String(c.name).toLowerCase(), c.id as string]));
 
     // Bare "YYYY-MM-DD" only — anything else from a messy spreadsheet cell is
     // dropped rather than guessed at (ambiguous MM/DD vs DD/MM date formats
-    // have burned this app before; better to leave it blank and let the admin
-    // fix it via Edit member than silently store the wrong day).
+    // have burned this app before; better to leave it blank).
     const cleanDob = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
 
-    // Everything that isn't already a member — inserted in ONE multi-row
-    // statement via unnest, instead of an INSERT per row.
-    const toInsert = rows.filter((r) => !existingSet.has(r.email.toLowerCase()));
-
-    // Maps a newly-inserted member's (lowercased) email to whether their
-    // account-setup invite email went out, so results below stay in the
-    // original upload order.
-    const emailSentByEmail = new Map<string, boolean>();
+    const toInsert = rows.filter((r) => !isDupe(r));
+    let emailsSent = 0;
     if (toInsert.length > 0) {
-      // One jsonb array → one INSERT ... SELECT. jsonb_to_recordset maps
-      // absent/null JSON keys straight to SQL NULL, so nullable columns
-      // (phone, dob, chapter_id, …) need no special handling — cleaner and
-      // safer than parallel typed arrays for a row shape this wide.
       const payload = toInsert.map((r) => ({
         name: r.name,
         email: r.email,
-        phone: r.phone ?? null,
+        phone: r.phone,
         whatsapp: r.whatsapp ?? null,
         dob: cleanDob(r.dob),
         role: r.role ?? null,
@@ -386,27 +398,19 @@ export const bulkCreateMembers = createServerFn({ method: "POST" })
           AS x(name text, email text, phone text, whatsapp text, dob text, role text, chapter_id text)
         RETURNING id, email
       `;
-      // Invites still go one email per member (that's inherent), but the DB
-      // work above is now a single round trip.
+      // Only members with an email get a setup-invite email; phone-only members
+      // set up their login from the community login page's "Set up account" tab.
       for (const row of inserted) {
+        if (!row.email) continue;
         const invite = await ensureMemberInvite(row.id as string).catch(() => ({ created: false, emailSent: false }));
-        emailSentByEmail.set((row.email as string).toLowerCase(), !!invite.emailSent);
+        if (invite.emailSent) emailsSent++;
       }
     }
 
-    const results = rows.map((r) => {
-      const key = r.email.toLowerCase();
-      if (existingSet.has(key)) {
-        return { email: r.email, name: r.name, status: "skipped_duplicate" as const };
-      }
-      return { email: r.email, name: r.name, status: "created" as const, emailSent: emailSentByEmail.get(key) ?? false };
-    });
-
     return {
-      created: results.filter((r) => r.status === "created").length,
-      skipped: results.filter((r) => r.status === "skipped_duplicate").length,
-      emailsSent: results.filter((r) => r.emailSent).length,
-      results,
+      created: toInsert.length,
+      skipped: rows.length - toInsert.length,
+      emailsSent,
     };
   });
 

@@ -525,7 +525,7 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   dob: ["dob", "date of birth", "birthday"],
 };
 
-type BulkRow = { name: string; email: string; phone?: string; whatsapp?: string; role?: string; chapter?: string; dob?: string };
+type BulkRow = { name: string; email?: string; phone?: string; whatsapp?: string; role?: string; chapter?: string; dob?: string };
 
 function parseBulkCsv(text: string): { rows: BulkRow[]; invalidCount: number; headerError: string | null } {
   const table = parseCsv(text);
@@ -537,11 +537,11 @@ function parseBulkCsv(text: string): { rows: BulkRow[]; invalidCount: number; he
     const idx = header.findIndex((h) => aliases.includes(h));
     if (idx !== -1) (colIndex as any)[key] = idx;
   }
-  if (colIndex.name == null || colIndex.email == null) {
+  if (colIndex.name == null || (colIndex.email == null && colIndex.phone == null)) {
     return {
       rows: [],
       invalidCount: 0,
-      headerError: 'First row must be a header with at least "Name" and "Email" columns.',
+      headerError: 'First row must be a header with a "Name" column and an "Email" or "Phone" column.',
     };
   }
 
@@ -554,15 +554,18 @@ function parseBulkCsv(text: string): { rows: BulkRow[]; invalidCount: number; he
     };
     const name = get("name");
     const email = get("email");
-    if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const phone = get("phone");
+    const emailValid = !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    // Valid row = a name plus at least one contact (a valid email OR a phone).
+    if (!name || (!emailValid && !phone)) {
       invalidCount++;
       continue;
     }
     const dobRaw = get("dob");
     rows.push({
       name,
-      email,
-      phone: get("phone") || undefined,
+      email: emailValid ? email : undefined,
+      phone: phone || undefined,
       whatsapp: get("whatsapp") || undefined,
       role: get("role") || undefined,
       chapter: get("chapter") || undefined,
@@ -617,8 +620,8 @@ function BulkUploadModal({ onClose, onDone }: { onClose: () => void; onDone: () 
           <div>
             <h3 className="font-display text-xl font-bold">Bulk upload members</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Upload a CSV with a header row (Name, Email required — Phone, WhatsApp, Role, Chapter, Date of Birth optional).
-              Everyone's added as an active member right away and gets an email to set up their login — no join form, no approval step.
+              Upload a CSV with a header row. <span className="font-medium text-foreground">Name</span> plus an <span className="font-medium text-foreground">Email or Phone</span> are required; WhatsApp, Role, Chapter and Date of Birth are optional.
+              Everyone's added as an active member right away. Members with an email get a login-setup email; phone-only members set up their login from your community login page.
             </p>
           </div>
           <button onClick={onClose} className="rounded-full p-1 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
@@ -642,14 +645,14 @@ function BulkUploadModal({ onClose, onDone }: { onClose: () => void; onDone: () 
                 <>
                   <p className="text-xs text-muted-foreground">
                     {rows.length} member{rows.length === 1 ? "" : "s"} ready to create.
-                    {invalidCount > 0 && ` ${invalidCount} row${invalidCount === 1 ? "" : "s"} skipped (missing name or a valid email).`}
+                    {invalidCount > 0 && ` ${invalidCount} row${invalidCount === 1 ? "" : "s"} skipped (missing a name, or no email/phone).`}
                   </p>
                   <div className="max-h-56 overflow-y-auto rounded-lg border border-border">
                     <table className="w-full text-xs">
                       <thead className="sticky top-0 bg-muted/70 text-left uppercase tracking-wider text-muted-foreground">
                         <tr>
                           <th className="px-3 py-2 font-medium">Name</th>
-                          <th className="px-3 py-2 font-medium">Email</th>
+                          <th className="px-3 py-2 font-medium">Email or phone</th>
                           <th className="px-3 py-2 font-medium">Chapter</th>
                         </tr>
                       </thead>
@@ -657,7 +660,7 @@ function BulkUploadModal({ onClose, onDone }: { onClose: () => void; onDone: () 
                         {rows.slice(0, 50).map((r, i) => (
                           <tr key={i} className="border-t border-border">
                             <td className="px-3 py-1.5">{r.name}</td>
-                            <td className="px-3 py-1.5 text-muted-foreground">{r.email}</td>
+                            <td className="px-3 py-1.5 text-muted-foreground">{r.email || r.phone || "—"}</td>
                             <td className="px-3 py-1.5 text-muted-foreground">{r.chapter || "—"}</td>
                           </tr>
                         ))}
@@ -693,7 +696,7 @@ function BulkUploadModal({ onClose, onDone }: { onClose: () => void; onDone: () 
                 <p className="flex items-center gap-1.5 font-semibold"><Check className="h-4 w-4" /> Created {result.created} member{result.created === 1 ? "" : "s"}.</p>
                 <p className="mt-1 text-xs text-success/90">{result.emailsSent} login email{result.emailsSent === 1 ? "" : "s"} sent.</p>
                 {result.skipped > 0 && (
-                  <p className="mt-1 text-xs text-success/90">{result.skipped} skipped — already a member (matched by email).</p>
+                  <p className="mt-1 text-xs text-success/90">{result.skipped} skipped — already a member (matched by email or phone).</p>
                 )}
               </div>
               <div className="flex justify-end pt-2">
