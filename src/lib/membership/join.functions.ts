@@ -5,6 +5,7 @@ import { assertNotRateLimited, recordAttempt, clientIp } from "@/lib/auth/rate-l
 import { FIELD_LIBRARY } from "@/lib/onboarding-fields";
 import { ensureMemberInvite } from "./member-invite.server";
 import { assertMemberCapacity } from "./members.functions";
+import { normalizeNgPhone } from "@/lib/sms/phone";
 
 // Fields that map straight onto a members column. Everything else in
 // FIELD_LIBRARY (Year of Graduation, Matriculation number, etc.) gets
@@ -85,6 +86,11 @@ export const submitApplication = createServerFn({ method: "POST" })
     }
 
     if (!columns.name) throw new Error("Name is required.");
+    // At least one contact identity so the member can sign in later. Either an
+    // email (invite/reset by email) or a phone (sign in + set up by phone).
+    if (!columns.email && !columns.phone) {
+      throw new Error("Please provide an email address or a phone number so you can sign in to your account later.");
+    }
 
     // Guard against a duplicate membership in THIS community. The public form
     // has no dedupe, so without this a person already in the community (or with
@@ -105,6 +111,26 @@ export const submitApplication = createServerFn({ method: "POST" })
             ? "You're already a member of this community. Sign in with your existing account instead."
             : "You've already applied to this community — your application is pending review. Please wait for your admin to approve it.",
         );
+      }
+    }
+
+    // Same dedupe by phone (normalized), for members joining without an email.
+    if (columns.phone) {
+      const np = normalizeNgPhone(columns.phone);
+      if (np) {
+        const rows = await sql`
+          SELECT phone, status FROM public.members
+          WHERE community_id = ${data.communityId}::uuid
+            AND status IN ('active', 'pending') AND phone IS NOT NULL
+        `;
+        const dupe = rows.find((r) => normalizeNgPhone(r.phone as string) === np);
+        if (dupe) {
+          throw new Error(
+            dupe.status === "active"
+              ? "A member with that phone number is already in this community. Sign in with your existing account instead."
+              : "An application with that phone number is already pending review. Please wait for your admin to approve it.",
+          );
+        }
       }
     }
 

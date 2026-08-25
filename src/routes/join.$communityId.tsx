@@ -46,7 +46,20 @@ function PublicJoinPage() {
   const chapters = formData?.chapters ?? [];
   const community = formData?.community;
 
-  const required = useMemo<string[]>(() => fields.filter((f) => f === "Name" || f === "Email" || f === "Phone number"), [fields]);
+  const hasEmailField = fields.includes("Email");
+  const hasPhoneField = fields.includes("Phone number");
+  // Name is always required. Email/Phone: if only one is on the form it's
+  // required; if both are present, at least one is required (validated below).
+  const required = useMemo<string[]>(
+    () =>
+      fields.filter(
+        (f) =>
+          f === "Name" ||
+          (f === "Email" && hasEmailField && !hasPhoneField) ||
+          (f === "Phone number" && hasPhoneField && !hasEmailField),
+      ),
+    [fields, hasEmailField, hasPhoneField],
+  );
 
   function set(f: string, v: string) {
     setValues((prev) => ({ ...prev, [f]: v }));
@@ -58,6 +71,11 @@ function PublicJoinPage() {
     setSubmitError("");
     const errs: Record<string, string> = {};
     for (const f of required) if (!values[f]?.trim()) errs[f] = "Required";
+    // Email OR phone: when both fields are on the form, require at least one.
+    if (hasEmailField && hasPhoneField && !values["Email"]?.trim() && !values["Phone number"]?.trim()) {
+      errs["Email"] = "Enter an email or a phone number";
+      errs["Phone number"] = "Enter an email or a phone number";
+    }
     if (values["Email"] && !/^\S+@\S+\.\S+$/.test(values["Email"])) errs["Email"] = "Enter a valid email";
     setErrors(errs);
     if (Object.keys(errs).length) return;
@@ -171,6 +189,11 @@ function PublicJoinPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             Fields marked with <span className="text-destructive">*</span> are required.
           </p>
+          {hasEmailField && hasPhoneField && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Provide at least an <span className="font-semibold text-foreground">email or a phone number</span> — you'll use it to sign in.
+            </p>
+          )}
 
           {fields.length === 0 ? (
             <p className="mt-6 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">

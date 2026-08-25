@@ -22,7 +22,7 @@ function Login() {
     setError("");
     setLoading(true);
     try {
-      const result = await login({ data: { email, password } });
+      const result = await login({ data: { identifier: email, password } });
       if (result.redirectTo === "/super-admin") navigate({ to: "/super-admin" });
       else if (result.redirectTo === "/admin") navigate({ to: "/admin" });
       else navigate({ to: "/member" });
@@ -49,14 +49,14 @@ function Login() {
           className="mt-6 space-y-4 rounded-2xl border border-border bg-card p-6 shadow-soft"
         >
           <div>
-            <label className="text-sm font-medium">Email</label>
+            <label className="text-sm font-medium">Email or phone</label>
             <input
               required
-              type="email"
-              autoComplete="email"
+              type="text"
+              autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@community.com"
+              placeholder="you@community.com or 0803…"
               className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-ring"
             />
           </div>

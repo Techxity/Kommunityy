@@ -10,6 +10,7 @@ import { getSessionUser, requireAuth } from "./require-auth.server";
 import { uniqueCommunitySlug } from "@/lib/slug.server";
 import { errorBoundary } from "@/lib/error-boundary.server";
 import { AppError } from "@/lib/errors";
+import { normalizeNgPhone } from "@/lib/sms/phone";
 import { createAndSendReset, hashResetToken } from "./password-reset.server";
 
 async function rolesFor(userId: string) {
@@ -154,7 +155,8 @@ export const login = createServerFn({ method: "POST" })
   .inputValidator((i) =>
     z
       .object({
-        email: z.string().email().max(200),
+        // Email OR phone — members without an email sign in with their number.
+        identifier: z.string().min(1).max(200),
         password: z.string().min(1).max(200),
         // Set when signing in via a community's branded /l/<slug> link — pins
         // the member portal to that community.
@@ -164,22 +166,30 @@ export const login = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const ip = clientIp();
-    const email = data.email.trim().toLowerCase();
+    const raw = data.identifier.trim();
+    const isEmail = raw.includes("@");
+    const email = isEmail ? raw.toLowerCase() : null;
+    const phone = isEmail ? null : normalizeNgPhone(raw);
+    const rlKey = email ?? phone ?? raw.toLowerCase();
     await assertNotRateLimited(`login:ip:${ip}`, 20, 15 * 60 * 1000);
-    await assertNotRateLimited(`login:email:${email}`, 8, 15 * 60 * 1000);
+    await assertNotRateLimited(`login:id:${rlKey}`, 8, 15 * 60 * 1000);
 
-    const rows = await sql`SELECT id, password_hash FROM public.users WHERE email = ${email} LIMIT 1`;
+    const rows = email
+      ? await sql`SELECT id, password_hash FROM public.users WHERE email = ${email} LIMIT 1`
+      : phone
+        ? await sql`SELECT id, password_hash FROM public.users WHERE phone = ${phone} LIMIT 1`
+        : [];
     const user = rows[0];
     // Always run the hash compare, even when the user doesn't exist, so the
-    // response time doesn't leak whether the email has an account.
+    // response time doesn't leak whether the identifier has an account.
     const hashToCheck = (user?.password_hash as string | undefined) ?? DUMMY_PASSWORD_HASH;
     const passwordMatches = await verifyPassword(data.password, hashToCheck);
 
     await recordAttempt(`login:ip:${ip}`);
-    await recordAttempt(`login:email:${email}`);
+    await recordAttempt(`login:id:${rlKey}`);
 
     if (!user || !passwordMatches) {
-      throw new Error("Invalid email or password.");
+      throw new Error("Invalid email/phone or password.");
     }
 
     const roles = await rolesFor(user.id as string);
@@ -246,6 +256,77 @@ export const login = createServerFn({ method: "POST" })
     if (pinId) await setSessionActiveCommunity(token, pinId);
 
     return { ok: true, redirectTo, ...roles };
+  });
+
+// Public: a member with no email sets up their login by "claiming" their
+// membership. Guardrails against someone else grabbing it: the member must be
+// ACTIVE (already approved by an admin), have NO account yet, and the claimant
+// must supply a NAME that matches the record plus the phone that normalizes to
+// the one on file. Rate-limited by IP and phone. If a user account with that
+// phone already exists (e.g. the person is a member of another community too),
+// we link to it after verifying the password rather than erroring.
+export const claimMemberAccount = createServerFn({ method: "POST" })
+  .inputValidator((i) =>
+    z
+      .object({
+        communitySlug: z.string().min(1).max(80),
+        name: z.string().min(1).max(120),
+        phone: z.string().min(4).max(40),
+        password: z.string().min(8).max(200),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data }) => {
+    const ip = clientIp();
+    await assertNotRateLimited(`claim:ip:${ip}`, 10, 60 * 60 * 1000);
+    const phone = normalizeNgPhone(data.phone);
+    if (!phone) throw new Error("Enter a valid phone number (e.g. 0803…).");
+    await assertNotRateLimited(`claim:phone:${phone}`, 5, 60 * 60 * 1000);
+    await recordAttempt(`claim:ip:${ip}`);
+    await recordAttempt(`claim:phone:${phone}`);
+
+    const crows = await sql`SELECT id FROM public.communities WHERE slug = ${data.communitySlug} LIMIT 1`;
+    const communityId = crows[0]?.id as string | undefined;
+    if (!communityId) throw new Error("We couldn't find that community.");
+
+    // Active, unclaimed members with a matching name; then match the phone by
+    // normalized value (records store phones in assorted formats).
+    const candidates = await sql`
+      SELECT id, phone FROM public.members
+      WHERE community_id = ${communityId}::uuid AND status = 'active' AND user_id IS NULL
+        AND lower(trim(name)) = lower(trim(${data.name})) AND phone IS NOT NULL
+    `;
+    const match = candidates.find((m) => normalizeNgPhone(m.phone as string) === phone);
+    if (!match) {
+      throw new Error(
+        "We couldn't match those details to an active member. Check the name and phone number are exactly as your admin has them, or ask your admin to confirm you've been approved.",
+      );
+    }
+
+    const existing = await sql`SELECT id, password_hash FROM public.users WHERE phone = ${phone} LIMIT 1`;
+    let userId: string;
+    if (existing[0]) {
+      const ok = await verifyPassword(data.password, existing[0].password_hash as string);
+      if (!ok) {
+        throw new Error("This phone number already has an account. Enter your existing password to link this membership, or reset it.");
+      }
+      userId = existing[0].id as string;
+      await sql`UPDATE public.members SET user_id = ${userId}::uuid, updated_at = now() WHERE id = ${match.id}::uuid`;
+    } else {
+      const passwordHash = await hashPassword(data.password);
+      userId = crypto.randomUUID();
+      await withTransaction((tx) => [
+        // email left null — this is a phone-first account. The member's email
+        // (if any) stays on the members record for communications.
+        tx`INSERT INTO public.users (id, phone, password_hash, name) VALUES (${userId}::uuid, ${phone}, ${passwordHash}, ${data.name})`,
+        tx`UPDATE public.members SET user_id = ${userId}::uuid, updated_at = now() WHERE id = ${match.id}::uuid`,
+      ]);
+    }
+
+    const token = await createSession(userId);
+    setSessionCookie(token);
+    await setSessionActiveCommunity(token, communityId);
+    return { ok: true };
   });
 
 export const logout = createServerFn({ method: "POST" }).handler(async () => {

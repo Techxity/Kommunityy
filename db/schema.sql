@@ -50,12 +50,15 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- ── Auth: users & sessions ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  email text NOT NULL UNIQUE,
+  email text UNIQUE,
+  phone text,
   password_hash text NOT NULL,
   name text,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT users_identity_chk CHECK (email IS NOT NULL OR phone IS NOT NULL)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS users_phone_unique ON public.users (phone) WHERE phone IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS public.sessions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
