@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { getMyDuesPlan, saveDuesPlan, listDuesPayments, getDuesArrears, sendDuesReminders } from "@/lib/payments/dues.functions";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { getMyDuesPlan, saveDuesPlan, listDuesPayments, getDuesArrears, sendDuesReminders, getMyDuesInfo, getActiveDuesPlanId } from "@/lib/payments/dues.functions";
 import { getDashboardStats } from "@/lib/payments/communities.functions";
+import { getMyMembershipHere, joinMyCommunityAsMember } from "@/lib/membership/members.functions";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +11,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Banknote, Calendar, Users, Settings, AlertTriangle, Bell, TrendingUp } from "lucide-react";
+import { Banknote, Calendar, Users, Settings, AlertTriangle, Bell, TrendingUp, UserPlus, CreditCard, Loader2 } from "lucide-react";
 import { requireModule } from "@/lib/module-gate";
 
 export const Route = createFileRoute("/admin/dues")({
@@ -215,6 +216,8 @@ function Dues() {
         />
       </div>
 
+      <MyDuesCard />
+
       {/* Arrears & defaulters */}
       <div className="rounded-2xl border border-border bg-card shadow-soft">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
@@ -342,6 +345,90 @@ function Dues() {
           </table>
         </div>
       </div>
+    </div>
+  );
+}
+
+function MyDuesCard() {
+  const navigate = useNavigate();
+  const [isMember, setIsMember] = useState<boolean | null>(null);
+  const [dues, setDues] = useState<Awaited<ReturnType<typeof getMyDuesInfo>> | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  function load() {
+    getMyMembershipHere().then((s) => setIsMember(s.isMember)).catch(() => setIsMember(false));
+    getMyDuesInfo().then(setDues).catch(() => {});
+  }
+  useEffect(load, []);
+
+  async function join() {
+    setBusy(true);
+    setMsg("");
+    try {
+      await joinMyCommunityAsMember();
+      load();
+    } catch (e: any) {
+      setMsg(e?.message ?? "Couldn't add you as a member.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function pay() {
+    setBusy(true);
+    setMsg("");
+    try {
+      const planId = await getActiveDuesPlanId();
+      if (planId) navigate({ to: "/pay-dues/$planId", params: { planId } });
+      else setMsg("No active dues plan to pay yet.");
+    } catch (e: any) {
+      setMsg(e?.message ?? "Couldn't start payment.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (isMember === null) return null;
+
+  const amountLabel = dues?.plan
+    ? [dues.plan.amountNgn ? `₦${dues.plan.amountNgn.toLocaleString()}` : null, dues.plan.amountUsd ? `$${dues.plan.amountUsd.toLocaleString()}` : null]
+        .filter(Boolean)
+        .join(" / ")
+    : null;
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-display text-lg font-semibold">My dues</h2>
+          <p className="text-xs text-muted-foreground">Pay your own dues to this community — not just set them up for others.</p>
+        </div>
+        {isMember ? (
+          <div className="flex flex-wrap items-center gap-3">
+            {amountLabel && (
+              <span className="text-sm">
+                <span className="font-semibold">{amountLabel}</span>{" "}
+                <span className="text-muted-foreground">{dues?.plan ? `· ${dues.plan.interval}` : ""}</span>
+              </span>
+            )}
+            <Button onClick={pay} disabled={busy} className="gap-2">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />} Pay my dues
+            </Button>
+          </div>
+        ) : (
+          <Button onClick={join} disabled={busy} variant="outline" className="gap-2">
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />} Add me as a member
+          </Button>
+        )}
+      </div>
+      {!isMember && (
+        <p className="mt-2 text-xs text-muted-foreground">You've set up dues but aren't a member yet. Add yourself to pay your own dues and appear in the members list.</p>
+      )}
+      {isMember && dues?.coverage?.nextDue && (
+        <p className="mt-2 text-xs text-muted-foreground">You're paid through — next due from {dues.coverage.nextDue}.</p>
+      )}
+      {msg && <p className="mt-2 text-xs text-destructive">{msg}</p>}
     </div>
   );
 }

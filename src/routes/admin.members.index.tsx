@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { listMembers, updateMember, setMembersStatus, bulkCreateMembers, resetMemberLogin } from "@/lib/membership/members.functions";
+import { listMembers, updateMember, setMembersStatus, bulkCreateMembers, resetMemberLogin, promoteMemberToAdmin, demoteMemberAdmin } from "@/lib/membership/members.functions";
 import { listMyChapters } from "@/lib/membership/chapters.functions";
 import { sendInvites } from "@/lib/membership/invites.functions";
 import { resendMemberInvite } from "@/lib/membership/member-accounts.functions";
@@ -20,6 +20,8 @@ import {
   Save,
   KeyRound,
   RotateCcw,
+  ShieldPlus,
+  ShieldMinus,
   FileUp,
   Check,
   AlertTriangle,
@@ -50,6 +52,40 @@ function MembersPage() {
   const [invitingId, setInvitingId] = useState<string | null>(null);
   const [inviteNote, setInviteNote] = useState("");
   const [resettingId, setResettingId] = useState<string | null>(null);
+
+  const [roleBusyId, setRoleBusyId] = useState<string | null>(null);
+
+  async function makeAdmin(memberId: string) {
+    if (typeof window !== "undefined" && !window.confirm("Make this member an admin? They'll be able to manage the community.")) return;
+    setRoleBusyId(memberId);
+    setInviteNote("");
+    try {
+      await promoteMemberToAdmin({ data: { memberId } });
+      setInviteNote("Member is now an admin. They can switch to the admin console from the workspace switcher.");
+      refresh();
+    } catch (err: any) {
+      setInviteNote(err?.message ?? "Couldn't make this member an admin.");
+    } finally {
+      setRoleBusyId(null);
+      setTimeout(() => setInviteNote(""), 8000);
+    }
+  }
+
+  async function removeAdmin(memberId: string) {
+    if (typeof window !== "undefined" && !window.confirm("Remove this person's admin access? They'll stay a member.")) return;
+    setRoleBusyId(memberId);
+    setInviteNote("");
+    try {
+      await demoteMemberAdmin({ data: { memberId } });
+      setInviteNote("Admin access removed. They're still a member.");
+      refresh();
+    } catch (err: any) {
+      setInviteNote(err?.message ?? "Couldn't remove admin access.");
+    } finally {
+      setRoleBusyId(null);
+      setTimeout(() => setInviteNote(""), 8000);
+    }
+  }
 
   async function resetLogin(memberId: string) {
     if (typeof window !== "undefined" && !window.confirm("Reset this member's login? Their current password stops working, and they set a new one from the community login page's 'Set up account' tab (with their name + phone).")) return;
@@ -383,7 +419,10 @@ function MembersPage() {
                           {m.name.split(" ").map((p) => p[0]).join("").slice(0, 2)}
                         </div>
                         <div>
-                          <p className="font-semibold">{m.name}</p>
+                          <p className="font-semibold">
+                            {m.name}
+                            {m.isAdmin && <span className="ml-1.5 align-middle rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">Admin</span>}
+                          </p>
                           <p className="text-xs text-muted-foreground">{m.email}</p>
                         </div>
                       </div>
@@ -436,6 +475,26 @@ function MembersPage() {
                             className="rounded-md p-1.5 text-muted-foreground hover:bg-amber-500/10 hover:text-amber-600 disabled:opacity-40"
                           >
                             <RotateCcw className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {isActive && m.hasAccount && !m.isAdmin && (
+                          <button
+                            onClick={() => makeAdmin(m.id)}
+                            title="Make admin"
+                            disabled={roleBusyId === m.id}
+                            className="rounded-md p-1.5 text-muted-foreground hover:bg-primary/10 hover:text-primary disabled:opacity-40"
+                          >
+                            <ShieldPlus className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {m.isAdmin && (
+                          <button
+                            onClick={() => removeAdmin(m.id)}
+                            title="Remove admin access"
+                            disabled={roleBusyId === m.id}
+                            className="rounded-md p-1.5 text-primary hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"
+                          >
+                            <ShieldMinus className="h-3.5 w-3.5" />
                           </button>
                         )}
                       </div>

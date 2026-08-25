@@ -55,6 +55,7 @@ function mapRow(r: Record<string, unknown>) {
     hasAccount: !!r.user_id,
     communityName: (r.community_name as string | null) ?? "",
     smsOptOut: !!r.sms_opt_out,
+    isAdmin: !!r.is_admin,
   };
 }
 
@@ -228,14 +229,16 @@ export const listMembers = createServerFn({ method: "POST" })
 
     const rows = data?.status
       ? await sql`
-          SELECT m.*, c.name AS chapter_name
+          SELECT m.*, c.name AS chapter_name,
+            EXISTS (SELECT 1 FROM public.user_roles ur WHERE ur.user_id = m.user_id AND ur.community_id = m.community_id AND ur.role = 'community_admin') AS is_admin
           FROM public.members m
           LEFT JOIN public.chapters c ON c.id = m.chapter_id
           WHERE m.community_id = ${communityId}::uuid AND m.status = ${data.status}
           ORDER BY m.applied_at DESC
         `
       : await sql`
-          SELECT m.*, c.name AS chapter_name
+          SELECT m.*, c.name AS chapter_name,
+            EXISTS (SELECT 1 FROM public.user_roles ur WHERE ur.user_id = m.user_id AND ur.community_id = m.community_id AND ur.role = 'community_admin') AS is_admin
           FROM public.members m
           LEFT JOIN public.chapters c ON c.id = m.chapter_id
           WHERE m.community_id = ${communityId}::uuid
@@ -482,5 +485,116 @@ export const resetMemberLogin = createServerFn({ method: "POST" })
     }
 
     await sql`DELETE FROM public.users WHERE id = ${userId}::uuid`;
+    return { ok: true };
+  });
+
+// ── Roles: make a member an admin, or remove admin ──────────────────────
+
+// Grants the member's user account the community_admin role for this community.
+// They keep their membership (dual role) and can switch to the admin console
+// via the workspace switcher. Requires the member to have a login account.
+export const promoteMemberToAdmin = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => z.object({ memberId: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) throw new AppError("You don't manage a community yet.");
+    const rows = await sql`
+      SELECT user_id, status FROM public.members WHERE id = ${data.memberId}::uuid AND community_id = ${communityId}::uuid LIMIT 1
+    `;
+    const member = rows[0];
+    if (!member) throw new AppError("Member not found.");
+    const userId = member.user_id as string | null;
+    if (!userId) throw new AppError("This member needs to set up their login account before they can be made an admin.");
+    if (member.status !== "active") throw new AppError("Only active members can be made admins.");
+    await sql`
+      INSERT INTO public.user_roles (user_id, role, community_id)
+      VALUES (${userId}::uuid, 'community_admin', ${communityId}::uuid)
+      ON CONFLICT DO NOTHING
+    `;
+    return { ok: true };
+  });
+
+// Removes the community_admin role from a member (they stay a member). Guards
+// against removing the last admin of the community.
+export const demoteMemberAdmin = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => z.object({ memberId: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) throw new AppError("You don't manage a community yet.");
+    const rows = await sql`
+      SELECT user_id FROM public.members WHERE id = ${data.memberId}::uuid AND community_id = ${communityId}::uuid LIMIT 1
+    `;
+    const userId = rows[0]?.user_id as string | null | undefined;
+    if (!userId) throw new AppError("This member isn't an admin.");
+    const admins = await sql`
+      SELECT COUNT(*)::int AS n FROM public.user_roles WHERE community_id = ${communityId}::uuid AND role = 'community_admin'
+    `;
+    if (Number(admins[0]?.n ?? 0) <= 1) {
+      throw new AppError("You can't remove the community's only admin. Make someone else an admin first.");
+    }
+    await sql`
+      DELETE FROM public.user_roles WHERE user_id = ${userId}::uuid AND community_id = ${communityId}::uuid AND role = 'community_admin'
+    `;
+    return { ok: true };
+  });
+
+// ── Admin as a dues-paying member ───────────────────────────────────────
+
+// Is the signed-in admin also an active member of their current community?
+export const getMyMembershipHere = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) return { hasCommunity: false, isMember: false };
+    const rows = await sql`
+      SELECT 1 FROM public.members WHERE community_id = ${communityId}::uuid AND user_id = ${context.userId}::uuid AND status = 'active' LIMIT 1
+    `;
+    return { hasCommunity: true, isMember: !!rows[0] };
+  });
+
+// Adds the signed-in admin as a member of their own community (so they can pay
+// dues from the app). Links an existing unclaimed member row with their email
+// if one exists; otherwise creates a fresh active member. Idempotent.
+export const joinMyCommunityAsMember = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) throw new AppError("You don't manage a community yet.");
+
+    const already = await sql`SELECT id FROM public.members WHERE community_id = ${communityId}::uuid AND user_id = ${context.userId}::uuid LIMIT 1`;
+    if (already[0]) {
+      await sql`INSERT INTO public.user_roles (user_id, role, community_id) VALUES (${context.userId}::uuid, 'member', ${communityId}::uuid) ON CONFLICT DO NOTHING`;
+      return { ok: true };
+    }
+
+    const users = await sql`SELECT name, email, phone FROM public.users WHERE id = ${context.userId}::uuid LIMIT 1`;
+    const u = users[0];
+    if (!u) throw new AppError("Account not found.");
+    const name = (u.name as string | null) ?? "Admin";
+    const email = (u.email as string | null) ?? null;
+    const phone = (u.phone as string | null) ?? null;
+
+    // Link an existing member row with this admin's email if one is unclaimed.
+    if (email) {
+      const byEmail = await sql`
+        SELECT id, user_id FROM public.members WHERE community_id = ${communityId}::uuid AND lower(email) = lower(${email}) LIMIT 1
+      `;
+      if (byEmail[0]) {
+        if (!byEmail[0].user_id) {
+          await sql`UPDATE public.members SET user_id = ${context.userId}::uuid, status = 'active', joined_at = COALESCE(joined_at, now()), updated_at = now() WHERE id = ${byEmail[0].id}::uuid`;
+        }
+        await sql`INSERT INTO public.user_roles (user_id, role, community_id) VALUES (${context.userId}::uuid, 'member', ${communityId}::uuid) ON CONFLICT DO NOTHING`;
+        return { ok: true };
+      }
+    }
+
+    await assertMemberCapacity(communityId, 1);
+    await sql`
+      INSERT INTO public.members (community_id, name, email, phone, user_id, status, joined_at)
+      VALUES (${communityId}::uuid, ${name}, ${email}, ${phone}, ${context.userId}::uuid, 'active', now())
+    `;
+    await sql`INSERT INTO public.user_roles (user_id, role, community_id) VALUES (${context.userId}::uuid, 'member', ${communityId}::uuid) ON CONFLICT DO NOTHING`;
     return { ok: true };
   });
