@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Cake, Send, Sparkles, Check, Mail, MessageCircle } from "lucide-react";
 import { getMyCommunity } from "@/lib/payments/communities.functions";
-import { getBirthdayMessages, saveBirthdayMessage, listMembersWithBirthdays, sendBirthdayMessages } from "@/lib/membership/birthdays.functions";
+import { getBirthdayMessages, saveBirthdayMessage, listMembersWithBirthdays, sendBirthdayMessages, getBirthdaySendInfo } from "@/lib/membership/birthdays.functions";
 import { requireModule } from "@/lib/module-gate";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -21,11 +21,12 @@ type Member = {
   lastSentAt: string | null;
   lastSentYear: number | null;
 };
-type SendResult = { emailSent: number; emailTotal: number; whatsappSent: number; whatsappTotal: number; whatsappConfigured: boolean };
+type SendResult = { emailSent: number; emailTotal: number; whatsappSent: number; whatsappTotal: number; whatsappConfigured: boolean; smsSent: number; smsTotal: number };
 
 function resultSummary(r: SendResult): string {
   const parts: string[] = [];
   if (r.emailTotal > 0) parts.push(`${r.emailSent}/${r.emailTotal} email`);
+  if (r.smsTotal > 0) parts.push(`${r.smsSent}/${r.smsTotal} SMS`);
   if (r.whatsappTotal > 0) parts.push(`${r.whatsappSent}/${r.whatsappTotal} WhatsApp`);
   return parts.length > 0 ? `Sent ${parts.join(", ")}.` : "Nothing to send.";
 }
@@ -57,6 +58,22 @@ function formatSent(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 
+function ChannelChip({ label, checked, onChange, available, hint }: { label: string; checked: boolean; onChange: (v: boolean) => void; available: boolean; hint?: string }) {
+  return (
+    <button
+      type="button"
+      disabled={!available}
+      title={!available ? hint : undefined}
+      onClick={() => onChange(!checked)}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
+        checked && available ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
 function Birthdays() {
   const [members, setMembers] = useState<Member[]>([]);
   const [messages, setMessages] = useState<Record<string, string>>({});
@@ -70,6 +87,12 @@ function Birthdays() {
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [resentId, setResentId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [sendInfo, setSendInfo] = useState<{ smsAvailable: boolean; smsBalanceKobo: number; whatsappConfigured: boolean } | null>(null);
+  const [chEmail, setChEmail] = useState(true);
+  const [chSms, setChSms] = useState(false);
+  const [chWa, setChWa] = useState(false);
+  const channels = { email: chEmail, sms: chSms, whatsapp: chWa };
+  const noChannel = !chEmail && !chSms && !chWa;
 
   // Previously these calls had no .catch() — if the request failed for any
   // reason (session hiccup, network blip), `members` silently stayed `[]`
@@ -88,6 +111,14 @@ function Birthdays() {
     refreshMembers();
     getBirthdayMessages().then(setMessages).catch(() => {});
     getMyCommunity().then((c) => setCommunityName(c?.name ?? "")).catch(() => {});
+    getBirthdaySendInfo()
+      .then((info) => {
+        setSendInfo(info);
+        // Default to SMS when it's set up (the intended reach channel);
+        // WhatsApp stays off unless the admin ticks it.
+        setChSms(info.smsAvailable);
+      })
+      .catch(() => {});
   }, []);
 
   const thisMonth = members.filter((m) => dobParts(m.dob).month === MONTHS.indexOf(active) + 1);
@@ -97,7 +128,7 @@ function Birthdays() {
     if (today.length === 0) return;
     setSending(true);
     try {
-      const result = await sendBirthdayMessages({ data: { memberIds: today.map((m) => m.id) } });
+      const result = await sendBirthdayMessages({ data: { memberIds: today.map((m) => m.id), channels } });
       setLastRun(new Date().toISOString());
       setLastResult(result);
       setJustSent(true);
@@ -117,7 +148,7 @@ function Birthdays() {
   async function resendTo(memberId: string) {
     setResendingId(memberId);
     try {
-      await sendBirthdayMessages({ data: { memberIds: [memberId] } });
+      await sendBirthdayMessages({ data: { memberIds: [memberId], channels } });
       setResentId(memberId);
       refreshMembers(); // reflect the new "Sent" badge/history right away
       setTimeout(() => setResentId(null), 2200);
@@ -146,10 +177,17 @@ function Birthdays() {
             Pick a month's message, then send it to today's celebrants whenever you're ready.
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1">
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <span className="text-xs text-muted-foreground">Send via:</span>
+            <ChannelChip label="Email" checked={chEmail} onChange={setChEmail} available />
+            <ChannelChip label="SMS" checked={chSms} onChange={setChSms} available={!!sendInfo?.smsAvailable} hint="Turn on SMS and set a Sender ID on the SMS page first." />
+            <ChannelChip label="WhatsApp" checked={chWa} onChange={setChWa} available={!!sendInfo?.whatsappConfigured} hint="WhatsApp isn't set up for this platform." />
+          </div>
           <button
             onClick={sendToday}
-            disabled={today.length === 0 || sending}
+            disabled={today.length === 0 || sending || noChannel}
+            title={noChannel ? "Pick at least one channel" : undefined}
             className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-soft hover:opacity-90 disabled:opacity-40"
           >
             {justSent ? <Check className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}

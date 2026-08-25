@@ -7,6 +7,22 @@ import { sendEmail } from "@/lib/email";
 import { birthdayEmail } from "@/lib/email-templates";
 import { sendWhatsAppTemplate, isWhatsAppConfigured } from "@/lib/whatsapp";
 import { toDateOnlyString } from "@/lib/date-only";
+import { sendCommunitySms, type SmsTarget } from "@/lib/sms/send.server";
+import { getSmsSettings, getBalanceKobo } from "@/lib/sms/wallet.server";
+
+// Whether SMS/WhatsApp are available for the birthday send channel chooser.
+export const getBirthdaySendInfo = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) return { smsAvailable: false, smsBalanceKobo: 0, whatsappConfigured: false };
+    const settings = await getSmsSettings(communityId);
+    return {
+      smsAvailable: settings.enabled && !!settings.senderId,
+      smsBalanceKobo: await getBalanceKobo(communityId),
+      whatsappConfigured: isWhatsAppConfigured(),
+    };
+  });
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -74,8 +90,19 @@ export const listMembersWithBirthdays = createServerFn({ method: "POST" })
 // WhatsApp message even if they have no email, and vice versa.
 export const sendBirthdayMessages = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((i) => z.object({ memberIds: z.array(z.string().uuid()).min(1) }).parse(i))
+  .inputValidator((i) =>
+    z
+      .object({
+        memberIds: z.array(z.string().uuid()).min(1),
+        // Which channels to send on. Defaults to email only if omitted.
+        channels: z
+          .object({ email: z.boolean(), sms: z.boolean(), whatsapp: z.boolean() })
+          .optional(),
+      })
+      .parse(i),
+  )
   .handler(async ({ data, context }) => {
+    const ch = data.channels ?? { email: true, sms: false, whatsapp: false };
     const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
 
@@ -95,12 +122,12 @@ export const sendBirthdayMessages = createServerFn({ method: "POST" })
     const adminEmail = (adminRows[0]?.email as string | undefined) ?? undefined;
 
     const members = await sql`
-      SELECT id, name, email, whatsapp FROM public.members
+      SELECT id, name, email, phone, whatsapp, sms_opt_out FROM public.members
       WHERE community_id = ${communityId}::uuid AND status = 'active' AND id = ANY(${data.memberIds}::uuid[])
-        AND (email IS NOT NULL OR whatsapp IS NOT NULL)
+        AND (email IS NOT NULL OR whatsapp IS NOT NULL OR phone IS NOT NULL)
     `;
 
-    const withEmail = members.filter((m) => m.email);
+    const withEmail = ch.email ? members.filter((m) => m.email) : [];
     const emailResults = await Promise.all(
       withEmail.map((m) =>
         sendEmail({
@@ -113,7 +140,7 @@ export const sendBirthdayMessages = createServerFn({ method: "POST" })
       ),
     );
 
-    const waConfigured = isWhatsAppConfigured();
+    const waConfigured = ch.whatsapp && isWhatsAppConfigured();
     const withWhatsApp = waConfigured ? members.filter((m) => m.whatsapp) : [];
     const whatsappResults = await Promise.all(
       withWhatsApp.map((m) =>
@@ -126,9 +153,30 @@ export const sendBirthdayMessages = createServerFn({ method: "POST" })
       ),
     );
 
+    // SMS — explicit admin choice, so force past the automation toggle (still
+    // needs SMS enabled + a sender ID + wallet balance). Uses the phone field,
+    // falling back to the WhatsApp number.
+    let smsSent = 0;
+    let smsTotal = 0;
+    let smsSentIds: string[] = [];
+    let smsReason: string | undefined;
+    if (ch.sms) {
+      const smsTargets: SmsTarget[] = members.map((m) => ({
+        memberId: m.id as string,
+        phone: (m.phone as string | null) ?? (m.whatsapp as string | null) ?? null,
+        optOut: !!m.sms_opt_out,
+        body: `Happy birthday, ${(m.name as string).split(" ")[0]}! ${message}`,
+      }));
+      smsTotal = smsTargets.filter((t) => t.phone && !t.optOut).length;
+      const r = await sendCommunitySms({ communityId, channel: "birthday", targets: smsTargets, force: true });
+      smsSent = r.sent;
+      smsSentIds = r.sentMemberIds;
+      smsReason = r.reason;
+    }
+
     const emailSentIds = withEmail.filter((_, i) => emailResults[i]?.ok).map((m) => m.id as string);
     const whatsappSentIds = withWhatsApp.filter((_, i) => whatsappResults[i]?.ok).map((m) => m.id as string);
-    const anySentIds = Array.from(new Set([...emailSentIds, ...whatsappSentIds]));
+    const anySentIds = Array.from(new Set([...emailSentIds, ...whatsappSentIds, ...smsSentIds]));
 
     if (anySentIds.length > 0) {
       await sql`
@@ -141,11 +189,11 @@ export const sendBirthdayMessages = createServerFn({ method: "POST" })
     const emailSent = emailResults.filter((r) => r.ok).length;
     const whatsappSent = whatsappResults.filter((r) => r.ok).length;
 
-    // Only throw (and block the "Sent" UI state) if literally nothing went
-    // out on either channel — a partial success (e.g. email ok, WhatsApp
+    // Only throw (and block the "Sent" UI state) if literally nothing went out
+    // on any selected channel — a partial success (e.g. email ok, WhatsApp
     // template not yet approved) should still read as a send, not an error.
-    if (emailSent === 0 && whatsappSent === 0 && members.length > 0) {
-      const firstError = emailResults[0]?.error || whatsappResults[0]?.error;
+    if (emailSent === 0 && whatsappSent === 0 && smsSent === 0 && members.length > 0) {
+      const firstError = emailResults[0]?.error || whatsappResults[0]?.error || (smsReason ? `SMS not sent: ${smsReason}.` : undefined);
       if (firstError) throw new Error(firstError);
     }
 
@@ -155,6 +203,8 @@ export const sendBirthdayMessages = createServerFn({ method: "POST" })
       emailTotal: withEmail.length,
       whatsappSent,
       whatsappTotal: withWhatsApp.length,
-      whatsappConfigured: waConfigured,
+      whatsappConfigured: ch.whatsapp && isWhatsAppConfigured(),
+      smsSent,
+      smsTotal,
     };
   });

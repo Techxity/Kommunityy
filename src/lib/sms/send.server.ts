@@ -65,13 +65,17 @@ export async function sendCommunitySms(args: {
   communityId: string;
   channel: SmsChannel;
   targets: SmsTarget[];
+  // `force` skips the per-channel automation toggle (chBirthdays/chReminders/…)
+  // for an explicit admin-initiated send — SMS must still be enabled, have a
+  // sender ID, and have wallet balance.
+  force?: boolean;
 }): Promise<SmsSendSummary> {
-  const { communityId, channel, targets } = args;
+  const { communityId, channel, targets, force } = args;
   const settings = await getSmsSettings(communityId);
 
   const off = (reason: string): SmsSendSummary => ({ attempted: false, sent: 0, failed: 0, skipped: targets.length, costKobo: 0, sentMemberIds: [], reason });
   if (!settings.enabled) return off("SMS disabled");
-  if (!channelEnabled(settings, channel)) return off("channel off");
+  if (!force && !channelEnabled(settings, channel)) return off("channel off");
   if (!settings.senderId) return off("no sender ID set");
 
   const rate = rateKobo(settings.route);
