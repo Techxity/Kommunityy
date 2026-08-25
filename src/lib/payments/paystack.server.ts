@@ -3,17 +3,23 @@ import { createHmac, timingSafeEqual } from "crypto";
 
 const BASE = "https://api.paystack.co";
 
+// User-facing message kept intentionally vague (no env-var/internal details);
+// the specific cause is logged server-side for the operator.
+const PAYMENT_SETUP_ERROR = "Invalid payment setup. Contact platform admin.";
+
 function key() {
   const k = process.env.PAYSTACK_SECRET_KEY?.trim();
-  if (!k) throw new Error("PAYSTACK_SECRET_KEY is not set. Add your Paystack secret key to the environment.");
+  if (!k) {
+    console.error("[paystack] PAYSTACK_SECRET_KEY is not set.");
+    throw new Error(PAYMENT_SETUP_ERROR);
+  }
   // A real key is ASCII and starts with sk_. Guard against a masked/placeholder
   // value (e.g. the bullet-dotted •••• shown on the dashboard being copied),
   // which would otherwise throw an opaque "Cannot convert to ByteString" error
   // when the value is put into the Authorization header.
   if (!/^sk_[A-Za-z0-9_]+$/.test(k)) {
-    throw new Error(
-      "PAYSTACK_SECRET_KEY looks invalid. Use the real secret key from your Paystack dashboard (Settings → API Keys & Webhooks → reveal) — it starts with sk_test_ or sk_live_. It looks like a masked or placeholder value was pasted.",
-    );
+    console.error("[paystack] PAYSTACK_SECRET_KEY looks invalid — expected a real sk_ key (masked/placeholder value?).");
+    throw new Error(PAYMENT_SETUP_ERROR);
   }
   return k;
 }
