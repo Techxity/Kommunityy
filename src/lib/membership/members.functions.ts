@@ -442,3 +442,41 @@ export const setMembersStatus = createServerFn({ method: "POST" })
     }
     return { ok: true };
   });
+
+// Admin: reset a phone-only member's login so they can set a fresh password.
+// Since phone-first accounts have no email (so can't use "Forgot password"),
+// this deletes the member's phone-first user account — members.user_id is
+// ON DELETE SET NULL (unlinks the membership) and sessions cascade — after
+// which the member re-registers with a new password from the community login
+// page's "Set up account" tab. Deliberately refuses to touch an account that
+// has an email (they can self-reset), or one shared across communities / used
+// as an admin login (deleting it would break their other access).
+export const resetMemberLogin = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => z.object({ memberId: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) throw new AppError("You don't manage a community yet.");
+
+    const rows = await sql`
+      SELECT user_id FROM public.members WHERE id = ${data.memberId}::uuid AND community_id = ${communityId}::uuid LIMIT 1
+    `;
+    const member = rows[0];
+    if (!member) throw new AppError("Member not found.");
+    const userId = member.user_id as string | null;
+    if (!userId) throw new AppError("This member hasn't set up a login yet — there's nothing to reset.");
+
+    const users = await sql`SELECT email FROM public.users WHERE id = ${userId}::uuid LIMIT 1`;
+    if (users[0]?.email) {
+      throw new AppError("This member signs in with an email — they can reset their own password using the 'Forgot password' link. No admin reset needed.");
+    }
+
+    const otherMemberships = await sql`SELECT 1 FROM public.members WHERE user_id = ${userId}::uuid AND id <> ${data.memberId}::uuid LIMIT 1`;
+    const roles = await sql`SELECT 1 FROM public.user_roles WHERE user_id = ${userId}::uuid LIMIT 1`;
+    if (otherMemberships[0] || roles[0]) {
+      throw new AppError("This login is used across more than one community (or is an admin login), so it can't be reset here. Ask the member to sign in with their existing password, or contact support.");
+    }
+
+    await sql`DELETE FROM public.users WHERE id = ${userId}::uuid`;
+    return { ok: true };
+  });

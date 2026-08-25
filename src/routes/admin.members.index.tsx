@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { listMembers, updateMember, setMembersStatus, bulkCreateMembers } from "@/lib/membership/members.functions";
+import { listMembers, updateMember, setMembersStatus, bulkCreateMembers, resetMemberLogin } from "@/lib/membership/members.functions";
 import { listMyChapters } from "@/lib/membership/chapters.functions";
 import { sendInvites } from "@/lib/membership/invites.functions";
 import { resendMemberInvite } from "@/lib/membership/member-accounts.functions";
@@ -19,6 +19,7 @@ import {
   Inbox,
   Save,
   KeyRound,
+  RotateCcw,
   FileUp,
   Check,
   AlertTriangle,
@@ -48,6 +49,23 @@ function MembersPage() {
   const [editing, setEditing] = useState<Member | null>(null);
   const [invitingId, setInvitingId] = useState<string | null>(null);
   const [inviteNote, setInviteNote] = useState("");
+  const [resettingId, setResettingId] = useState<string | null>(null);
+
+  async function resetLogin(memberId: string) {
+    if (typeof window !== "undefined" && !window.confirm("Reset this member's login? Their current password stops working, and they set a new one from the community login page's 'Set up account' tab (with their name + phone).")) return;
+    setResettingId(memberId);
+    setInviteNote("");
+    try {
+      await resetMemberLogin({ data: { memberId } });
+      setInviteNote("Login reset. The member can now set a new password from the community login page ('Set up account').");
+      refresh();
+    } catch (err: any) {
+      setInviteNote(err?.message ?? "Couldn't reset the login.");
+    } finally {
+      setResettingId(null);
+      setTimeout(() => setInviteNote(""), 8000);
+    }
+  }
 
   async function sendAccountInvite(memberId: string) {
     setInvitingId(memberId);
@@ -408,6 +426,16 @@ function MembersPage() {
                             className="rounded-md p-1.5 text-muted-foreground hover:bg-primary/10 hover:text-primary disabled:opacity-40"
                           >
                             <KeyRound className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {isActive && m.hasAccount && (
+                          <button
+                            onClick={() => resetLogin(m.id)}
+                            title="Reset login (member sets a new password)"
+                            disabled={resettingId === m.id}
+                            className="rounded-md p-1.5 text-muted-foreground hover:bg-amber-500/10 hover:text-amber-600 disabled:opacity-40"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" />
                           </button>
                         )}
                       </div>
