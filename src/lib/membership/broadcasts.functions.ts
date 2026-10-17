@@ -61,6 +61,7 @@ export const sendBroadcast = createServerFn({ method: "POST" })
         body: z.string().min(1).max(10000),
         viaEmail: z.boolean().default(true),
         viaSms: z.boolean().default(false),
+        memberIds: z.array(z.string().uuid()).max(2000).optional(),
       })
       .parse(i),
   )
@@ -72,21 +73,34 @@ export const sendBroadcast = createServerFn({ method: "POST" })
     const communities = await sql`SELECT name FROM public.communities WHERE id = ${communityId}::uuid`;
     const communityName = (communities[0]?.name as string | undefined) ?? "your community";
 
+    const members = data.memberIds === undefined
+      ? await sql`
+          SELECT id, email, phone, sms_opt_out FROM public.members
+          WHERE community_id = ${communityId}::uuid AND status = 'active'
+        `
+      : await sql`
+          SELECT id, email, phone, sms_opt_out FROM public.members
+          WHERE community_id = ${communityId}::uuid AND status = 'active'
+            AND id = ANY(${data.memberIds}::uuid[])
+        `;
+    if (data.memberIds !== undefined) {
+      if (data.memberIds.length === 0) throw new Error("Choose at least one recipient.");
+      if (new Set(data.memberIds).size !== data.memberIds.length) throw new Error("Each recipient can only be included once.");
+      if (members.length !== data.memberIds.length) throw new Error("One or more recipients are no longer active in this community.");
+    }
+
     let emailSent = 0;
     let emailTotal = 0;
     if (data.viaEmail) {
-      const members = await sql`
-        SELECT email FROM public.members
-        WHERE community_id = ${communityId}::uuid AND status = 'active' AND email IS NOT NULL
-      `;
-      emailTotal = members.length;
+      const emailMembers = members.filter((member) => member.email != null);
+      emailTotal = emailMembers.length;
       const html = broadcastEmail({ communityName, bodyText: data.body });
       // Batched send — one HTTP call per 100 recipients, a few in parallel.
       const res = await sendEmailsBatch(
-        members.map((m) => ({ to: m.email as string, subject: data.subject, html, fromName: communityName })),
+        emailMembers.map((m) => ({ to: m.email as string, subject: data.subject, html, fromName: communityName })),
       );
       emailSent = res.sent;
-      if (members.length > 0 && emailSent === 0 && !data.viaSms) {
+      if (emailMembers.length > 0 && emailSent === 0 && !data.viaSms) {
         throw new Error("Couldn't send the broadcast right now. Please try again.");
       }
     }
@@ -95,11 +109,8 @@ export const sendBroadcast = createServerFn({ method: "POST" })
     // raw body to every active member with a phone number.
     let smsSent = 0;
     if (data.viaSms) {
-      const smsRows = await sql`
-        SELECT id, phone, sms_opt_out FROM public.members
-        WHERE community_id = ${communityId}::uuid AND status = 'active' AND phone IS NOT NULL
-      `;
-      const targets: SmsTarget[] = smsRows.map((m) => ({
+      const smsMembers = members.filter((member) => member.phone != null);
+      const targets: SmsTarget[] = smsMembers.map((m) => ({
         memberId: m.id as string,
         phone: m.phone as string,
         optOut: !!m.sms_opt_out,
@@ -109,11 +120,13 @@ export const sendBroadcast = createServerFn({ method: "POST" })
       smsSent = r.sent;
     }
 
-    const reach = Math.max(emailSent, smsSent);
-    await sql`
-      INSERT INTO public.broadcasts (community_id, subject, body, reach)
-      VALUES (${communityId}::uuid, ${data.subject}, ${data.body}, ${reach})
-    `;
+    if (data.memberIds === undefined) {
+      const reach = Math.max(emailSent, smsSent);
+      await sql`
+        INSERT INTO public.broadcasts (community_id, subject, body, reach)
+        VALUES (${communityId}::uuid, ${data.subject}, ${data.body}, ${reach})
+      `;
+    }
 
     return { sent: emailSent, total: emailTotal, smsSent };
   });

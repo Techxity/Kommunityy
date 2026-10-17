@@ -21,6 +21,7 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SuperAdminRouteImport } from './routes/super-admin'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as AdminAttendanceRouteImport } from './routes/admin.attendance'
 import { Route as AdminBirthdaysRouteImport } from './routes/admin.birthdays'
 import { Route as AdminBroadcastRouteImport } from './routes/admin.broadcast'
 import { Route as AdminCalltreeRouteImport } from './routes/admin.calltree'
@@ -124,6 +125,11 @@ const TermsRoute = TermsRouteImport.update({
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminAttendanceRoute = AdminAttendanceRouteImport.update({
+  id: '/attendance',
+  path: '/attendance',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminBirthdaysRoute = AdminBirthdaysRouteImport.update({
@@ -360,6 +366,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/super-admin': typeof SuperAdminRouteWithChildren
   '/terms': typeof TermsRoute
+  '/admin/attendance': typeof AdminAttendanceRoute
   '/admin/birthdays': typeof AdminBirthdaysRoute
   '/admin/broadcast': typeof AdminBroadcastRoute
   '/admin/calltree': typeof AdminCalltreeRoute
@@ -415,6 +422,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
   '/terms': typeof TermsRoute
+  '/admin/attendance': typeof AdminAttendanceRoute
   '/admin/birthdays': typeof AdminBirthdaysRoute
   '/admin/broadcast': typeof AdminBroadcastRoute
   '/admin/calltree': typeof AdminCalltreeRoute
@@ -473,6 +481,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/super-admin': typeof SuperAdminRouteWithChildren
   '/terms': typeof TermsRoute
+  '/admin/attendance': typeof AdminAttendanceRoute
   '/admin/birthdays': typeof AdminBirthdaysRoute
   '/admin/broadcast': typeof AdminBroadcastRoute
   '/admin/calltree': typeof AdminCalltreeRoute
@@ -533,6 +542,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/super-admin'
     | '/terms'
+    | '/admin/attendance'
     | '/admin/birthdays'
     | '/admin/broadcast'
     | '/admin/calltree'
@@ -588,6 +598,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/signup'
     | '/terms'
+    | '/admin/attendance'
     | '/admin/birthdays'
     | '/admin/broadcast'
     | '/admin/calltree'
@@ -645,6 +656,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/super-admin'
     | '/terms'
+    | '/admin/attendance'
     | '/admin/birthdays'
     | '/admin/broadcast'
     | '/admin/calltree'
@@ -802,6 +814,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/attendance': {
+      id: '/admin/attendance'
+      path: '/attendance'
+      fullPath: '/admin/attendance'
+      preLoaderRoute: typeof AdminAttendanceRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/birthdays': {
@@ -1130,6 +1149,7 @@ const AdminMembersRouteWithChildren = AdminMembersRoute._addFileChildren(
 )
 
 interface AdminRouteChildren {
+  AdminAttendanceRoute: typeof AdminAttendanceRoute
   AdminBirthdaysRoute: typeof AdminBirthdaysRoute
   AdminBroadcastRoute: typeof AdminBroadcastRoute
   AdminCalltreeRoute: typeof AdminCalltreeRoute
@@ -1148,6 +1168,7 @@ interface AdminRouteChildren {
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
+  AdminAttendanceRoute: AdminAttendanceRoute,
   AdminBirthdaysRoute: AdminBirthdaysRoute,
   AdminBroadcastRoute: AdminBroadcastRoute,
   AdminCalltreeRoute: AdminCalltreeRoute,
@@ -1246,3 +1267,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

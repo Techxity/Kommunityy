@@ -26,6 +26,7 @@ const MODULE_LABELS: Record<string, string> = {
   Broadcasts: "Information broadcasts",
   "Call Tree": "Call tree wellbeing check-ins",
   Dues: "Dues collection + reminders",
+  Attendance: "Weekly gathering attendance tracking",
   Donations: "Donations & fundraising",
   Elections: "Digital elections",
 };
