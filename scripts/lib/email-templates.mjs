@@ -62,27 +62,50 @@ export function birthdayEmail({ memberName, communityName, message }) {
     badge: "🎂 Birthday wishes",
     heading: `Happy birthday, ${escapeHtml(firstName)}!`,
     bodyHtml: `
+      ${birthdayCardMarkup({ memberName, communityName })}
       <p style="margin:0 0 12px;">Dear ${escapeHtml(memberName)},</p>
       <p style="margin:0;">${escapeHtml(message)}</p>
+      <p style="margin:16px 0 0;font-size:12px;color:#6b7280;">Your shareable birthday card is attached.</p>
     `,
     footerNote: `Sent with care by ${escapeHtml(communityName)}, powered by Kommunity.`,
   });
 }
 
+function birthdayCardMarkup({ memberName, communityName }) {
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px;border:1px solid #fecdd3;border-radius:16px;background-color:#fff7ed;">
+      <tr>
+        <td align="center" style="padding:16px 20px 10px;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#9f1239;">${escapeHtml(communityName)}</td>
+      </tr>
+      <tr>
+        <td align="center" style="padding:18px 20px 4px;font-size:14px;letter-spacing:3px;color:#be123c;">✦ &nbsp; 🎂 &nbsp; ✦</td>
+      </tr>
+      <tr>
+        <td align="center" style="padding:8px 18px 0;font-family:Georgia,'Times New Roman',serif;font-size:27px;line-height:1.25;font-weight:700;color:#9f1239;">Happy Birthday</td>
+      </tr>
+      <tr>
+        <td align="center" style="padding:6px 18px 8px;font-family:Georgia,'Times New Roman',serif;font-size:25px;line-height:1.3;font-weight:700;color:#be123c;">${escapeHtml(memberName)}</td>
+      </tr>
+      <tr>
+        <td align="center" style="padding:4px 18px 20px;font-size:13px;color:#78716c;">Wishing you a day full of joy and a beautiful year ahead</td>
+      </tr>
+      <tr>
+        <td align="center" style="padding:10px;font-size:10px;letter-spacing:1px;color:#a8a29e;border-top:1px solid #ffe4e6;">POWERED BY AKENROSE.COM</td>
+      </tr>
+    </table>
+  `;
+}
+
 // Sent once per community per day (only when there's at least one
-// celebrant), to every community_admin on file. Gives the admin a
-// copy-paste-ready message per celebrant so they can post it in their own
-// WhatsApp group manually — the whole point being to avoid per-member sends
-// through the paid Meta Business API.
+// celebrant), to every community_admin on file. Gives admins a shareable
+// birthday card for each celebrant without requiring paid WhatsApp sends.
 export function celebrantsDigestEmail({ communityName, celebrants }) {
   const count = celebrants.length;
   const cards = celebrants
     .map(
       (c) => `
-      <div style="margin:0 0 14px;padding:14px 16px;background-color:#fffbeb;border-radius:10px;">
-        <p style="margin:0 0 6px;font-weight:700;color:#111827;">${escapeHtml(c.name)}</p>
-        <p style="margin:0;color:#374151;white-space:pre-wrap;">${escapeHtml(c.message)}</p>
-      </div>`,
+      ${birthdayCardMarkup({ memberName: c.name, communityName })}
+      <p style="margin:0 0 18px;color:#374151;white-space:pre-wrap;">${escapeHtml(c.message)}</p>`,
     )
     .join("");
   return shell({
@@ -90,7 +113,7 @@ export function celebrantsDigestEmail({ communityName, celebrants }) {
     badge: "🎂 Today's celebrants",
     heading: count === 1 ? "1 member is celebrating today" : `${count} members are celebrating today`,
     bodyHtml: `
-      <p style="margin:0 0 16px;">Copy any of these straight into your WhatsApp group:</p>
+      <p style="margin:0 0 16px;">Share a card in your WhatsApp group or Status. Each celebrant's card is attached as an image file.</p>
       ${cards}
     `,
     footerNote: `Sent to the admins of ${escapeHtml(communityName)}. Sharing these yourself in your WhatsApp group costs nothing — that's why this exists instead of the app messaging each member directly.`,

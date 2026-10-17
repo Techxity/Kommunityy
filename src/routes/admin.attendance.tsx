@@ -10,6 +10,7 @@ import {
   Plus,
   Search,
   Send,
+  TrendingUp,
   Users,
   X,
 } from "lucide-react";
@@ -18,6 +19,7 @@ import { Link } from "@tanstack/react-router";
 import {
   createAttendanceSession,
   getAttendanceData,
+  getAttendanceTrend,
   saveAttendance,
 } from "@/lib/membership/attendance.functions";
 import { sendBroadcast } from "@/lib/membership/broadcasts.functions";
@@ -32,7 +34,18 @@ export const Route = createFileRoute("/admin/attendance")({
 type Status = "present" | "absent" | "excused" | null;
 type AttendanceFilter = "all" | "present" | "absent" | "excused" | "unmarked";
 type AttendanceData = Awaited<ReturnType<typeof getAttendanceData>>;
+type AttendancePeriod = "week" | "month" | "quarter" | "year";
+type AttendanceTrend = Awaited<ReturnType<typeof getAttendanceTrend>>;
 type SmsInfo = Awaited<ReturnType<typeof getSmsComposeInfo>>;
+
+function trendBucketLabel(date: string, period: AttendancePeriod) {
+  const [year, month, day] = date.split("-").map(Number);
+  if (period === "year") return String(year);
+  if (period === "quarter") return `Q${Math.ceil(month / 3)} '${String(year).slice(-2)}`;
+  const dateValue = new Date(year, month - 1, day, 12);
+  const monthLabel = new Intl.DateTimeFormat(undefined, { month: "short" }).format(dateValue);
+  return period === "month" ? `${monthLabel} '${String(year).slice(-2)}` : `${monthLabel} ${day}`;
+}
 
 function todayDate() {
   const now = new Date();
@@ -52,6 +65,10 @@ function Attendance() {
   const [marks, setMarks] = useState<Record<string, Status>>({});
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<AttendanceFilter>("all");
+  const [trendPeriod, setTrendPeriod] = useState<AttendancePeriod>("week");
+  const [trend, setTrend] = useState<AttendanceTrend>([]);
+  const [trendLoading, setTrendLoading] = useState(true);
+  const [trendRevision, setTrendRevision] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [messageOpen, setMessageOpen] = useState(false);
@@ -70,7 +87,29 @@ function Attendance() {
       Object.fromEntries(next.records.map((record) => [record.memberId, record.status as Status])),
     );
     setLoading(false);
+    setTrendRevision((revision) => revision + 1);
   }
+
+  useEffect(() => {
+    let cancelled = false;
+    setTrendLoading(true);
+    getAttendanceTrend({ data: { period: trendPeriod } })
+      .then((next) => {
+        if (!cancelled) setTrend(next);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTrend([]);
+          toast.error("Couldn't load the attendance summary.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setTrendLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [trendPeriod, trendRevision]);
 
   useEffect(() => {
     getSmsComposeInfo()
@@ -101,6 +140,18 @@ function Attendance() {
   );
   const markedCount = counts.present + counts.absent + counts.excused;
   const unmarkedCount = data.members.length - markedCount;
+  const trendTotals = trend.reduce(
+    (total, bucket) => ({
+      meetings: total.meetings + bucket.meetings,
+      marked: total.marked + bucket.marked,
+      present: total.present + bucket.present,
+      absent: total.absent + bucket.absent,
+      excused: total.excused + bucket.excused,
+    }),
+    { meetings: 0, marked: 0, present: 0, absent: 0, excused: 0 },
+  );
+  const trendRate =
+    trendTotals.marked > 0 ? Math.round((trendTotals.present / trendTotals.marked) * 100) : null;
   const filterLabels: Record<AttendanceFilter, string> = {
     all: "Everyone",
     present: "Present",
@@ -143,6 +194,7 @@ function Attendance() {
           })),
         },
       });
+      setTrendRevision((revision) => revision + 1);
       toast.success("Attendance saved.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Couldn't save attendance.");
@@ -245,6 +297,102 @@ function Attendance() {
           )}
         </div>
       </header>
+
+      <section
+        aria-label="Attendance trend"
+        aria-busy={trendLoading}
+        className="space-y-5 rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-6"
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="font-display text-xl font-semibold">Attendance trend</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Present as a share of marked statuses (present, absent, or excused).
+            </p>
+          </div>
+          <label className="grid w-full gap-1 text-xs font-medium text-muted-foreground sm:w-auto">
+            Group by
+            <select
+              aria-label="Attendance trend period"
+              value={trendPeriod}
+              onChange={(event) => setTrendPeriod(event.target.value as AttendancePeriod)}
+              className="input w-full sm:min-w-40"
+            >
+              <option value="week">Weekly</option>
+              <option value="month">Monthly</option>
+              <option value="quarter">Quarterly</option>
+              <option value="year">Yearly</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <Summary icon={CalendarDays} label="Meetings" value={trendTotals.meetings} />
+          <Summary icon={Check} label="Present" value={trendTotals.present} />
+          <Summary icon={CalendarDays} label="Absent" value={trendTotals.absent} />
+          <Summary icon={ClipboardCheck} label="Excused" value={trendTotals.excused} />
+          <Summary icon={Users} label="Marked statuses" value={trendTotals.marked} />
+          <Summary
+            icon={TrendingUp}
+            label="Present of marked"
+            value={trendRate === null ? "—" : `${trendRate}%`}
+          />
+        </div>
+
+        <div className="space-y-3 border-t border-border pt-4">
+          <h3 className="text-sm font-semibold">
+            Most recent 12 {trendPeriod === "week" ? "weeks" : `${trendPeriod}s`}
+          </h3>
+          {trend.some((bucket) => bucket.marked > 0) ? (
+            <div className="space-y-3">
+              {trend.map((bucket) => {
+                const rate =
+                  bucket.marked > 0 ? Math.round((bucket.present / bucket.marked) * 100) : null;
+                const label = trendBucketLabel(bucket.date, trendPeriod);
+                return (
+                  <div
+                    key={bucket.date}
+                    className="grid grid-cols-[3.75rem_minmax(0,1fr)_3rem] items-center gap-3 sm:grid-cols-[5rem_minmax(0,1fr)_3.5rem]"
+                  >
+                    <span className="text-xs text-muted-foreground">{label}</span>
+                    <div
+                      role="progressbar"
+                      aria-label={
+                        rate === null
+                          ? `${label}: no attendance marked`
+                          : `${label}: ${rate}% present among marked statuses`
+                      }
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={rate ?? 0}
+                      className="h-2.5 overflow-hidden rounded-full bg-muted"
+                    >
+                      <div
+                        className="h-full rounded-full bg-primary transition-[width]"
+                        style={{ width: `${rate ?? 0}%` }}
+                      />
+                    </div>
+                    <span className="text-right text-xs font-medium tabular-nums">
+                      {rate === null ? "—" : `${rate}%`}
+                    </span>
+                    <p className="col-span-3 -mt-2 text-right text-xs text-muted-foreground sm:col-span-1 sm:col-start-2">
+                      {bucket.present} present of {bucket.marked} marked
+                      {" · "}
+                      {bucket.meetings} {bucket.meetings === 1 ? "meeting" : "meetings"}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="py-5 text-center text-sm text-muted-foreground">
+              {trendLoading
+                ? "Loading attendance trend…"
+                : "No marked attendance in this period yet."}
+            </p>
+          )}
+        </div>
+      </section>
 
       <form
         onSubmit={createSession}

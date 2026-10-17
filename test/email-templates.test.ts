@@ -20,6 +20,9 @@ test("birthday email escapes the member name and includes the message", () => {
   assert.ok(!html.includes("A<b>da"));
   assert.ok(html.includes("A&lt;b&gt;da"));
   assert.ok(html.includes("Have a great &lt;one&gt;!"));
+  assert.ok(html.includes("Happy Birthday"));
+  assert.ok(html.includes("Estate"));
+  assert.ok(html.includes("AKENROSE.COM"));
 });
 
 test("password reset email contains the reset URL and a CTA", () => {

@@ -4,10 +4,9 @@
 // via Resend, WhatsApp via Meta's Cloud API), then marks them sent so a
 // second run the same day is a no-op. Also sends one digest email per
 // community (to every community_admin on file) listing all of that
-// community's celebrants for the day, with a ready-to-paste WhatsApp
-// message per celebrant — admins share it in their own group manually,
-// which costs nothing, instead of relying solely on the paid per-member
-// WhatsApp send below. Talks to Neon/Resend/Meta directly over HTTP — no
+// community's celebrants for the day, with a shareable card attachment for
+// each celebrant — admins can post it to their WhatsApp group or Status.
+// Talks to Neon/Resend/Meta directly over HTTP — no
 // dependency on the TanStack Start app itself, so it can run as its own
 // Railway cron service (or a local Task Scheduler job) independent of the
 // web process.
@@ -27,6 +26,7 @@
 
 import { neon } from "@neondatabase/serverless";
 import { birthdayEmail, celebrantsDigestEmail } from "./lib/email-templates.mjs";
+import { birthdayCardAttachment } from "./lib/birthday-card.mjs";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -63,14 +63,21 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-async function sendEmail({ to, subject, html, fromName, cc }) {
+async function sendEmail({ to, subject, html, fromName, cc, attachments }) {
   const from = `${fromName ?? "Kommunity"} <${RESEND_FROM_ADDRESS}>`;
   const ccList = cc && cc.toLowerCase() !== to.toLowerCase() ? [cc] : [];
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to: [to], subject, html, ...(ccList.length > 0 ? { cc: ccList } : {}) }),
+      body: JSON.stringify({
+        from,
+        to: [to],
+        subject,
+        html,
+        ...(ccList.length > 0 ? { cc: ccList } : {}),
+        ...(attachments?.length ? { attachments } : {}),
+      }),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
@@ -104,6 +111,7 @@ async function sendEmailBatches(jobs) {
           to: [j.to],
           subject: j.subject,
           html: j.html,
+          ...(j.attachments?.length ? { attachments: j.attachments } : {}),
         }));
         try {
           const res = await fetch("https://api.resend.com/emails/batch", {
@@ -223,8 +231,9 @@ async function main() {
     const message = m.birthday_messages?.[monthName] ?? "Happy birthday! 🎉";
     const firstName = String(m.name).split(" ")[0];
 
+    const attachment = birthdayCardAttachment(m.name, m.community_name);
     const entry = celebrantsByCommunity.get(m.community_id) ?? { communityName: m.community_name, celebrants: [] };
-    entry.celebrants.push({ name: m.name, message: `Happy birthday, ${firstName}! ${message}` });
+    entry.celebrants.push({ name: m.name, message: `Happy birthday, ${firstName}! ${message}`, attachment });
     celebrantsByCommunity.set(m.community_id, entry);
 
     if (m.email) {
@@ -234,6 +243,7 @@ async function main() {
         subject: `Happy birthday, ${firstName}! 🎂`,
         fromName: m.community_name,
         html: birthdayEmail({ memberName: m.name, communityName: m.community_name, message }),
+        attachments: [attachment],
       });
     }
     if (WHATSAPP_CONFIGURED && m.whatsapp) {
@@ -298,7 +308,13 @@ async function main() {
       const subject = count === 1 ? `🎂 1 birthday today at ${entry.communityName}` : `🎂 ${count} birthdays today at ${entry.communityName}`;
       const html = celebrantsDigestEmail({ communityName: entry.communityName, celebrants: entry.celebrants });
       for (const adminEmail of adminEmails) {
-        const result = await sendEmail({ to: adminEmail, subject, fromName: entry.communityName, html });
+        const result = await sendEmail({
+          to: adminEmail,
+          subject,
+          fromName: entry.communityName,
+          html,
+          attachments: entry.celebrants.map((celebrant) => celebrant.attachment),
+        });
         if (result.ok) {
           digestSent++;
         } else {

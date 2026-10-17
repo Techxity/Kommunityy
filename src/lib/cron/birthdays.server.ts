@@ -5,6 +5,7 @@
 // the .mjs runs outside the TS build.
 import { sql } from "@/lib/db/client";
 import { sendEmailsBatch } from "@/lib/email";
+import { birthdayCardAttachment } from "@/lib/birthday-card";
 import { birthdayEmail, celebrantsDigestEmail } from "@/lib/email-templates";
 import { sendWhatsAppTemplate, isWhatsAppConfigured } from "@/lib/whatsapp";
 import { sendCommunitySms, type SmsTarget } from "@/lib/sms/send.server";
@@ -45,8 +46,21 @@ export async function runBirthdayJob(): Promise<BirthdayJobResult> {
       AND (m.last_birthday_sent_year IS NULL OR m.last_birthday_sent_year <> ${year})
   `;
 
-  const celebrantsByCommunity = new Map<string, { communityName: string; celebrants: { name: string; message: string }[] }>();
-  const emailJobs: { id: string; to: string; subject: string; html: string; fromName: string }[] = [];
+  const celebrantsByCommunity = new Map<
+    string,
+    {
+      communityName: string;
+      celebrants: { name: string; message: string; attachment: ReturnType<typeof birthdayCardAttachment> }[];
+    }
+  >();
+  const emailJobs: {
+    id: string;
+    to: string;
+    subject: string;
+    html: string;
+    fromName: string;
+    attachments: ReturnType<typeof birthdayCardAttachment>[];
+  }[] = [];
   const waJobs: { id: string; to: string; firstName: string; message: string; communityName: string }[] = [];
   const smsByCommunity = new Map<string, SmsTarget[]>();
   const waConfigured = isWhatsAppConfigured();
@@ -57,9 +71,10 @@ export async function runBirthdayJob(): Promise<BirthdayJobResult> {
     const communityName = m.community_name as string;
     const communityId = m.community_id as string;
     const message = (m.birthday_messages as Record<string, string> | null)?.[monthName] ?? "Happy birthday! 🎉";
+    const attachment = birthdayCardAttachment(name, communityName);
 
     const entry = celebrantsByCommunity.get(communityId) ?? { communityName, celebrants: [] };
-    entry.celebrants.push({ name, message: `Happy birthday, ${firstName}! ${message}` });
+    entry.celebrants.push({ name, message: `Happy birthday, ${firstName}! ${message}`, attachment });
     celebrantsByCommunity.set(communityId, entry);
 
     if (m.email) {
@@ -69,6 +84,7 @@ export async function runBirthdayJob(): Promise<BirthdayJobResult> {
         subject: `Happy birthday, ${firstName}!`,
         fromName: communityName,
         html: birthdayEmail({ memberName: name, communityName, message }),
+        attachments: [attachment],
       });
     }
     if (waConfigured && m.whatsapp) {
@@ -138,14 +154,22 @@ export async function runBirthdayJob(): Promise<BirthdayJobResult> {
       adminsByCommunity.set(a.community_id as string, list);
     }
 
-    const digestJobs: { to: string; subject: string; html: string; fromName: string }[] = [];
+    const digestJobs: {
+      to: string;
+      subject: string;
+      html: string;
+      fromName: string;
+      attachments: ReturnType<typeof birthdayCardAttachment>[];
+    }[] = [];
     for (const [communityId, entry] of celebrantsByCommunity) {
       const adminEmails = Array.from(new Set(adminsByCommunity.get(communityId) ?? []));
       if (adminEmails.length === 0) continue;
       const count = entry.celebrants.length;
       const subject = count === 1 ? `1 birthday today at ${entry.communityName}` : `${count} birthdays today at ${entry.communityName}`;
       const html = celebrantsDigestEmail({ communityName: entry.communityName, celebrants: entry.celebrants });
-      for (const to of adminEmails) digestJobs.push({ to, subject, html, fromName: entry.communityName });
+      const attachments = entry.celebrants.map((celebrant) => celebrant.attachment);
+      for (const to of adminEmails)
+        digestJobs.push({ to, subject, html, fromName: entry.communityName, attachments });
     }
     const digestResult = await sendEmailsBatch(digestJobs);
     digestsSent = digestResult.sent;

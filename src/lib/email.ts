@@ -25,6 +25,7 @@ export async function sendEmail({
   fromName,
   replyTo,
   cc,
+  attachments,
 }: {
   to: string;
   subject: string;
@@ -32,6 +33,7 @@ export async function sendEmail({
   fromName?: string;
   replyTo?: string;
   cc?: string | string[];
+  attachments?: EmailAttachment[];
 }): Promise<{ ok: boolean; error?: string }> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
@@ -55,6 +57,7 @@ export async function sendEmail({
         html,
         ...(replyTo ? { reply_to: replyTo } : {}),
         ...(ccList.length > 0 ? { cc: ccList } : {}),
+        ...(attachments?.length ? { attachments } : {}),
       }),
     });
     if (!res.ok) {
@@ -67,6 +70,12 @@ export async function sendEmail({
   }
 }
 
+export type EmailAttachment = {
+  filename: string;
+  content: string;
+  content_type?: string;
+};
+
 export type BatchEmail = {
   to: string;
   subject: string;
@@ -76,6 +85,7 @@ export type BatchEmail = {
   // Optional caller-supplied id (e.g. a member id) echoed back in `okIds` for
   // messages whose batch was accepted — lets callers mark exactly who was sent.
   id?: string;
+  attachments?: EmailAttachment[];
 };
 
 // Bulk send via Resend's batch endpoint. Instead of one HTTP request per
@@ -112,6 +122,7 @@ export async function sendEmailsBatch(
           subject: m.subject,
           html: m.html,
           ...(m.replyTo ? { reply_to: m.replyTo } : {}),
+          ...(m.attachments?.length ? { attachments: m.attachments } : {}),
         }));
         try {
           const res = await fetch("https://api.resend.com/emails/batch", {
