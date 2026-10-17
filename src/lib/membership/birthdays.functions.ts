@@ -4,6 +4,7 @@ import { sql } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth/require-auth.server";
 import { communityIdForAdmin } from "@/lib/payments/communities.functions";
 import { sendEmail } from "@/lib/email";
+import { birthdayCardAttachment } from "@/lib/birthday-card";
 import { birthdayEmail } from "@/lib/email-templates";
 import { sendWhatsAppTemplate, isWhatsAppConfigured } from "@/lib/whatsapp";
 import { toDateOnlyString } from "@/lib/date-only";
@@ -136,6 +137,7 @@ export const sendBirthdayMessages = createServerFn({ method: "POST" })
           fromName: communityName,
           html: birthdayEmail({ memberName: m.name as string, communityName, message }),
           cc: adminEmail,
+          attachments: [birthdayCardAttachment(m.name as string, communityName)],
         }),
       ),
     );

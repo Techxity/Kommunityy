@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Cake, Send, Sparkles, Check, Mail, MessageCircle } from "lucide-react";
+import { Cake, Send, Sparkles, Check, Mail, MessageCircle, Download, Share2 } from "lucide-react";
+import { toast } from "sonner";
 import { getMyCommunity } from "@/lib/payments/communities.functions";
 import { getBirthdayMessages, saveBirthdayMessage, listMembersWithBirthdays, sendBirthdayMessages, getBirthdaySendInfo } from "@/lib/membership/birthdays.functions";
+import { birthdayCardSvg } from "@/lib/birthday-card";
 import { requireModule } from "@/lib/module-gate";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -56,6 +58,43 @@ function formatDob(dob: string): string {
 
 function formatSent(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+async function makeBirthdayCardFile(memberName: string, communityName: string): Promise<File> {
+  const svgUrl = URL.createObjectURL(
+    new Blob([birthdayCardSvg(memberName, communityName)], { type: "image/svg+xml;charset=utf-8" }),
+  );
+  try {
+    const image = new Image();
+    image.src = svgUrl;
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("Couldn't render the birthday card image."));
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = 1080;
+    canvas.height = 1920;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Image export isn't available in this browser.");
+    context.fillStyle = "#fff7ed";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const png = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("Couldn't export the birthday card image."));
+      }, "image/png");
+    });
+    const filename = memberName
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .toLowerCase() || "celebrant";
+    return new File([png], `birthday-${filename}.png`, { type: "image/png" });
+  } finally {
+    URL.revokeObjectURL(svgUrl);
+  }
 }
 
 function ChannelChip({ label, checked, onChange, available, hint }: { label: string; checked: boolean; onChange: (v: boolean) => void; available: boolean; hint?: string }) {
@@ -156,6 +195,34 @@ function Birthdays() {
       alert(err?.message ?? "Couldn't send that birthday message.");
     } finally {
       setResendingId(null);
+    }
+  }
+
+  async function saveBirthdayCard(memberName: string, share: boolean) {
+    try {
+      const file = await makeBirthdayCardFile(memberName, communityName || "Our Community");
+      if (
+        share &&
+        navigator.share &&
+        navigator.canShare?.({ files: [file] })
+      ) {
+        await navigator.share({
+          files: [file],
+          title: `Happy Birthday, ${memberName}!`,
+          text: `A birthday wish from ${communityName || "our community"}.`,
+        });
+      } else {
+        const url = URL.createObjectURL(file);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = file.name;
+        link.click();
+        URL.revokeObjectURL(url);
+        if (share) toast.info("Card downloaded. Attach it to a WhatsApp Status or message.");
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") return;
+      toast.error(error instanceof Error ? error.message : "Couldn't export the birthday card.");
     }
   }
 
@@ -300,11 +367,11 @@ function Birthdays() {
             ) : (
               <ul className="space-y-2">
                 {thisMonth.map((m) => (
-                  <li key={m.id} className="flex items-center gap-3 rounded-xl border border-border p-3">
+                  <li key={m.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-border p-3">
                     <div className="grid h-9 w-9 place-items-center rounded-full bg-gradient-accent text-xs font-bold text-primary-foreground">
                       {m.name.split(" ").map(p => p[0]).join("").slice(0, 2)}
                     </div>
-                    <div className="flex-1">
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold">{m.name}</p>
                       <p className="text-xs text-muted-foreground">
                         {formatDob(m.dob)}
@@ -319,6 +386,24 @@ function Birthdays() {
                       {m.email && <span title={m.email}><Mail className="h-3.5 w-3.5" /></span>}
                       {m.whatsapp && <span title={m.whatsapp}><MessageCircle className="h-3.5 w-3.5" /></span>}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => saveBirthdayCard(m.name, false)}
+                      title={`Download a birthday card for ${m.name}`}
+                      aria-label={`Download a birthday card for ${m.name}`}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      <Download className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => saveBirthdayCard(m.name, true)}
+                      title={`Share a birthday card for ${m.name}`}
+                      aria-label={`Share a birthday card for ${m.name}`}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-primary/30 text-primary hover:bg-primary/10"
+                    >
+                      <Share2 className="h-4 w-4" />
+                    </button>
                     <button
                       onClick={() => resendTo(m.id)}
                       disabled={(!m.email && !m.whatsapp) || resendingId === m.id}

@@ -6,6 +6,61 @@ import { communityIdForAdmin } from "@/lib/payments/communities.functions";
 import { toDateOnlyString } from "@/lib/date-only";
 
 const MeetingDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const AttendancePeriod = z.enum(["week", "month", "quarter", "year"]);
+
+export const getAttendanceTrend = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => z.object({ period: AttendancePeriod }).parse(i))
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) return [];
+
+    const rows = await sql`
+      WITH periods AS (
+        SELECT generate_series(
+          date_trunc(${data.period}, CURRENT_DATE::timestamp) - (
+            11 * CASE ${data.period}
+              WHEN 'week' THEN interval '1 week'
+              WHEN 'month' THEN interval '1 month'
+              WHEN 'quarter' THEN interval '3 months'
+              ELSE interval '1 year'
+            END
+          ),
+          date_trunc(${data.period}, CURRENT_DATE::timestamp),
+          CASE ${data.period}
+            WHEN 'week' THEN interval '1 week'
+            WHEN 'month' THEN interval '1 month'
+            WHEN 'quarter' THEN interval '3 months'
+            ELSE interval '1 year'
+          END
+        ) AS bucket_start
+      )
+      SELECT
+        periods.bucket_start::date AS bucket_start,
+        COUNT(DISTINCT sessions.id)::int AS meetings,
+        COUNT(records.id)::int AS marked,
+        COUNT(records.id) FILTER (WHERE records.status = 'present')::int AS present,
+        COUNT(records.id) FILTER (WHERE records.status = 'absent')::int AS absent,
+        COUNT(records.id) FILTER (WHERE records.status = 'excused')::int AS excused
+      FROM periods
+      LEFT JOIN public.attendance_sessions AS sessions
+        ON date_trunc(${data.period}, sessions.meeting_date::timestamp) = periods.bucket_start
+        AND sessions.community_id = ${communityId}::uuid
+      LEFT JOIN public.attendance_records AS records
+        ON records.session_id = sessions.id
+      GROUP BY periods.bucket_start
+      ORDER BY periods.bucket_start ASC
+    `;
+
+    return rows.map((row) => ({
+      date: toDateOnlyString(row.bucket_start),
+      meetings: Number(row.meetings),
+      marked: Number(row.marked),
+      present: Number(row.present),
+      absent: Number(row.absent),
+      excused: Number(row.excused),
+    }));
+  });
 
 export const getAttendanceData = createServerFn({ method: "POST" })
   .middleware([requireAuth])
