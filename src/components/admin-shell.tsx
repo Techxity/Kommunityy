@@ -46,6 +46,7 @@ const nav: NavGroup[] = [
     icon: Users,
     children: [
       { to: "/admin/members", label: "Members", module: "Membership" },
+      { to: "/admin/attendance", label: "Attendance", module: "Attendance" },
       { to: "/admin/chapters", label: "Chapters", module: "Membership" },
       { to: "/admin/calltree", label: "Call Tree", module: "Call Tree" },
       { to: "/admin/birthdays", label: "Birthdays", module: "Birthdays" },
@@ -307,4 +308,3 @@ export function AdminShell() {
     </div>
   );
 }
-
