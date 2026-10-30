@@ -1,14 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Check, X, Clock, MapPin, Inbox, CheckSquare, Square, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, Check, X, Clock, MapPin, Inbox, CheckSquare, Square, SlidersHorizontal, KeyRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { listMembers, setMembersStatus } from "@/lib/membership/members.functions";
 import { listMyChapters } from "@/lib/membership/chapters.functions";
+import { listAccountClaims, decideAccountClaim } from "@/lib/membership/account-claims.functions";
 
 export const Route = createFileRoute("/admin/members/pending")({
   component: PendingApprovalsPage,
 });
 
 type Member = Awaited<ReturnType<typeof listMembers>>[number];
+type Claim = Awaited<ReturnType<typeof listAccountClaims>>[number];
 
 function timeAgo(iso: string) {
   if (!iso) return "recently";
@@ -25,6 +27,8 @@ function PendingApprovalsPage() {
   const [pending, setPending] = useState<Member[]>([]);
   const [decided, setDecided] = useState<Member[]>([]);
   const [chapters, setChapters] = useState<{ id: string; name: string }[]>([]);
+  const [claims, setClaims] = useState<Claim[]>([]);
+  const [claimError, setClaimError] = useState("");
 
   const [showFilters, setShowFilters] = useState(false);
   const [chapterFilter, setChapterFilter] = useState("");
@@ -33,6 +37,17 @@ function PendingApprovalsPage() {
   function refresh() {
     listMembers({ data: { status: "pending" } }).then(setPending);
     listMembers({ data: { status: "rejected" } }).then(setDecided);
+    listAccountClaims().then(setClaims);
+  }
+
+  async function decideClaim(claimId: string, approve: boolean) {
+    setClaimError("");
+    try {
+      await decideAccountClaim({ data: { claimId, approve } });
+    } catch (e: any) {
+      setClaimError(e?.message ?? "Couldn't update that request. Please try again.");
+    }
+    refresh();
   }
 
   useEffect(() => {
@@ -88,6 +103,44 @@ function PendingApprovalsPage() {
           <Clock className="h-3 w-3" /> {filteredPending.length} awaiting review
         </span>
       </header>
+
+      {claims.length > 0 && (
+        <section className="space-y-3">
+          <div>
+            <h2 className="inline-flex items-center gap-2 font-display text-lg font-semibold">
+              <KeyRound className="h-4 w-4" /> Login requests
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Members asking to set up a phone login. Before you approve, confirm with the member that they made the request (call or text the number on file): anyone who knows a member's name and phone can send one.
+            </p>
+          </div>
+          {claimError && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-600">{claimError}</p>}
+          <ul className="divide-y divide-border rounded-2xl border border-border bg-card">
+            {claims.map((c) => (
+              <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm">
+                <span>
+                  <span className="font-medium">{c.name}</span>
+                  <span className="text-muted-foreground"> · {c.phone} · {timeAgo(c.requestedAt)}</span>
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => decideClaim(c.id, false)}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <X className="h-3 w-3" /> Reject
+                  </button>
+                  <button
+                    onClick={() => decideClaim(c.id, true)}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-95"
+                  >
+                    <Check className="h-3 w-3" /> Approve login
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {chapterOptions.length > 0 && (
         <div className="flex flex-wrap items-center gap-3">

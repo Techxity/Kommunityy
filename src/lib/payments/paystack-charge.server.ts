@@ -94,6 +94,11 @@ export async function platformFeePctFor(community_id: string): Promise<number> {
   return pct ? Number(pct) : 5; // sensible default
 }
 
+// Compare in minor units so float noise (e.g. 1500 * 3) can't flip the check.
+function paidAtLeast(gross: number, expected: number): boolean {
+  return Math.round(gross * 100) >= Math.round(expected * 100);
+}
+
 export type VerifiedPaystackTx = {
   status: string;
   reference: string;
@@ -124,6 +129,14 @@ export async function applyVerifiedCharge(
   if (meta.kind === "sms_topup" && meta.community_id) {
     const topupKobo = Number(meta.topup_amount_kobo);
     const credited = Number.isFinite(topupKobo) && topupKobo > 0 ? Math.round(topupKobo) : Math.round(gross * 100);
+    // Never credit more than was actually paid. Metadata isn't proof: anyone
+    // can start a Paystack charge against this merchant with the public key
+    // and arbitrary metadata, so a ₦100 charge claiming a ₦5m top-up must
+    // not credit ₦5m.
+    if (currency !== "NGN" || Math.round(Number(tx.amount)) < credited) {
+      console.error(`[charge] sms_topup ${reference}: paid ${tx.amount} ${currency} < credit ${credited} kobo — not applied`);
+      return { applied: false };
+    }
     const inserted = await sql`
       INSERT INTO public.sms_topups (community_id, amount_kobo, currency, provider, provider_ref, status)
       VALUES (${meta.community_id}, ${credited}, ${currency}, 'paystack', ${reference}, 'paid')
@@ -193,6 +206,13 @@ export async function applyVerifiedCharge(
     const period_start: string | null =
       typeof meta.period_start === "string" && /^\d{4}-\d{2}-\d{2}$/.test(meta.period_start) ? meta.period_start : null;
     const memberName = (meta.member_name as string | undefined) ?? email ?? "Member";
+    // The months claimed in metadata must actually have been paid for.
+    const planPrice = await sql`SELECT amount_ngn, amount_usd FROM public.dues_plans WHERE id = ${meta.plan_id} LIMIT 1`;
+    const unit = Number(currency === "NGN" ? planPrice[0]?.amount_ngn : planPrice[0]?.amount_usd);
+    if (!planPrice[0] || !unit || !paidAtLeast(gross, unit * months)) {
+      console.error(`[charge] dues ${reference}: paid ${gross} ${currency} for ${months} period(s) of plan ${meta.plan_id} — not applied`);
+      return { applied: false };
+    }
     const inserted = await sql`
       INSERT INTO public.dues_payments
         (plan_id, member_name, member_email, amount, currency, provider, provider_ref, status, paystack_fee, platform_fee, community_net, settlement_mode, months, period_start)
@@ -227,6 +247,15 @@ export async function applyVerifiedCharge(
 
   if (meta.kind === "plan" && meta.community_id && meta.tier_id) {
     const periodMonths = Number(meta.period_months) === 12 ? 12 : 1;
+    // The tier must actually have been paid for at its current price
+    // (mirrors startPlanCheckout: yearly = 10× monthly).
+    const tierRows = await sql`SELECT monthly_price_ngn, monthly_price_usd FROM public.subscription_tiers WHERE id = ${meta.tier_id} LIMIT 1`;
+    const monthly = Number(currency === "NGN" ? tierRows[0]?.monthly_price_ngn : tierRows[0]?.monthly_price_usd);
+    const expected = periodMonths === 12 ? monthly * 10 : monthly;
+    if (!tierRows[0] || !monthly || !paidAtLeast(gross, expected)) {
+      console.error(`[charge] plan ${reference}: paid ${gross} ${currency}, tier ${meta.tier_id} costs ${expected} — not applied`);
+      return { applied: false };
+    }
     await sql`
       INSERT INTO public.plan_payments
         (community_id, tier_id, amount, currency, provider, provider_ref, status, period_months)

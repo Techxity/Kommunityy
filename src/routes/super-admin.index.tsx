@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Building2, Users, DollarSign, TrendingUp, AlertTriangle, ArrowUpRight, Activity, Sparkles } from "lucide-react";
 import { platformStats, communities, revenueByMonth, auditLog, supportTickets, plans } from "@/lib/platform-data";
+import { ChangePasswordCard } from "@/components/change-password-card";
 
 export const Route = createFileRoute("/super-admin/")({
   head: () => ({ meta: [{ title: "Overview — Super Admin" }] }),
@@ -121,6 +122,8 @@ function Overview() {
           </ul>
         </div>
       </div>
+
+      <ChangePasswordCard />
     </div>
   );
 }

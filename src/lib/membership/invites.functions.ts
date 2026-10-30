@@ -1,17 +1,11 @@
-import { createServerFn, createServerOnlyFn } from "@tanstack/react-start";
+import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { getRequest } from "@tanstack/react-start/server";
 import { requireAuth } from "@/lib/auth/require-auth.server";
 import { sql } from "@/lib/db/client";
 import { communityIdForAdmin } from "@/lib/payments/communities.functions";
 import { sendEmail } from "@/lib/email";
 import { joinInviteEmail } from "@/lib/email-templates";
-
-// Wrapped for the same reason as session-cookie.server.ts's helpers — this
-// file is reachable from the client via `.middleware([requireAuth])`, so
-// any direct `@tanstack/react-start/server` usage needs the compiler's
-// createServerOnlyFn transform to get stripped from the client bundle.
-const getOrigin = createServerOnlyFn((): string => new URL(getRequest().url).origin);
+import { appOrigin } from "@/lib/app-origin.server";
 
 // How long a personally-invited email is trusted to auto-approve on
 // submission — after this, if they finally get around to filling the form,
@@ -37,7 +31,7 @@ export const sendInvites = createServerFn({ method: "POST" })
     const rows = await sql`SELECT name FROM public.communities WHERE id = ${communityId}::uuid`;
     const communityName = (rows[0]?.name as string | undefined) ?? "our community";
 
-    const origin = getOrigin();
+    const origin = appOrigin();
     const joinUrl = `${origin}/join/${communityId}`;
 
     const expiresAt = new Date(Date.now() + INVITE_EMAIL_DAYS * 24 * 60 * 60 * 1000).toISOString();

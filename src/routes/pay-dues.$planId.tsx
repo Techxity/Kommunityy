@@ -30,7 +30,7 @@ export const Route = createFileRoute("/pay-dues/$planId")({
   errorComponent: ({ error }) => (
     <div className="mx-auto max-w-md p-10 text-center">
       <h1 className="font-display text-xl font-bold">Something went wrong</h1>
-      <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
+      <p className="mt-2 text-sm text-muted-foreground">{error instanceof Error ? error.message : String(error)}</p>
     </div>
   ),
 });

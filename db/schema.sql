@@ -614,4 +614,21 @@ LEFT JOIN paid_out po
 LEFT JOIN pending_out pe
   ON pe.community_id = c.id AND pe.currency = cur.currency AND pe.source = src.source;
 
+-- ── Member account claims (admin-approved phone logins) ─────────────────
+CREATE TABLE IF NOT EXISTS public.member_account_claims (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  community_id uuid NOT NULL REFERENCES public.communities(id) ON DELETE CASCADE,
+  member_id uuid NOT NULL REFERENCES public.members(id) ON DELETE CASCADE,
+  phone text NOT NULL,
+  password_hash text,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  requested_at timestamptz NOT NULL DEFAULT now(),
+  decided_at timestamptz,
+  decided_by uuid REFERENCES public.users(id) ON DELETE SET NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS member_account_claims_one_pending
+  ON public.member_account_claims(member_id) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS member_account_claims_community_status_idx
+  ON public.member_account_claims(community_id, status, requested_at DESC);
+
 -- No seed data — the database starts empty on purpose.

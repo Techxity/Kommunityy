@@ -1,7 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { createServerOnlyFn } from "@tanstack/react-start";
-import { getRequest } from "@tanstack/react-start/server";
 import { sql } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth/require-auth.server";
 import { communityIdForAdmin } from "@/lib/payments/communities.functions";
@@ -9,8 +7,8 @@ import { resolveActiveMember } from "./active-member.server";
 import { sendEmail } from "@/lib/email";
 import { callTreePairingEmail } from "@/lib/email-templates";
 import { toTimestampIso } from "@/lib/date-only";
+import { appOrigin } from "@/lib/app-origin.server";
 
-const getOrigin = createServerOnlyFn((): string => new URL(getRequest().url).origin);
 
 const FEEDBACK_STATUSES = ["doing_great", "not_sure", "needs_help"] as const;
 
@@ -232,7 +230,7 @@ export const activateCallTreeSession = createServerFn({ method: "POST" })
     if (session.status !== "draft") throw new Error("This call tree has already been activated.");
 
     const communityName = session.community_name as string;
-    const origin = getOrigin();
+    const origin = appOrigin();
 
     const pairings = await sql`
       SELECT p.id, p.token_a, p.token_b, p.token_c,

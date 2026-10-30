@@ -3,7 +3,12 @@
 // non-ASCII correctly (e.g. the ₦ sign, accented names) instead of mojibake.
 
 function csvCell(value: string | number | null | undefined): string {
-  const text = value == null ? "" : String(value);
+  let text = value == null ? "" : String(value);
+  // Spreadsheet formula injection: names/notes come from public forms, and a
+  // cell starting with = + - @ (or tab/CR) runs as a formula in Excel/Sheets.
+  // A leading apostrophe makes it plain text. Numbers are left alone so
+  // negative amounts stay numeric.
+  if (typeof value === "string" && /^[=+\-@\t\r]/.test(text)) text = `'${text}`;
   // Always quote — safe for values containing commas, quotes, or newlines.
   return `"${text.replace(/"/g, '""')}"`;
 }

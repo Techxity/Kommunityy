@@ -2,18 +2,13 @@
 -- that role. Safe to re-run: both inserts are no-ops if the account already
 -- exists.
 --
--- email:    techxityhub@gmail.com
--- password: @HV%BfMyNpDnfsvUp2AT
--- (hash below is PBKDF2-SHA256/100k iterations of the password above, in
--- the pbkdf2$<iterations>$<saltB64>$<hashB64> format used by
--- src/lib/auth/password.ts)
+-- No password is seeded. 'disabled' is not a valid hash, so the account can't
+-- sign in until its owner sets a password with "Forgot password" on /login
+-- (the reset link goes to the email below). Never commit a password or a
+-- hash of a known password here.
 
 INSERT INTO public.users (email, password_hash, name)
-VALUES (
-  'techxityhub@gmail.com',
-  'pbkdf2$100000$ashF3k1lW8YwaqFKy1fxew==$9szZWEraWrBXKpJiOJrlQSmf4mQ33adDcUuXnCIP10k=',
-  'Super Admin'
-)
+VALUES ('techxityhub@gmail.com', 'disabled', 'Super Admin')
 ON CONFLICT (email) DO NOTHING;
 
 INSERT INTO public.user_roles (user_id, role, community_id)

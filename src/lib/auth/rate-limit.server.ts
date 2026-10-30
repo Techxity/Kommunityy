@@ -11,13 +11,18 @@ import { sql } from "@/lib/db/client";
 import { createServerOnlyFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 
+// Only trust the header the hosting edge itself sets and overwrites — any
+// other forwarding header is just client input, and honoring it would let a
+// caller pick a fresh rate-limit bucket on every request. On Vercel that's
+// x-real-ip; cf-connecting-ip only when actually running on Cloudflare.
 export const clientIp = createServerOnlyFn((): string => {
   const headers = getRequest().headers;
-  return (
-    headers.get("cf-connecting-ip") ??
-    headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    "unknown"
-  );
+  if (process.env.VERCEL) return headers.get("x-real-ip")?.trim() || "unknown";
+  if (typeof navigator !== "undefined" && navigator.userAgent === "Cloudflare-Workers") {
+    return headers.get("cf-connecting-ip") ?? "unknown";
+  }
+  // Local dev: no trusted proxy in front.
+  return "local";
 });
 
 // Throws if `identifier` has made >= max attempts within the last

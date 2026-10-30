@@ -33,6 +33,8 @@ function EstateLogin() {
   const [setupName, setSetupName] = useState("");
   const [setupPhone, setSetupPhone] = useState("");
   const [setupPassword, setSetupPassword] = useState("");
+  // A new phone login waits for admin approval before it can be used.
+  const [requested, setRequested] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -45,7 +47,13 @@ function EstateLogin() {
     setError("");
     setLoading(true);
     try {
-      await claimMemberAccount({ data: { communitySlug: slug, name: setupName.trim(), phone: setupPhone.trim(), password: setupPassword } });
+      const result = await claimMemberAccount({ data: { communitySlug: slug, name: setupName.trim(), phone: setupPhone.trim(), password: setupPassword } });
+      if (result.pending) {
+        setSetupPassword("");
+        setRequested(true);
+        setLoading(false);
+        return;
+      }
       navigate({ to: "/member" });
     } catch (e: any) {
       setError(e?.message ?? "Couldn't set up your account. Please try again.");
@@ -153,10 +161,20 @@ function EstateLogin() {
               {loading ? "Signing in…" : "Sign in"}
             </button>
           </form>
+        ) : requested ? (
+          <div className="mt-4 space-y-3 rounded-2xl border border-border bg-card p-6 shadow-soft">
+            <p className="font-semibold">Request sent</p>
+            <p className="text-sm text-muted-foreground">
+              Your {community.name} admin needs to approve your login before you can use it. Once they do, sign in here with your phone number and the password you just chose.
+            </p>
+            <button type="button" onClick={() => { setRequested(false); setMode("signin"); }} className="inline-flex w-full items-center justify-center rounded-full bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90">
+              Back to sign in
+            </button>
+          </div>
         ) : (
           <form onSubmit={setupAccount} className="mt-4 space-y-4 rounded-2xl border border-border bg-card p-6 shadow-soft">
             <p className="text-xs text-muted-foreground">
-              No email? If your admin has added you as a member, set up your login here with your phone number. Enter your <span className="font-semibold text-foreground">name and phone exactly as your admin has them</span>.
+              No email? If your admin has added you as a member, set up your login here with your phone number. Enter your <span className="font-semibold text-foreground">name and phone exactly as your admin has them</span>. Your admin will approve the login before you can sign in.
             </p>
             <div>
               <label className="text-sm font-medium">Full name</label>
@@ -194,7 +212,7 @@ function EstateLogin() {
             {error && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-600">{error}</p>}
             <button type="submit" disabled={loading} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60">
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              {loading ? "Setting up…" : "Set up & sign in"}
+              {loading ? "Sending…" : "Set up account"}
             </button>
           </form>
         )}

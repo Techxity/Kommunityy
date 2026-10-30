@@ -1,11 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { getRequestHost } from "@tanstack/react-start/server";
 import { sql } from "@/lib/db/client";
 import { initializeTransaction } from "./paystack.server";
 import { requireAuth } from "@/lib/auth/require-auth.server";
 import { errorBoundary } from "@/lib/error-boundary.server";
 import { communityIdForAdmin } from "./communities.functions";
+import { appOrigin } from "@/lib/app-origin.server";
 
 function slugify(text: string): string {
   const base = text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-+|-+$)/g, "").slice(0, 60);
@@ -39,9 +39,7 @@ export const startDonationCheckout = createServerFn({ method: "POST" })
     if (data.currency === "NGN" && !donation.target_ngn) throw new Error("NGN not accepted");
     if (data.currency === "USD" && !donation.target_usd) throw new Error("USD not accepted");
 
-    const host = getRequestHost();
-    const proto = host.includes("localhost") ? "http" : "https";
-    const callback_url = `${proto}://${host}/donate/${data.slug}?status=success`;
+    const callback_url = `${appOrigin()}/donate/${data.slug}?status=success`;
 
     // Subaccounts are an NGN-rails feature — USD always stays on the
     // platform-held/manual-payout path regardless of whether one exists.

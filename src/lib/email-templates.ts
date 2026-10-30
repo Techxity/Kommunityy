@@ -189,6 +189,36 @@ export function memberAccountReadyEmail({
   });
 }
 
+// To a community's admins when a phone-only member asks to set up a login.
+// Nothing can sign in until an admin approves, and anyone who knows a
+// member's name + phone can send a request — so the email asks the admin to
+// confirm with the member first.
+export function accountClaimRequestEmail({
+  memberName,
+  memberPhone,
+  communityName,
+  reviewUrl,
+}: {
+  memberName: string;
+  memberPhone: string;
+  communityName: string;
+  reviewUrl: string;
+}): string {
+  return shell({
+    accentColor: "#d97706",
+    badge: "🔑 Login request",
+    heading: `${escapeHtml(memberName)} wants to set up a login`,
+    bodyHtml: `
+      <p style="margin:0 0 12px;">Someone using <strong>${escapeHtml(memberName)}</strong>'s name and phone number (${escapeHtml(memberPhone)}) asked to set up a member login for <strong>${escapeHtml(communityName)}</strong>.</p>
+      <p style="margin:0 0 12px;">Before you approve, call or text the member on the number you have for them and check they made this request. If they didn't, reject it.</p>
+      <p style="margin:0;font-size:13px;color:#6b7280;">They can't sign in until you approve.</p>
+    `,
+    ctaText: "Review the request",
+    ctaUrl: reviewUrl,
+    footerNote: `You're receiving this because you're an admin of ${escapeHtml(communityName)} on Kommunity.`,
+  });
+}
+
 export function callTreePairingEmail({
   memberName,
   communityName,

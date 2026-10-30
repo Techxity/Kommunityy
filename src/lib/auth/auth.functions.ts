@@ -4,6 +4,7 @@ import { sql, withTransaction } from "@/lib/db/client";
 import { hashPassword, verifyPassword, DUMMY_PASSWORD_HASH } from "./password";
 import { createSession, revokeAllSessionsForUser, revokeSessionToken, setSessionActiveCommunity } from "./session.server";
 import { resolveActiveMember } from "@/lib/membership/active-member.server";
+import { notifyAdminsOfAccountClaim } from "@/lib/membership/account-claim-notify.server";
 import { setSessionCookie, clearSessionCookie, readSessionToken } from "./session-cookie.server";
 import { assertNotRateLimited, recordAttempt, clientIp } from "./rate-limit.server";
 import { getSessionUser, requireAuth } from "./require-auth.server";
@@ -171,8 +172,13 @@ export const login = createServerFn({ method: "POST" })
     const email = isEmail ? raw.toLowerCase() : null;
     const phone = isEmail ? null : normalizeNgPhone(raw);
     const rlKey = email ?? phone ?? raw.toLowerCase();
-    await assertNotRateLimited(`login:ip:${ip}`, 20, 15 * 60 * 1000);
-    await assertNotRateLimited(`login:id:${rlKey}`, 8, 15 * 60 * 1000);
+    // Record first, then check (limits are +1 because the count now includes
+    // this attempt): checking first and recording after the ~100ms PBKDF2
+    // would let a parallel burst all read the same count and slip through.
+    await recordAttempt(`login:ip:${ip}`);
+    await recordAttempt(`login:id:${rlKey}`);
+    await assertNotRateLimited(`login:ip:${ip}`, 21, 15 * 60 * 1000);
+    await assertNotRateLimited(`login:id:${rlKey}`, 9, 15 * 60 * 1000);
 
     const rows = email
       ? await sql`SELECT id, password_hash FROM public.users WHERE email = ${email} LIMIT 1`
@@ -184,9 +190,6 @@ export const login = createServerFn({ method: "POST" })
     // response time doesn't leak whether the identifier has an account.
     const hashToCheck = (user?.password_hash as string | undefined) ?? DUMMY_PASSWORD_HASH;
     const passwordMatches = await verifyPassword(data.password, hashToCheck);
-
-    await recordAttempt(`login:ip:${ip}`);
-    await recordAttempt(`login:id:${rlKey}`);
 
     if (!user || !passwordMatches) {
       throw new Error("Invalid email/phone or password.");
@@ -259,12 +262,14 @@ export const login = createServerFn({ method: "POST" })
   });
 
 // Public: a member with no email sets up their login by "claiming" their
-// membership. Guardrails against someone else grabbing it: the member must be
-// ACTIVE (already approved by an admin), have NO account yet, and the claimant
+// membership. The member must be ACTIVE, have NO account yet, and the claimant
 // must supply a NAME that matches the record plus the phone that normalizes to
-// the one on file. Rate-limited by IP and phone. If a user account with that
-// phone already exists (e.g. the person is a member of another community too),
-// we link to it after verifying the password rather than erroring.
+// the one on file. Name + phone aren't secret (call tree, officer lists,
+// exports), so for a brand-new login that match only files a request: a
+// community admin approves it (account-claims.functions.ts) before any account
+// exists. If a user account with that phone already exists (e.g. the person
+// is a member of another community too), knowing its password proves who they
+// are, so we link straight away.
 export const claimMemberAccount = createServerFn({ method: "POST" })
   .inputValidator((i) =>
     z
@@ -304,29 +309,37 @@ export const claimMemberAccount = createServerFn({ method: "POST" })
     }
 
     const existing = await sql`SELECT id, password_hash FROM public.users WHERE phone = ${phone} LIMIT 1`;
-    let userId: string;
     if (existing[0]) {
       const ok = await verifyPassword(data.password, existing[0].password_hash as string);
       if (!ok) {
         throw new Error("This phone number already has an account. Enter your existing password to link this membership, or reset it.");
       }
-      userId = existing[0].id as string;
-      await sql`UPDATE public.members SET user_id = ${userId}::uuid, updated_at = now() WHERE id = ${match.id}::uuid`;
-    } else {
-      const passwordHash = await hashPassword(data.password);
-      userId = crypto.randomUUID();
-      await withTransaction((tx) => [
-        // email left null — this is a phone-first account. The member's email
-        // (if any) stays on the members record for communications.
-        tx`INSERT INTO public.users (id, phone, password_hash, name) VALUES (${userId}::uuid, ${phone}, ${passwordHash}, ${data.name})`,
-        tx`UPDATE public.members SET user_id = ${userId}::uuid, updated_at = now() WHERE id = ${match.id}::uuid`,
-      ]);
+      const userId = existing[0].id as string;
+      await sql`UPDATE public.members SET user_id = ${userId}::uuid, updated_at = now() WHERE id = ${match.id}::uuid AND user_id IS NULL`;
+
+      const token = await createSession(userId);
+      setSessionCookie(token);
+      await setSessionActiveCommunity(token, communityId);
+      return { ok: true, pending: false };
     }
 
-    const token = await createSession(userId);
-    setSessionCookie(token);
-    await setSessionActiveCommunity(token, communityId);
-    return { ok: true };
+    // New login: park it for admin approval. One open request per member —
+    // a second one is refused, never merged, so nobody can swap their own
+    // password into a request the real member already made.
+    const passwordHash = await hashPassword(data.password);
+    const inserted = await sql`
+      INSERT INTO public.member_account_claims (community_id, member_id, phone, password_hash)
+      VALUES (${communityId}::uuid, ${match.id}::uuid, ${phone}, ${passwordHash})
+      ON CONFLICT (member_id) WHERE status = 'pending' DO NOTHING
+      RETURNING id
+    `;
+    if (!inserted[0]) {
+      throw new AppError(
+        "A request to set up this login is already waiting for your admin's approval. Ask your admin to approve it, or to reject it so you can try again.",
+      );
+    }
+    await notifyAdminsOfAccountClaim(match.id as string, phone);
+    return { ok: true, pending: true };
   });
 
 export const logout = createServerFn({ method: "POST" }).handler(async () => {
@@ -367,6 +380,17 @@ export const requestPasswordReset = createServerFn({ method: "POST" })
     await recordAttempt(`pwreset:ip:${ip}`);
 
     const email = data.email.trim().toLowerCase();
+    // Per-address cap so nobody can flood someone's inbox with reset emails.
+    // Over the cap we skip silently (same response as an unknown email), so
+    // it doesn't reveal whether the account exists.
+    const emailKey = `pwreset:email:${email}`;
+    const recent = await sql`
+      SELECT count(*)::int AS n FROM public.login_attempts
+      WHERE identifier = ${emailKey} AND attempted_at > ${new Date(Date.now() - 60 * 60 * 1000).toISOString()}
+    `;
+    if ((recent[0]?.n ?? 0) >= 3) return { ok: true };
+    await recordAttempt(emailKey);
+
     const rows = await sql`SELECT id, email, name FROM public.users WHERE email = ${email} LIMIT 1`;
     const user = rows[0];
     if (user) {
@@ -403,20 +427,21 @@ export const resetPassword = createServerFn({ method: "POST" })
   .inputValidator((i) => z.object({ token: z.string().min(10), password: z.string().min(8).max(200) }).parse(i))
   .handler(async ({ data }) => {
     const tokenHash = await hashResetToken(data.token);
-    const rows = await sql`
-      SELECT id, user_id FROM public.password_resets
-      WHERE token_hash = ${tokenHash} AND expires_at > now() AND used_at IS NULL
-      LIMIT 1
-    `;
-    const reset = rows[0];
-    if (!reset) throw new AppError("This reset link is invalid or has expired. Please request a new one.");
-
-    const userId = reset.user_id as string;
     const passwordHash = await hashPassword(data.password);
-    await withTransaction((tx) => [
-      tx`UPDATE public.users SET password_hash = ${passwordHash}, updated_at = now() WHERE id = ${userId}::uuid`,
-      tx`UPDATE public.password_resets SET used_at = now() WHERE id = ${reset.id}::uuid`,
-    ]);
+    // Consume the token and set the password in ONE statement, so two
+    // concurrent requests with the same link can't both succeed.
+    const rows = await sql`
+      WITH consumed AS (
+        UPDATE public.password_resets SET used_at = now()
+        WHERE token_hash = ${tokenHash} AND expires_at > now() AND used_at IS NULL
+        RETURNING user_id
+      )
+      UPDATE public.users u SET password_hash = ${passwordHash}, updated_at = now()
+      FROM consumed WHERE u.id = consumed.user_id
+      RETURNING u.id
+    `;
+    if (!rows[0]) throw new AppError("This reset link is invalid or has expired. Please request a new one.");
+    const userId = rows[0].id as string;
 
     // Log out everywhere, then start a fresh session for this device.
     await revokeAllSessionsForUser(userId);

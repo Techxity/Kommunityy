@@ -1,16 +1,11 @@
 // Server-only helper for the "forgot password" flow. Creates a single-use,
 // short-lived reset token, stores only its SHA-256 hash, and emails the raw
-// token in a link. getOrigin is wrapped in createServerOnlyFn for the same
-// reason as session-cookie.server.ts — this module is reachable from the
-// client bundle through the auth server functions, so any direct
-// `@tanstack/react-start/server` usage must be compiler-stripped.
-import { createServerOnlyFn } from "@tanstack/react-start";
-import { getRequest } from "@tanstack/react-start/server";
+// token in a link built on appOrigin() (never the request Host).
 import { sql } from "@/lib/db/client";
 import { sendEmail } from "@/lib/email";
 import { passwordResetEmail } from "@/lib/email-templates";
+import { appOrigin } from "@/lib/app-origin.server";
 
-const getOrigin = createServerOnlyFn((): string => new URL(getRequest().url).origin);
 
 const RESET_MINUTES = 60;
 
@@ -41,7 +36,7 @@ export async function createAndSendReset(user: { id: string; email: string; name
     VALUES (${user.id}::uuid, ${tokenHash}, ${expiresAt})
   `;
 
-  const link = `${getOrigin()}/reset-password/${token}`;
+  const link = `${appOrigin()}/reset-password/${token}`;
   await sendEmail({
     to: user.email,
     subject: "Reset your Kommunity password",

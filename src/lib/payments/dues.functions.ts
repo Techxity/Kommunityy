@@ -1,6 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { getRequestHost } from "@tanstack/react-start/server";
 import { sql } from "@/lib/db/client";
 import { initializeTransaction, verifyTransaction } from "./paystack.server";
 import { applyVerifiedCharge } from "./paystack-charge.server";
@@ -14,6 +13,7 @@ import { computeCommunityArrears } from "@/lib/dues-arrears.server";
 import { sendEmailsBatch } from "@/lib/email";
 import { duesReminderEmail } from "@/lib/email-templates";
 import { sendCommunitySms, type SmsTarget } from "@/lib/sms/send.server";
+import { appOrigin } from "@/lib/app-origin.server";
 
 function formatMoney(currency: "NGN" | "USD", amount: number): string {
   return `${currency === "NGN" ? "₦" : "$"}${Math.round(amount).toLocaleString()}`;
@@ -50,9 +50,7 @@ export const startDuesCheckout = createServerFn({ method: "POST" })
     // One payment can cover several periods — charge unit price × months.
     const total = Number(unitAmount) * data.months;
 
-    const host = getRequestHost();
-    const proto = host.includes("localhost") ? "http" : "https";
-    const callback_url = `${proto}://${host}/pay-dues/${plan.id}?status=success`;
+    const callback_url = `${appOrigin()}/pay-dues/${plan.id}?status=success`;
 
     // Subaccounts are an NGN-rails feature — USD always stays on the
     // platform-held/manual-payout path regardless of whether one exists.
@@ -369,9 +367,7 @@ export const sendDuesReminders = createServerFn({ method: "POST" })
     const commRows = await sql`SELECT name FROM public.communities WHERE id = ${communityId}::uuid LIMIT 1`;
     const communityName = (commRows[0]?.name as string | undefined) ?? "your community";
 
-    const host = getRequestHost();
-    const proto = host.includes("localhost") ? "http" : "https";
-    const payUrl = `${proto}://${host}/pay-dues/${plan.id}`;
+    const payUrl = `${appOrigin()}/pay-dues/${plan.id}`;
     const periodWord = periodUnit(plan.interval);
 
     const wanted = data.memberIds ? new Set(data.memberIds) : null;

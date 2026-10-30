@@ -3,7 +3,6 @@
 // is entirely community-owned — no super-admin needed for day-to-day use.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { getRequestHost } from "@tanstack/react-start/server";
 import { sql } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth/require-auth.server";
 import { errorBoundary } from "@/lib/error-boundary.server";
@@ -13,8 +12,9 @@ import { applyVerifiedCharge } from "@/lib/payments/paystack-charge.server";
 import { getSmsSettings, getBalanceKobo } from "./wallet.server";
 import { grossUpNgn } from "./paystack-fee";
 import { normalizeNgPhone } from "./phone";
-import { assertSuperAdmin } from "@/lib/payments/authz";
+import { assertSuperAdmin, assertCommunityAdmin } from "@/lib/payments/authz";
 import { termii } from "./termii.server";
+import { appOrigin } from "@/lib/app-origin.server";
 
 function rateKobo(route: "dnd" | "generic"): number {
   const dnd = Number(process.env.SMS_RATE_DND_KOBO) || 400;
@@ -156,9 +156,7 @@ export const startSmsTopup = createServerFn({ method: "POST" })
     if (!email) throw new Error("No admin email on file to bill the top-up to.");
 
     const grossNgn = grossUpNgn(data.amountNgn);
-    const host = getRequestHost();
-    const proto = host.includes("localhost") ? "http" : "https";
-    const callback_url = `${proto}://${host}/admin/sms?topup=success`;
+    const callback_url = `${appOrigin()}/admin/sms?topup=success`;
 
     const tx = await initializeTransaction({
       email,
@@ -221,10 +219,11 @@ export const getSmsReserveStatus = createServerFn({ method: "POST" })
 export const verifySmsTopup = createServerFn({ method: "POST" })
   .middleware([errorBoundary, requireAuth])
   .inputValidator((i) => z.object({ reference: z.string().min(1) }).parse(i))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const tx = await verifyTransaction(data.reference);
     const meta = (tx.metadata ?? {}) as Record<string, any>;
     if (meta.kind !== "sms_topup") throw new Error("This reference isn't an SMS top-up.");
+    await assertCommunityAdmin(context.userId, String(meta.community_id ?? ""));
     const result = await applyVerifiedCharge(tx);
     return { ok: result.applied, status: tx.status as string };
   });

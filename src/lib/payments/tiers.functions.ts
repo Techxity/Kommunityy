@@ -1,5 +1,4 @@
-import { createServerFn, createServerOnlyFn } from "@tanstack/react-start";
-import { getRequest } from "@tanstack/react-start/server";
+import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { sql } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth/require-auth.server";
@@ -7,12 +6,7 @@ import { assertSuperAdmin } from "./authz";
 import { communityIdForAdmin } from "./communities.functions";
 import { initializeTransaction, verifyTransaction } from "./paystack.server";
 import { applyVerifiedCharge } from "./paystack-charge.server";
-
-// Wrapped for the same reason as invites.functions.ts's getOrigin — this
-// file is reachable from the client via `.middleware([requireAuth])`, so
-// any direct `@tanstack/react-start/server` usage needs the compiler's
-// createServerOnlyFn transform to get stripped from the client bundle.
-const getOrigin = createServerOnlyFn((): string => new URL(getRequest().url).origin);
+import { appOrigin } from "@/lib/app-origin.server";
 
 // Public: subscription tiers are shown on the pricing page, and read by the
 // super-admin fees page (which needs every tier, active or not).
@@ -291,7 +285,7 @@ export const startPlanCheckout = createServerFn({ method: "POST" })
     const userRows = await sql`SELECT email FROM public.users WHERE id = ${context.userId}::uuid`;
     const email = (userRows[0]?.email as string | undefined) ?? "";
 
-    const origin = getOrigin();
+    const origin = appOrigin();
     const callback_url = `${origin}/admin/subscription`;
 
     const tx = await initializeTransaction({

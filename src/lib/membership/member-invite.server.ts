@@ -1,16 +1,10 @@
-// Shared server-only helper for member account invites. getOrigin() is
-// wrapped in createServerOnlyFn — see the note in
-// src/lib/auth/session-cookie.server.ts for why that's needed (the
-// `.server.ts` suffix alone doesn't strip `@tanstack/react-start/server`
-// usage from the client bundle once this module is reachable through a
-// `.middleware([...])` reference elsewhere in the app).
-import { createServerOnlyFn } from "@tanstack/react-start";
-import { getRequest } from "@tanstack/react-start/server";
+// Shared server-only helper for member account invites. Links are built on
+// appOrigin() (see app-origin.server.ts), never the request Host.
 import { sql } from "@/lib/db/client";
 import { sendEmail } from "@/lib/email";
 import { memberAccountReadyEmail } from "@/lib/email-templates";
+import { appOrigin } from "@/lib/app-origin.server";
 
-const getOrigin = createServerOnlyFn((): string => new URL(getRequest().url).origin);
 
 const INVITE_DAYS = 7;
 
@@ -64,7 +58,7 @@ export async function ensureMemberInvite(
     VALUES (${memberId}::uuid, ${tokenHash}, ${expiresAt})
   `;
 
-  const origin = getOrigin();
+  const origin = appOrigin();
   const link = `${origin}/invite/${token}`;
 
   const result = await sendEmail({

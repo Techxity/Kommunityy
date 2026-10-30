@@ -30,3 +30,12 @@ test("uses CRLF row terminators (Excel-friendly)", () => {
 test("header-only export", () => {
   assert.equal(buildCsv(["A", "B"], []), '"A","B"');
 });
+
+test("neutralizes spreadsheet formulas in text cells", () => {
+  const csv = buildCsv(["A", "B", "C", "D"], [['=HYPERLINK("x")', "+1", "@SUM(A1)", "-2"]]);
+  assert.equal(csv.split("\r\n")[1], `"'=HYPERLINK(""x"")","'+1","'@SUM(A1)","'-2"`);
+});
+
+test("leaves negative numbers numeric", () => {
+  assert.equal(buildCsv(["A"], [[-5]]).split("\r\n")[1], '"-5"');
+});

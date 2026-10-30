@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { sql } from "@/lib/db/client";
+import { sql, withTransaction } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth/require-auth.server";
 import { assertCommunityAdmin, assertSuperAdmin } from "./authz";
 import { initiateTransfer } from "./paystack.server";
@@ -43,19 +43,31 @@ export const requestPayout = createServerFn({ method: "POST" })
       throw new Error("Add bank details in Settings before requesting a payout");
     }
 
-    const available = await getAvailable(data.community_id, data.currency, data.source);
-    if (data.amount > available) {
+    // Check-and-insert must be atomic: a separate "read balance, then insert"
+    // lets N parallel requests each pass the check and overdraw N times. The
+    // advisory lock serializes payout requests per community for the length
+    // of the transaction, and the INSERT only happens if the balance — read
+    // after the lock, so it sees any payout that just committed — covers it.
+    const results = await withTransaction<unknown[][]>((tx) => [
+      tx`SELECT pg_advisory_xact_lock(hashtext(${"payout:" + data.community_id}))`,
+      tx`
+        INSERT INTO public.payouts (community_id, currency, source, amount, notes, status, requested_by)
+        SELECT ${data.community_id}, ${data.currency}, ${data.source}, ${data.amount}, ${data.notes ?? null}, 'requested', ${context.userId}::uuid
+        WHERE (
+          SELECT available FROM public.community_balances_by_source
+          WHERE community_id = ${data.community_id} AND currency = ${data.currency} AND source = ${data.source}
+        ) >= ${data.amount}
+        RETURNING id
+      `,
+    ]);
+    const inserted = results[1] as { id: string }[];
+    if (!inserted[0]) {
+      const available = await getAvailable(data.community_id, data.currency, data.source);
       throw new Error(
         `Only ${data.currency} ${available.toLocaleString()} available in ${data.source}`,
       );
     }
-
-    const rows = await sql`
-      INSERT INTO public.payouts (community_id, currency, source, amount, notes, status, requested_by)
-      VALUES (${data.community_id}, ${data.currency}, ${data.source}, ${data.amount}, ${data.notes ?? null}, 'requested', ${context.userId}::uuid)
-      RETURNING id
-    `;
-    return { id: rows[0].id };
+    return { id: inserted[0].id };
   });
 
 export const approvePayoutPaystack = createServerFn({ method: "POST" })
@@ -65,35 +77,53 @@ export const approvePayoutPaystack = createServerFn({ method: "POST" })
     await assertSuperAdmin(context.userId);
 
     const payoutRows = await sql`
-      SELECT id, community_id, amount, currency, status FROM public.payouts WHERE id = ${data.payout_id} LIMIT 1
+      SELECT p.id, p.status, c.paystack_recipient_code
+      FROM public.payouts p JOIN public.communities c ON c.id = p.community_id
+      WHERE p.id = ${data.payout_id} LIMIT 1
     `;
-    const payout = payoutRows[0];
-    if (!payout) throw new Error("Payout not found");
-    if (payout.status !== "requested") throw new Error("Payout is not pending");
-
-    const communityRows = await sql`
-      SELECT paystack_recipient_code, name FROM public.communities WHERE id = ${payout.community_id} LIMIT 1
-    `;
-    const community = communityRows[0];
-    if (!community?.paystack_recipient_code) {
+    const existing = payoutRows[0];
+    if (!existing) throw new Error("Payout not found");
+    if (existing.status !== "requested") throw new Error("Payout is not pending");
+    if (!existing.paystack_recipient_code) {
       throw new Error("Community has no Paystack recipient — use Mark as manually paid");
     }
 
-    const tx = await initiateTransfer({
-      amount: Number(payout.amount),
-      recipient_code: community.paystack_recipient_code,
-      reason: `Payout to ${community.name}`,
-      currency: payout.currency as "NGN" | "USD",
-    });
+    // Claim the payout BEFORE moving money: only one caller can flip it out of
+    // 'requested', so a double-click or a second tab can't start a second
+    // transfer. The fixed reference makes Paystack itself reject a duplicate
+    // too (e.g. if we time out after Paystack accepted and someone retries).
+    const claimed = await sql`
+      UPDATE public.payouts
+      SET status = 'approved', method = 'paystack_transfer', approved_by = ${context.userId}::uuid, approved_at = now()
+      WHERE id = ${data.payout_id} AND status = 'requested'
+      RETURNING id, community_id, amount, currency
+    `;
+    const payout = claimed[0];
+    if (!payout) throw new Error("Payout is not pending");
+    const communityRows = await sql`SELECT paystack_recipient_code, name FROM public.communities WHERE id = ${payout.community_id} LIMIT 1`;
+    const community = communityRows[0];
+
+    let tx: Awaited<ReturnType<typeof initiateTransfer>>;
+    try {
+      tx = await initiateTransfer({
+        amount: Number(payout.amount),
+        recipient_code: community.paystack_recipient_code,
+        reason: `Payout to ${community.name}`,
+        currency: payout.currency as "NGN" | "USD",
+        reference: `payout_${payout.id}`,
+      });
+    } catch (e) {
+      await sql`
+        UPDATE public.payouts SET status = 'requested', method = NULL, approved_by = NULL, approved_at = NULL
+        WHERE id = ${payout.id} AND status = 'approved' AND paystack_transfer_code IS NULL
+      `;
+      throw e;
+    }
 
     await sql`
       UPDATE public.payouts
-      SET status = 'approved',
-          method = 'paystack_transfer',
-          paystack_transfer_code = ${tx.transfer_code},
-          paystack_transfer_ref = ${tx.reference},
-          approved_by = ${context.userId}::uuid,
-          approved_at = now()
+      SET paystack_transfer_code = ${tx.transfer_code},
+          paystack_transfer_ref = ${tx.reference}
       WHERE id = ${payout.id}
     `;
 
