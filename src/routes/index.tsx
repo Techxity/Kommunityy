@@ -10,7 +10,6 @@ import {
   Vote,
   Users,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -46,10 +45,7 @@ function Landing() {
         <div className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-accent/30 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-40 -left-20 h-96 w-96 rounded-full bg-accent/20 blur-3xl" />
         <div className="relative mx-auto max-w-7xl px-6 pb-28 pt-24 md:pt-32">
-          <span className="inline-flex items-center gap-2 rounded-full border border-primary-foreground/20 bg-primary-foreground/5 px-3 py-1 text-xs font-medium uppercase tracking-wider">
-            <Sparkles className="h-3 w-3" /> Now in private beta
-          </span>
-          <h1 className="mt-6 max-w-3xl font-display text-5xl font-bold leading-[1.05] tracking-tight md:text-7xl">
+          <h1 className="max-w-3xl font-display text-5xl font-bold leading-[1.05] tracking-tight md:text-7xl">
             Run your community<br />
             <span className="text-accent-foreground/90">like an enterprise.</span>
           </h1>
@@ -71,6 +67,12 @@ function Landing() {
               See pricing
             </Link>
           </div>
+          <p className="mt-5 text-sm text-primary-foreground/75">
+            Already a member?{" "}
+            <Link to="/login" className="font-semibold text-primary-foreground underline underline-offset-4 hover:opacity-80">
+              Sign in
+            </Link>
+          </p>
 
           {/* Hero bento preview */}
           <div className="mt-20 grid grid-cols-2 gap-3 md:grid-cols-4">

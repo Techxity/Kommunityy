@@ -4,7 +4,7 @@ import { Users2 } from "lucide-react";
 export function MarketingNav() {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/80 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         <Link to="/" className="flex items-center gap-2 font-display text-lg font-bold tracking-tight text-foreground">
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-accent text-primary-foreground shadow-soft">
             <Users2 className="h-4 w-4" />
@@ -17,12 +17,12 @@ export function MarketingNav() {
           <Link to="/pricing" className="hover:text-foreground" activeProps={{ className: "text-foreground" }}>Pricing</Link>
         </nav>
         <div className="flex items-center gap-3">
-          <Link to="/login" className="hidden text-sm font-medium text-muted-foreground hover:text-foreground sm:block">Sign in</Link>
+          <Link to="/login" className="text-sm font-semibold text-foreground hover:opacity-80">Sign in</Link>
           <Link
             to="/signup"
             className="inline-flex h-9 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft transition hover:opacity-90"
           >
-            Start free trial
+            Start<span className="hidden sm:inline">&nbsp;free</span>&nbsp;trial
           </Link>
         </div>
       </div>
