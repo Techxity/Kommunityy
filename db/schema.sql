@@ -437,12 +437,13 @@ CREATE TABLE IF NOT EXISTS public.sms_messages (
   segments int NOT NULL,
   cost_kobo bigint NOT NULL,
   status text NOT NULL DEFAULT 'sent' CHECK (status IN ('sent', 'failed', 'delivered')),
-  provider text NOT NULL DEFAULT 'termii',
+  provider text NOT NULL DEFAULT 'bulksmsnigeria',
   provider_message_id text,
   error text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS sms_messages_community_idx ON public.sms_messages(community_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS sms_messages_provider_message_id_idx ON public.sms_messages(provider_message_id) WHERE provider_message_id IS NOT NULL;
 
 -- ── Community expenses (see db/migrations/024_community_expenses.sql) ────
 CREATE TABLE IF NOT EXISTS public.community_expenses (

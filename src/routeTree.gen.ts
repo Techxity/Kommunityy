@@ -65,7 +65,7 @@ import { Route as ApiCronBirthdaysRouteImport } from './routes/api/cron/birthday
 import { Route as ApiCronDuesRemindersRouteImport } from './routes/api/cron/dues-reminders'
 import { Route as ApiCronTrialsRouteImport } from './routes/api/cron/trials'
 import { Route as ApiPublicPaystackWebhookRouteImport } from './routes/api/public/paystack-webhook'
-import { Route as ApiPublicTermiiDlrRouteImport } from './routes/api/public/termii-dlr'
+import { Route as ApiPublicSmsDlrRouteImport } from './routes/api/public/sms-dlr'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -348,9 +348,9 @@ const ApiPublicPaystackWebhookRoute =
     path: '/api/public/paystack-webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicTermiiDlrRoute = ApiPublicTermiiDlrRouteImport.update({
-  id: '/api/public/termii-dlr',
-  path: '/api/public/termii-dlr',
+const ApiPublicSmsDlrRoute = ApiPublicSmsDlrRouteImport.update({
+  id: '/api/public/sms-dlr',
+  path: '/api/public/sms-dlr',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -410,7 +410,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/dues-reminders': typeof ApiCronDuesRemindersRoute
   '/api/cron/trials': typeof ApiCronTrialsRoute
   '/api/public/paystack-webhook': typeof ApiPublicPaystackWebhookRoute
-  '/api/public/termii-dlr': typeof ApiPublicTermiiDlrRoute
+  '/api/public/sms-dlr': typeof ApiPublicSmsDlrRoute
   '/admin/members/': typeof AdminMembersIndexRoute
 }
 export interface FileRoutesByTo {
@@ -465,7 +465,7 @@ export interface FileRoutesByTo {
   '/api/cron/dues-reminders': typeof ApiCronDuesRemindersRoute
   '/api/cron/trials': typeof ApiCronTrialsRoute
   '/api/public/paystack-webhook': typeof ApiPublicPaystackWebhookRoute
-  '/api/public/termii-dlr': typeof ApiPublicTermiiDlrRoute
+  '/api/public/sms-dlr': typeof ApiPublicSmsDlrRoute
   '/admin/members': typeof AdminMembersIndexRoute
 }
 export interface FileRoutesById {
@@ -525,7 +525,7 @@ export interface FileRoutesById {
   '/api/cron/dues-reminders': typeof ApiCronDuesRemindersRoute
   '/api/cron/trials': typeof ApiCronTrialsRoute
   '/api/public/paystack-webhook': typeof ApiPublicPaystackWebhookRoute
-  '/api/public/termii-dlr': typeof ApiPublicTermiiDlrRoute
+  '/api/public/sms-dlr': typeof ApiPublicSmsDlrRoute
   '/admin/members/': typeof AdminMembersIndexRoute
 }
 export interface FileRouteTypes {
@@ -586,7 +586,7 @@ export interface FileRouteTypes {
     | '/api/cron/dues-reminders'
     | '/api/cron/trials'
     | '/api/public/paystack-webhook'
-    | '/api/public/termii-dlr'
+    | '/api/public/sms-dlr'
     | '/admin/members/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -641,7 +641,7 @@ export interface FileRouteTypes {
     | '/api/cron/dues-reminders'
     | '/api/cron/trials'
     | '/api/public/paystack-webhook'
-    | '/api/public/termii-dlr'
+    | '/api/public/sms-dlr'
     | '/admin/members'
   id:
     | '__root__'
@@ -700,7 +700,7 @@ export interface FileRouteTypes {
     | '/api/cron/dues-reminders'
     | '/api/cron/trials'
     | '/api/public/paystack-webhook'
-    | '/api/public/termii-dlr'
+    | '/api/public/sms-dlr'
     | '/admin/members/'
   fileRoutesById: FileRoutesById
 }
@@ -727,7 +727,7 @@ export interface RootRouteChildren {
   ApiCronDuesRemindersRoute: typeof ApiCronDuesRemindersRoute
   ApiCronTrialsRoute: typeof ApiCronTrialsRoute
   ApiPublicPaystackWebhookRoute: typeof ApiPublicPaystackWebhookRoute
-  ApiPublicTermiiDlrRoute: typeof ApiPublicTermiiDlrRoute
+  ApiPublicSmsDlrRoute: typeof ApiPublicSmsDlrRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1124,11 +1124,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicPaystackWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/termii-dlr': {
-      id: '/api/public/termii-dlr'
-      path: '/api/public/termii-dlr'
-      fullPath: '/api/public/termii-dlr'
-      preLoaderRoute: typeof ApiPublicTermiiDlrRouteImport
+    '/api/public/sms-dlr': {
+      id: '/api/public/sms-dlr'
+      path: '/api/public/sms-dlr'
+      fullPath: '/api/public/sms-dlr'
+      preLoaderRoute: typeof ApiPublicSmsDlrRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -1262,7 +1262,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronDuesRemindersRoute: ApiCronDuesRemindersRoute,
   ApiCronTrialsRoute: ApiCronTrialsRoute,
   ApiPublicPaystackWebhookRoute: ApiPublicPaystackWebhookRoute,
-  ApiPublicTermiiDlrRoute: ApiPublicTermiiDlrRoute,
+  ApiPublicSmsDlrRoute: ApiPublicSmsDlrRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

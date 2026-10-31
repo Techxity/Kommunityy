@@ -71,3 +71,46 @@ test("grossUpNgn: nets the intended amount after Paystack fee", () => {
   // Gross is always ≥ the net.
   assert.ok(grossUpNgn(20000) > 20000);
 });
+
+// ── BulkSMSNigeria adapter + delivery-report webhook helpers ──────────────
+import { parseSendResponse } from "../src/lib/sms/bulksmsnigeria.server.ts";
+import { classifyDlrStatus, parseDlrPayload, checkDlrToken } from "../src/lib/sms/dlr.ts";
+
+test("parseSendResponse: success returns the message id", () => {
+  const r = parseSendResponse(200, { status: "success", code: "BSNG-0000", data: { message_id: "abc-123" } }, "2348031234567");
+  assert.deepEqual(r, { ok: true, messageId: "abc-123" });
+});
+
+test("parseSendResponse: error status / HTTP failure is not ok", () => {
+  const r = parseSendResponse(409, { status: "error", code: "BSNG-2012", message: "Duplicate" }, "2348031234567");
+  assert.equal(r.ok, false);
+  assert.equal(r.error, "BSNG-2012: Duplicate");
+  assert.equal(parseSendResponse(500, {}, "234803").ok, false);
+});
+
+test("parseSendResponse: a skipped recipient counts as failed (refunded)", () => {
+  const to = "2348031234567";
+  assert.equal(parseSendResponse(200, { status: "success", data: { message_id: "x", skipped_recipients: [to] } }, to).ok, false);
+  assert.equal(parseSendResponse(200, { status: "success", data: { message_id: "x", skipped_recipients: [{ recipient: to }] } }, to).ok, false);
+  assert.equal(parseSendResponse(200, { status: "success", data: { message_id: "x", skipped_recipients: ["2349000000000"] } }, to).ok, true);
+});
+
+test("classifyDlrStatus: only known success values are delivered", () => {
+  for (const s of ["delivrd", "DELIVERED", "success"]) assert.equal(classifyDlrStatus(s), "delivered");
+  for (const s of ["undelivered", "rejected", "expired", "some-new-status"]) assert.equal(classifyDlrStatus(s), "failed");
+});
+
+test("parseDlrPayload: reads top-level or legacy data.* fields", () => {
+  assert.deepEqual(parseDlrPayload({ message_id: "m1", delivery_status: "delivrd" }), { messageId: "m1", status: "delivrd" });
+  assert.deepEqual(parseDlrPayload({ data: { message_id: "m2", delivery_status: "failed" } }), { messageId: "m2", status: "failed" });
+  assert.equal(parseDlrPayload({ message_id: "m3" }), null);
+  assert.equal(parseDlrPayload(null), null);
+});
+
+test("checkDlrToken: fails closed and rejects wrong tokens", () => {
+  const url = "https://app.example/api/public/sms-dlr?token=s3cret";
+  assert.equal(checkDlrToken(url, undefined), "unconfigured");
+  assert.equal(checkDlrToken(url, "s3cret"), "ok");
+  assert.equal(checkDlrToken(url, "other"), "unauthorized");
+  assert.equal(checkDlrToken("https://app.example/api/public/sms-dlr", "s3cret"), "unauthorized");
+});

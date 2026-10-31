@@ -2,6 +2,8 @@
 
 **Status:** proposal for review (no code written yet)
 **Date:** 2026-08-13
+> **Provider update (2026-10):** SMS now goes through **BulkSMSNigeria** (API v2) instead of Termii — migration `029_sms_provider_bulksmsnigeria.sql`, adapter `src/lib/sms/bulksmsnigeria.server.ts`, delivery reports at `/api/public/sms-dlr`. The wallet, ledger and pricing model below are unchanged; Termii-specific API details in §2 are historical. Current env vars and setup steps are in §9 and §11.
+
 **Scope:** Optional SMS for birthdays, dues reminders, and broadcasts, funded by a per‑community prepaid wallet that the community admin owns and tops up directly — fully separated from platform subscription fees and dues/donation payouts.
 
 ---
@@ -266,15 +268,18 @@ Segmentation rules it encodes:
 ## 9. Config / environment
 
 ```
-TERMII_API_KEY          platform Termii key
-TERMII_BASE_URL         https://api.ng.termii.com
-TERMII_DEFAULT_SENDER   fallback sender ID
-SMS_RATE_DND_KOBO       per-page rate on DND route  (= your Termii rate)
-SMS_RATE_GENERIC_KOBO   per-page rate on generic route
-PAYSTACK_SECRET_KEY     (existing) — reused for top-ups
+BULKSMSNIGERIA_API_TOKEN  platform BulkSMSNigeria API token (Bearer)
+BULKSMSNIGERIA_BASE_URL   optional; default https://www.bulksmsnigeria.com/api/v2
+SMS_GATEWAY_DND           optional; gateway for the DND route (default direct-refund)
+SMS_GATEWAY_GENERIC       optional; gateway for the generic route (default direct-refund)
+SMS_DLR_TOKEN             secret appended to the delivery-report callback URL; unset = no DLRs
+SMS_RATE_DND_KOBO         per-page rate on DND route incl. VAT (= your provider rate)
+SMS_RATE_GENERIC_KOBO     per-page rate on generic route
+APP_URL                   (existing) — origin for the delivery-report callback URL
+PAYSTACK_SECRET_KEY       (existing) — reused for top-ups
 ```
 
-Rates in env (not code) so a Termii price change is a one‑line config update, and pass‑through stays exact.
+Rates in env (not code) so a provider price change is a one‑line config update, and pass‑through stays exact.
 
 ---
 
@@ -286,18 +291,18 @@ Rates in env (not code) so a Termii price change is a one‑line config update, 
 - **Phone validation:** normalize to `234XXXXXXXXXX`; invalid/empty numbers are skipped (never debited) and fall back to email.
 - **DND route** for member notifications so DND‑registered members actually receive them.
 - **Rate limiting** on top‑up initiation (reuse existing rate‑limit helper).
-- **Delivery status (fast‑follow):** Termii DLR webhook → mark `sms_messages.status` delivered/failed and auto‑refund failed sends to the ledger.
+- **Delivery status:** each send passes `callback_url` = `/api/public/sms-dlr?token=SMS_DLR_TOKEN`; BulkSMSNigeria posts the final status there → `sms_messages.status` becomes delivered/failed and failed sends are auto‑refunded to the ledger (idempotent on retries).
 
 ---
 
 ## 11. Manual setup checklist additions
 
-1. Create/verify a Termii account; fund it (platform pool).
-2. Register an **alphanumeric sender ID**; wait for approval.
-3. Email Termii support to **activate the DND route**.
+1. Create/verify a BulkSMSNigeria account; fund it (platform pool).
+2. Register an **alphanumeric sender ID** on BulkSMSNigeria; wait for approval.
+3. Confirm which gateway delivers to DND numbers on your account; set `SMS_GATEWAY_DND` if it isn't `direct-refund`.
 4. Get the **rate card**; set `SMS_RATE_DND_KOBO` / `SMS_RATE_GENERIC_KOBO`.
-5. Add `TERMII_*` env vars in Vercel.
-6. Run migration `023_sms_wallet.sql`.
+5. Add `BULKSMSNIGERIA_API_TOKEN` and a random `SMS_DLR_TOKEN` in Vercel (and make sure `APP_URL` is set).
+6. Run migrations `023_sms_wallet.sql` and `029_sms_provider_bulksmsnigeria.sql`.
 7. Test‑send to your own number on the DND route; confirm the ledger debits and balance match.
 
 ---

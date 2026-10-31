@@ -1,6 +1,6 @@
 # Kommunity — Manual test checklist (needs real data / live services)
 
-Everything below was written and type-checked, and the pure logic is unit-tested, but these paths depend on live Paystack / Termii / Resend / a real database / a real browser, so they couldn't be exercised in development. Run them once on staging or right after deploy. Grouped by area, each with **what to do** and **what you should see**.
+Everything below was written and type-checked, and the pure logic is unit-tested, but these paths depend on live Paystack / BulkSMSNigeria / Resend / a real database / a real browser, so they couldn't be exercised in development. Run them once on staging or right after deploy. Grouped by area, each with **what to do** and **what you should see**.
 
 Legend: ☐ = to test.
 
@@ -9,7 +9,7 @@ Legend: ☐ = to test.
 ## 0. Prerequisites (do these first — nothing works without them)
 
 - ☐ **Run all pending DB migrations**, especially the newest: `016`, `018`–`025`. (022 dues reminders, 023 SMS wallet, 024 expenses, 025 expense receipts + funds-position flag.)
-- ☐ **Set all Vercel env vars** (see the env list): `DATABASE_URL`, `PAYSTACK_SECRET_KEY`, `RESEND_API_KEY`, `RESEND_FROM_ADDRESS`, `APP_URL`, `CRON_SECRET`; plus Termii vars when enabling SMS.
+- ☐ **Set all Vercel env vars** (see the env list): `DATABASE_URL`, `PAYSTACK_SECRET_KEY`, `RESEND_API_KEY`, `RESEND_FROM_ADDRESS`, `APP_URL`, `CRON_SECRET`; plus `BULKSMSNIGERIA_API_TOKEN`, `SMS_DLR_TOKEN` and the `SMS_RATE_*_KOBO` rates when enabling SMS.
 - ☐ **Set the Paystack webhook** to `https://<domain>/api/public/paystack-webhook`.
 - ☐ **Verify a Resend sending domain** and set `RESEND_FROM_ADDRESS` to an address on it (otherwise email falls back to the limited test sender).
 
@@ -55,8 +55,8 @@ Legend: ☐ = to test.
 - ☐ **Phone normalization**: members entered as `080…`, `+234…`, `234…` all send; rubbish numbers are skipped (not charged).
 - ☐ **Low-balance alert**: drain the wallet below the threshold → admin gets the low-balance email once (and again after it recovers and drops again).
 - ☐ **Insufficient balance**: with an empty wallet, SMS silently falls back to email; nothing is charged.
-- ☐ **DLR webhook + refund**: configure Termii's delivery webhook (`/api/public/termii-dlr`, with `SMS_DLR_TOKEN` if set); force a failed delivery → the message shows failed and the wallet is **refunded**; a delivered one shows delivered; retries don't double-refund.
-- ☐ **Super-admin reserve panel** (`/super-admin/sms`): total community liabilities vs live Termii balance; the shortfall alert triggers when the reserve dips below liabilities.
+- ☐ **DLR webhook + refund**: with `SMS_DLR_TOKEN` and `APP_URL` set, each send passes `/api/public/sms-dlr?token=…` as its callback URL (nothing to configure on the BulkSMSNigeria dashboard). Force a failed delivery → the message shows failed and the wallet is **refunded**; a delivered one shows delivered; retries don't double-refund.
+- ☐ **Super-admin reserve panel** (`/super-admin/sms`): total community liabilities vs live BulkSMSNigeria balance; the shortfall alert triggers when the reserve dips below liabilities.
 
 ## 6. Financial report + expenses
 

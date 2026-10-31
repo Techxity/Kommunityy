@@ -1,4 +1,4 @@
-// Normalize a stored phone/WhatsApp value to Termii's required international
+// Normalize a stored phone/WhatsApp value to the SMS provider's international
 // format for Nigeria: 234XXXXXXXXXX (13 digits, no plus). Returns null for
 // anything that isn't a plausible Nigerian mobile number, so the send pipeline
 // can skip it (and never debit for it) rather than send to a bad address.

@@ -13,7 +13,7 @@ import { getSmsSettings, getBalanceKobo } from "./wallet.server";
 import { grossUpNgn } from "./paystack-fee";
 import { normalizeNgPhone } from "./phone";
 import { assertSuperAdmin, assertCommunityAdmin } from "@/lib/payments/authz";
-import { termii } from "./termii.server";
+import { smsProvider } from "./provider.server";
 import { appOrigin } from "@/lib/app-origin.server";
 
 function rateKobo(route: "dnd" | "generic"): number {
@@ -173,7 +173,7 @@ export const startSmsTopup = createServerFn({ method: "POST" })
   });
 
 // Super-admin: the SMS float health. Communities' wallet balances are a
-// liability the shared Termii reserve must always cover; this surfaces both
+// liability the shared SMS provider reserve must always cover; this surfaces both
 // numbers and the headroom so the reserve is topped up before it's exhausted.
 // See docs/sms-wallet-architecture.md §7a.
 export const getSmsReserveStatus = createServerFn({ method: "POST" })
@@ -198,10 +198,10 @@ export const getSmsReserveStatus = createServerFn({ method: "POST" })
       LIMIT 50
     `;
 
-    // Termii account balance is NGN (float); express in kobo to compare like
-    // for like. null when Termii isn't configured / unreachable.
-    const termiiNgn = await termii.getAccountBalance();
-    const reserveKobo = termiiNgn == null || Number.isNaN(termiiNgn) ? null : Math.round(termiiNgn * 100);
+    // Provider account balance is NGN (float); express in kobo to compare like
+    // for like. null when the provider isn't configured / unreachable.
+    const providerNgn = await smsProvider.getAccountBalance();
+    const reserveKobo = providerNgn == null || Number.isNaN(providerNgn) ? null : Math.round(providerNgn * 100);
     const headroomKobo = reserveKobo == null ? null : reserveKobo - liabilitiesKobo;
 
     return {

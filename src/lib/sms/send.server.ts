@@ -8,7 +8,19 @@ import { sendEmail } from "@/lib/email";
 import { segmentInfo } from "./segments";
 import { normalizeNgPhone } from "./phone";
 import { getSmsSettings, getBalanceKobo, reserveFunds, refundFunds, type SmsSettings } from "./wallet.server";
-import { termii } from "./termii.server";
+import { smsProvider, SMS_PROVIDER_NAME } from "./provider.server";
+import { appOrigin } from "@/lib/app-origin.server";
+
+function dlrCallbackUrl(): string | undefined {
+  const token = process.env.SMS_DLR_TOKEN;
+  if (!token) return undefined;
+  try {
+    return `${appOrigin()}/api/public/sms-dlr?token=${encodeURIComponent(token)}`;
+  } catch (e: any) {
+    console.error("[sms] no delivery-report URL:", e?.message ?? e);
+    return undefined;
+  }
+}
 
 export type SmsChannel = "birthday" | "reminder" | "broadcast" | "test";
 
@@ -29,7 +41,7 @@ export type SmsSendSummary = {
   reason?: string;
 };
 
-// Per-page rate in kobo, set to your Termii rate (pass-through). Env-driven so a
+// Per-page rate in kobo, set to the provider's rate incl. VAT (pass-through). Env-driven so a
 // price change is one line. Defaults are placeholders — set the real rate card.
 function rateKobo(route: "dnd" | "generic"): number {
   const dnd = Number(process.env.SMS_RATE_DND_KOBO) || 400;
@@ -129,17 +141,23 @@ export async function sendCommunitySms(args: {
     return { attempted: true, sent: 0, failed: 0, skipped: skipped + toSend.length, costKobo: 0, sentMemberIds: [], reason: "insufficient balance" };
   }
 
+  // Delivery reports come back per send to this URL; the token is the only
+  // guard (the webhook isn't signed), so without it we don't ask for reports.
+  // An unresolvable origin just skips reports — it must never block the send.
+  const callbackUrl = dlrCallbackUrl();
+
   let sent = 0;
   let failed = 0;
   let refundKobo = 0;
   const sentMemberIds: string[] = [];
   await runPool(toSend, 5, async (p) => {
-    const res = await termii.sendOne({
+    const res = await smsProvider.sendOne({
       to: p.msisdn,
       from: settings.senderId as string,
       body: p.body,
       route: settings.route,
       unicode: p.unicode,
+      callbackUrl,
     });
     if (res.ok) {
       sent++;
@@ -153,7 +171,7 @@ export async function sendCommunitySms(args: {
         (community_id, member_id, msisdn, channel, segments, cost_kobo, status, provider, provider_message_id, error)
       VALUES
         (${communityId}::uuid, ${p.memberId}, ${p.msisdn}, ${channel}, ${p.pages}, ${p.costKobo},
-         ${res.ok ? "sent" : "failed"}, 'termii', ${res.messageId ?? null}, ${res.ok ? null : (res.error ?? "failed")})
+         ${res.ok ? "sent" : "failed"}, ${SMS_PROVIDER_NAME}, ${res.messageId ?? null}, ${res.ok ? null : (res.error ?? "failed")})
     `;
   });
 

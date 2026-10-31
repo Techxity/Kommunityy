@@ -204,7 +204,7 @@ function SettingsCard({ ov, onSaved }: { ov: NonNullable<Overview>; onSaved: () 
       </div>
 
       <div className="mt-5 grid gap-5 md:grid-cols-2">
-        <Field label="Sender ID" hint="3–11 letters/numbers, approved by Termii (e.g. your community's short name).">
+        <Field label="Sender ID" hint="3–11 letters/numbers, approved by BulkSMSNigeria (e.g. your community's short name).">
           <input
             value={senderId}
             onChange={(e) => setSenderId(e.target.value.slice(0, 11))}

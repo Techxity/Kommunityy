@@ -3,6 +3,8 @@
 // CRON_SECRET environment variable is set on the project, so requiring it
 // keeps these endpoints from being triggered by anyone on the internet.
 // Returns a Response to short-circuit with when unauthorized, or null when OK.
+import { constantTimeEqual } from "@/lib/sms/dlr";
+
 export function checkCronAuth(request: Request): Response | null {
   const secret = process.env.CRON_SECRET;
   if (!secret) {
@@ -12,15 +14,6 @@ export function checkCronAuth(request: Request): Response | null {
     return json({ ok: false, error: "Unauthorized" }, 401);
   }
   return null;
-}
-
-function constantTimeEqual(a: string, b: string): boolean {
-  const x = new TextEncoder().encode(a);
-  const y = new TextEncoder().encode(b);
-  if (x.length !== y.length) return false;
-  let diff = 0;
-  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
-  return diff === 0;
 }
 
 export function json(body: unknown, status = 200): Response {

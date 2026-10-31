@@ -35,7 +35,7 @@ function SmsReserve() {
         <div>
           <h1 className="font-display text-3xl font-bold">SMS reserve</h1>
           <p className="text-sm text-muted-foreground">
-            Communities' prepaid balances are a liability the shared Termii account must always cover. Keep the reserve above total liabilities.
+            Communities' prepaid balances are a liability the shared SMS provider account must always cover. Keep the reserve above total liabilities.
           </p>
         </div>
       </header>
@@ -45,18 +45,18 @@ function SmsReserve() {
           <AlertTriangle className="mt-0.5 h-5 w-5 text-destructive" />
           <div>
             <p className="font-semibold text-destructive">Reserve is below total liabilities.</p>
-            <p className="text-muted-foreground">Top up the Termii account now — communities hold more SMS credit than the account can currently deliver.</p>
+            <p className="text-muted-foreground">Top up the BulkSMSNigeria account now — communities hold more SMS credit than the account can currently deliver.</p>
           </div>
         </div>
       )}
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Stat label="Termii reserve" value={naira(s.reserveKobo)} sub={s.reserveKobo == null ? "Termii not configured" : "live account balance"} tone="default" />
+        <Stat label="SMS provider reserve" value={naira(s.reserveKobo)} sub={s.reserveKobo == null ? "BulkSMSNigeria not configured" : "live account balance"} tone="default" />
         <Stat label="Total liabilities" value={naira(s.liabilitiesKobo)} sub={`${s.fundedCommunities} funded communities`} tone="default" />
         <Stat
           label="Headroom"
           value={naira(s.headroomKobo)}
-          sub={covered == null ? "needs Termii balance" : covered ? "reserve covers liabilities" : "shortfall — top up"}
+          sub={covered == null ? "needs provider balance" : covered ? "reserve covers liabilities" : "shortfall — top up"}
           tone={covered === false ? "bad" : covered ? "good" : "default"}
         />
       </div>
