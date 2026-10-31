@@ -10,6 +10,7 @@ import { setSessionActiveCommunity } from "@/lib/auth/session.server";
 import { AppError } from "@/lib/errors";
 import { toDateOnlyString, toTimestampIso } from "@/lib/date-only";
 import { normalizeNgPhone } from "@/lib/sms/phone";
+import { GENDER_OPTIONS } from "@/lib/onboarding-fields";
 
 // Enforces the community's plan member cap (subscription_tiers.max_members)
 // when activating members — otherwise "member limit" would just be a
@@ -39,6 +40,7 @@ function mapRow(r: Record<string, unknown>) {
     phone: (r.phone as string | null) ?? "",
     whatsapp: (r.whatsapp as string | null) ?? "",
     dob: toDateOnlyString(r.dob),
+    gender: (r.gender as string | null) ?? "",
     status: r.status as string,
     joined: toDateOnlyString(r.joined_at ?? r.applied_at),
     // Full-precision timestamp for relative-time display ("20h ago") — the
@@ -92,6 +94,7 @@ export const updateMyProfile = createServerFn({ method: "POST" })
         phone: z.string().max(60).optional(),
         whatsapp: z.string().max(60).optional(),
         dob: z.string().max(20).optional(),
+        gender: z.enum(GENDER_OPTIONS).optional(),
         country: z.string().max(80).optional(),
         address: z.string().max(200).optional(),
         smsOptOut: z.boolean().optional(),
@@ -107,6 +110,7 @@ export const updateMyProfile = createServerFn({ method: "POST" })
           phone = ${data.phone ?? null},
           whatsapp = ${data.whatsapp ?? null},
           dob = ${data.dob ? data.dob : null}::date,
+          gender = ${data.gender ?? null},
           country = ${data.country ?? null},
           address = ${data.address ?? null},
           sms_opt_out = ${data.smsOptOut ?? false},
@@ -258,6 +262,7 @@ export const updateMember = createServerFn({ method: "POST" })
         phone: z.string().max(60).optional(),
         whatsapp: z.string().max(60).optional(),
         dob: z.string().max(20).optional(),
+        gender: z.enum(GENDER_OPTIONS).optional(),
         role: z.string().max(60).optional(),
         country: z.string().max(80).optional(),
         chapterId: z.string().uuid().optional().nullable(),
@@ -282,6 +287,7 @@ export const updateMember = createServerFn({ method: "POST" })
         phone = ${data.phone ?? null},
         whatsapp = ${data.whatsapp ?? null},
         dob = ${data.dob ? data.dob : null}::date,
+        gender = ${data.gender ?? null},
         role = ${data.role ?? null},
         country = ${data.country ?? null},
         chapter_id = ${data.chapterId ?? null},
@@ -320,6 +326,7 @@ export const bulkCreateMembers = createServerFn({ method: "POST" })
               phone: z.string().max(60).optional(),
               whatsapp: z.string().max(60).optional(),
               dob: z.string().max(20).optional(),
+              gender: z.enum(GENDER_OPTIONS).optional(),
               role: z.string().max(60).optional(),
               chapter: z.string().max(120).optional(),
             }),
@@ -337,7 +344,7 @@ export const bulkCreateMembers = createServerFn({ method: "POST" })
     // one; rows with neither are dropped (the uploader already filters these).
     type Norm = {
       name: string; email: string | null; phone: string | null; phoneNorm: string | null;
-      whatsapp?: string; dob?: string; role?: string; chapter?: string;
+      whatsapp?: string; dob?: string; gender?: string; role?: string; chapter?: string;
     };
     const norm: Norm[] = [];
     for (const r of data.rows) {
@@ -345,7 +352,7 @@ export const bulkCreateMembers = createServerFn({ method: "POST" })
       const phone = (r.phone ?? "").trim() || null;
       const phoneNorm = phone ? normalizeNgPhone(phone) : null;
       if (!email && !phoneNorm) continue;
-      norm.push({ name: r.name, email, phone, phoneNorm, whatsapp: r.whatsapp, dob: r.dob, role: r.role, chapter: r.chapter });
+      norm.push({ name: r.name, email, phone, phoneNorm, whatsapp: r.whatsapp, dob: r.dob, gender: r.gender, role: r.role, chapter: r.chapter });
     }
     if (norm.length === 0) throw new Error("No valid rows — each member needs a name and an email or a phone number.");
 
@@ -391,14 +398,15 @@ export const bulkCreateMembers = createServerFn({ method: "POST" })
         phone: r.phone,
         whatsapp: r.whatsapp ?? null,
         dob: cleanDob(r.dob),
+        gender: r.gender ?? null,
         role: r.role ?? null,
         chapter_id: r.chapter ? (chapterByName.get(r.chapter.toLowerCase()) ?? null) : null,
       }));
       const inserted = await sql`
-        INSERT INTO public.members (community_id, name, email, phone, whatsapp, dob, role, chapter_id, status, joined_at)
-        SELECT ${communityId}::uuid, x.name, x.email, x.phone, x.whatsapp, x.dob::date, x.role, x.chapter_id::uuid, 'active', now()
+        INSERT INTO public.members (community_id, name, email, phone, whatsapp, dob, gender, role, chapter_id, status, joined_at)
+        SELECT ${communityId}::uuid, x.name, x.email, x.phone, x.whatsapp, x.dob::date, x.gender, x.role, x.chapter_id::uuid, 'active', now()
         FROM jsonb_to_recordset(${JSON.stringify(payload)}::jsonb)
-          AS x(name text, email text, phone text, whatsapp text, dob text, role text, chapter_id text)
+          AS x(name text, email text, phone text, whatsapp text, dob text, gender text, role text, chapter_id text)
         RETURNING id, email
       `;
       // Only members with an email get a setup-invite email; phone-only members

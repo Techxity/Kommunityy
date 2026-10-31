@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { getMyProfile, updateMyProfile } from "@/lib/membership/members.functions";
+import { GENDER_OPTIONS, parseGender } from "@/lib/onboarding-fields";
 import { ChangePasswordCard } from "@/components/change-password-card";
 import { Pencil, Save, X, Loader2 } from "lucide-react";
 
@@ -69,6 +70,7 @@ function Profile() {
             <Item label="Phone" value={me.phone || "—"} />
             <Item label="WhatsApp" value={me.whatsapp || "—"} />
             <Item label="Date of Birth" value={me.dob || "—"} />
+            <Item label="Gender" value={me.gender || "—"} />
             <Item label="Country" value={me.country || "—"} />
             <Item label="Address" value={me.address || "—"} />
             <Item label="Chapter" value={me.chapter || "—"} />
@@ -88,6 +90,7 @@ function EditForm({ me, onCancel, onSaved }: { me: NonNullable<Me>; onCancel: ()
     phone: me.phone,
     whatsapp: me.whatsapp,
     dob: me.dob,
+    gender: me.gender,
     country: me.country,
     address: me.address,
   });
@@ -110,6 +113,7 @@ function EditForm({ me, onCancel, onSaved }: { me: NonNullable<Me>; onCancel: ()
           phone: form.phone || undefined,
           whatsapp: form.whatsapp || undefined,
           dob: form.dob || undefined,
+          gender: parseGender(form.gender),
           country: form.country || undefined,
           address: form.address || undefined,
           smsOptOut,
@@ -139,6 +143,12 @@ function EditForm({ me, onCancel, onSaved }: { me: NonNullable<Me>; onCancel: ()
         </Field>
         <Field label="Date of birth">
           <input type="date" value={form.dob} onChange={set("dob")} className="input" />
+        </Field>
+        <Field label="Gender">
+          <select value={form.gender} onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))} className="input">
+            <option value="">Not specified</option>
+            {GENDER_OPTIONS.map((g) => (<option key={g} value={g}>{g}</option>))}
+          </select>
         </Field>
         <Field label="Country">
           <input value={form.country} onChange={set("country")} className="input" />

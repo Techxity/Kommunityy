@@ -212,6 +212,7 @@ CREATE TABLE IF NOT EXISTS public.members (
   phone text,
   whatsapp text,
   dob date,
+  gender text CHECK (gender IS NULL OR gender IN ('Male', 'Female')),
   country text,
   address text,
   role text,

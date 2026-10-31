@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Users2, ShieldCheck, Sparkles } from "lucide-react";
 import { getPublicJoinForm, submitApplication } from "@/lib/membership/join.functions";
+import { GENDER_OPTIONS } from "@/lib/onboarding-fields";
 
 export const Route = createFileRoute("/join/$communityId")({
   component: PublicJoinPage,
@@ -223,6 +224,17 @@ function PublicJoinPage() {
                           <option key={c.id} value={c.id}>
                             {c.name}{c.region ? ` — ${c.region}` : ""}
                           </option>
+                        ))}
+                      </select>
+                    ) : f === "Gender" ? (
+                      <select
+                        value={values[f] ?? ""}
+                        onChange={(e) => set(f, e.target.value)}
+                        className={inputClass}
+                      >
+                        <option value="">Select gender…</option>
+                        {GENDER_OPTIONS.map((g) => (
+                          <option key={g} value={g}>{g}</option>
                         ))}
                       </select>
                     ) : f === "Address" ? (

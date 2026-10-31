@@ -5,6 +5,7 @@ import { listMyChapters } from "@/lib/membership/chapters.functions";
 import { sendInvites } from "@/lib/membership/invites.functions";
 import { resendMemberInvite } from "@/lib/membership/member-accounts.functions";
 import { downloadCsv } from "@/lib/export-csv";
+import { GENDER_OPTIONS, parseGender } from "@/lib/onboarding-fields";
 import {
   Search,
   Upload,
@@ -202,12 +203,12 @@ function MembersPage() {
       // columns so nothing an admin collected is silently dropped.
       const extraKeys = Array.from(new Set(all.flatMap((m) => Object.keys(m.extra ?? {}))));
       const headers = [
-        "Name", "Email", "Phone", "WhatsApp", "Date of Birth", "Role",
+        "Name", "Email", "Phone", "WhatsApp", "Date of Birth", "Gender", "Role",
         "Chapter", "Country", "Address", "Status", "Joined", "Has account",
         ...extraKeys,
       ];
       const rows = all.map((m) => [
-        m.name, m.email, m.phone, m.whatsapp, m.dob, m.role,
+        m.name, m.email, m.phone, m.whatsapp, m.dob, m.gender, m.role,
         m.chapter, m.country, m.address, m.status, m.joined, m.hasAccount ? "Yes" : "No",
         ...extraKeys.map((k) => m.extra?.[k] ?? ""),
       ]);
@@ -226,6 +227,7 @@ function MembersPage() {
         phone: updated.phone || undefined,
         whatsapp: updated.whatsapp || undefined,
         dob: updated.dob || undefined,
+        gender: parseGender(updated.gender),
         role: updated.role || undefined,
         country: updated.country || undefined,
         chapterId: updated.chapterId || null,
@@ -582,9 +584,10 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   role: ["role", "position"],
   chapter: ["chapter"],
   dob: ["dob", "date of birth", "birthday"],
+  gender: ["gender", "sex"],
 };
 
-type BulkRow = { name: string; email?: string; phone?: string; whatsapp?: string; role?: string; chapter?: string; dob?: string };
+type BulkRow = { name: string; email?: string; phone?: string; whatsapp?: string; role?: string; chapter?: string; dob?: string; gender?: "Male" | "Female" };
 
 function parseBulkCsv(text: string): { rows: BulkRow[]; invalidCount: number; headerError: string | null } {
   const table = parseCsv(text);
@@ -629,6 +632,7 @@ function parseBulkCsv(text: string): { rows: BulkRow[]; invalidCount: number; he
       role: get("role") || undefined,
       chapter: get("chapter") || undefined,
       dob: /^\d{4}-\d{2}-\d{2}$/.test(dobRaw) ? dobRaw : undefined,
+      gender: parseGender(get("gender")),
     });
   }
   return { rows, invalidCount, headerError: null };
@@ -898,6 +902,12 @@ function EditMemberModal({
           </Field>
           <Field label="Date of birth">
             <input type="date" value={draft.dob} onChange={(e) => update("dob", e.target.value)} className="input" />
+          </Field>
+          <Field label="Gender">
+            <select value={draft.gender} onChange={(e) => update("gender", e.target.value)} className="input">
+              <option value="">Not specified</option>
+              {GENDER_OPTIONS.map((g) => (<option key={g} value={g}>{g}</option>))}
+            </select>
           </Field>
           <Field label="Role">
             <input list="role-options" value={draft.role} onChange={(e) => update("role", e.target.value)} className="input" />

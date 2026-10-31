@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { sql } from "@/lib/db/client";
 import { assertNotRateLimited, recordAttempt, clientIp } from "@/lib/auth/rate-limit.server";
-import { FIELD_LIBRARY } from "@/lib/onboarding-fields";
+import { FIELD_LIBRARY, parseGender } from "@/lib/onboarding-fields";
 import { ensureMemberInvite } from "./member-invite.server";
 import { assertMemberCapacity } from "./members.functions";
 import { normalizeNgPhone } from "@/lib/sms/phone";
@@ -16,6 +16,7 @@ const COLUMN_FOR_FIELD: Record<string, string> = {
   "Phone number": "phone",
   "WhatsApp Number": "whatsapp",
   "Date of Birth": "dob",
+  Gender: "gender",
   Address: "address",
 };
 
@@ -75,7 +76,7 @@ export const submitApplication = createServerFn({ method: "POST" })
       if (!chapters[0]) throw new Error("Invalid chapter selection.");
     }
 
-    const columns: Record<string, string | null> = { name: null, email: null, phone: null, whatsapp: null, dob: null, address: null };
+    const columns: Record<string, string | null> = { name: null, email: null, phone: null, whatsapp: null, dob: null, gender: null, address: null };
     const extra: Record<string, string> = {};
     for (const field of FIELD_LIBRARY) {
       const raw = data.values[field];
@@ -86,6 +87,10 @@ export const submitApplication = createServerFn({ method: "POST" })
     }
 
     if (!columns.name) throw new Error("Name is required.");
+    if (columns.gender) {
+      columns.gender = parseGender(columns.gender) ?? null;
+      if (!columns.gender) throw new Error("Please choose a valid gender.");
+    }
     // At least one contact identity so the member can sign in later. Either an
     // email (invite/reset by email) or a phone (sign in + set up by phone).
     if (!columns.email && !columns.phone) {
@@ -164,7 +169,7 @@ export const submitApplication = createServerFn({ method: "POST" })
 
     const joinedAt = autoApproved ? new Date().toISOString() : null;
     const inserted = await sql`
-      INSERT INTO public.members (community_id, chapter_id, name, email, phone, whatsapp, dob, address, extra, status, joined_at)
+      INSERT INTO public.members (community_id, chapter_id, name, email, phone, whatsapp, dob, gender, address, extra, status, joined_at)
       VALUES (
         ${data.communityId}::uuid,
         ${data.chapterId ?? null},
@@ -173,6 +178,7 @@ export const submitApplication = createServerFn({ method: "POST" })
         ${columns.phone},
         ${columns.whatsapp},
         ${columns.dob ? columns.dob : null}::date,
+        ${columns.gender},
         ${columns.address},
         ${JSON.stringify(extra)}::jsonb,
         ${autoApproved ? "active" : "pending"},
