@@ -12,9 +12,17 @@ import {
   removeExpenseReceipt,
   setExpensePolicy,
   EXPENSE_CATEGORY_LIST,
+  listIncome,
+  addIncome,
+  updateIncome,
+  deleteIncome,
+  uploadIncomeReceipt,
+  getIncomeReceipt,
+  removeIncomeReceipt,
+  INCOME_CATEGORY_LIST,
 } from "@/lib/payments/reports.functions";
 import { downloadCsv } from "@/lib/export-csv";
-import { FileBarChart, Download, Banknote, Wallet, Receipt, Printer, Plus, Trash2, Scale, Pencil, Paperclip, Eye, X, Check } from "lucide-react";
+import { FileBarChart, Download, Banknote, Wallet, Receipt, Printer, Plus, Trash2, Scale, Pencil, Paperclip, Eye, X, Check, NotebookPen } from "lucide-react";
 
 // Reliable base64 → new-tab open (works for images and PDF).
 function openBase64(mime: string, b64: string) {
@@ -44,6 +52,7 @@ export const Route = createFileRoute("/admin/reports")({
 
 type Report = Awaited<ReturnType<typeof getFinancialReport>>;
 type Expense = Awaited<ReturnType<typeof listExpenses>>[number];
+type Income = Awaited<ReturnType<typeof listIncome>>[number];
 
 function money(currency: "NGN" | "USD", amount: number): string {
   const sign = amount < 0 ? "-" : "";
@@ -79,6 +88,7 @@ function Reports() {
   const [preset, setPreset] = useState("year");
   const [report, setReport] = useState<Report | null | undefined>(undefined);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [income, setIncome] = useState<Income[]>([]);
   const [exporting, setExporting] = useState(false);
 
   const range = useMemo(() => presetRange(preset), [preset]);
@@ -86,6 +96,7 @@ function Reports() {
   function load() {
     getFinancialReport({ data: range }).then(setReport).catch(() => setReport(null));
     listExpenses({ data: range }).then(setExpenses).catch(() => setExpenses([]));
+    listIncome({ data: range }).then(setIncome).catch(() => setIncome([]));
   }
 
   useEffect(() => {
@@ -116,7 +127,7 @@ function Reports() {
           </span>
           <div>
             <h1 className="font-display text-3xl font-bold">Financial report</h1>
-            <p className="text-sm text-muted-foreground">What your community collected, net of platform fees — ready for your records or an AGM.</p>
+            <p className="text-sm text-muted-foreground">What your community collected, online and by bank transfer, net of platform fees — ready for your records or an AGM.</p>
           </div>
         </div>
         <div className="flex gap-2 print:hidden">
@@ -163,14 +174,20 @@ function Reports() {
           {report.summary.map((s) => (
             <div key={s.currency} className="space-y-3">
               <h2 className="font-display text-lg font-semibold">{s.currency} income</h2>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className={`grid gap-4 sm:grid-cols-2 ${s.recordedGross > 0 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
                 <Tile icon={Banknote} label="Gross collected" value={money(s.currency, s.gross)} sub={`${s.count} payments`} />
                 <Tile icon={Receipt} label="Platform fees" value={money(s.currency, s.fees)} sub="deducted" />
                 <Tile icon={Wallet} label="Net to community" value={money(s.currency, s.net)} sub="after fees" strong />
-                <Tile icon={Banknote} label="Dues / Donations" value={`${money(s.currency, s.duesGross)} / ${money(s.currency, s.donationsGross)}`} sub="gross split" />
+                <Tile icon={Banknote} label="Dues / Donations" value={`${money(s.currency, s.duesGross)} / ${money(s.currency, s.donationsGross)}`} sub="paid online" />
+                {s.recordedGross > 0 && (
+                  <Tile icon={NotebookPen} label="Recorded income" value={money(s.currency, s.recordedGross)} sub="transfers & cash" />
+                )}
               </div>
             </div>
           ))}
+
+          {/* Income received outside the payment link (transfers, cash) */}
+          <IncomeSection income={income} onChanged={load} />
 
           {/* Expenses management + breakdown */}
           <ExpensesSection expenses={expenses} report={report} onChanged={load} />
@@ -184,6 +201,7 @@ function Reports() {
                   <th className="px-4 py-2.5 font-medium">Currency</th>
                   <th className="px-4 py-2.5 font-medium text-right">Dues</th>
                   <th className="px-4 py-2.5 font-medium text-right">Donations</th>
+                  <th className="px-4 py-2.5 font-medium text-right">Recorded</th>
                   <th className="px-4 py-2.5 font-medium text-right">Total</th>
                 </tr>
               </thead>
@@ -194,7 +212,8 @@ function Reports() {
                     <td className="px-4 py-2.5 text-muted-foreground">{m.currency}</td>
                     <td className="px-4 py-2.5 text-right">{money(m.currency, m.dues)}</td>
                     <td className="px-4 py-2.5 text-right">{money(m.currency, m.donations)}</td>
-                    <td className="px-4 py-2.5 text-right font-semibold">{money(m.currency, m.dues + m.donations)}</td>
+                    <td className="px-4 py-2.5 text-right">{money(m.currency, m.recorded)}</td>
+                    <td className="px-4 py-2.5 text-right font-semibold">{money(m.currency, m.dues + m.donations + m.recorded)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -270,7 +289,7 @@ function Reports() {
             </Card>
           )}
 
-          {report.summary.length === 0 && expenses.length === 0 && (
+          {report.summary.length === 0 && expenses.length === 0 && income.length === 0 && (
             <div className="rounded-2xl border border-border bg-card p-10 text-center shadow-soft">
               <Receipt className="mx-auto h-8 w-8 text-muted-foreground" />
               <p className="mt-3 text-sm text-muted-foreground">No income or expenses recorded in this period yet.</p>
@@ -295,6 +314,164 @@ function NetCard({ np }: { np: { currency: "NGN" | "USD"; incomeNet: number; exp
         <span>Expenses: <span className="font-medium text-foreground">{money(np.currency, np.expenses)}</span></span>
       </div>
     </div>
+  );
+}
+
+function IncomeSection({ income, onChanged }: { income: Income[]; onChanged: () => void }) {
+  const empty = { amount: "", currency: "NGN" as "NGN" | "USD", category: "Dues", payerName: "", description: "", receivedAt: new Date().toISOString().slice(0, 10) };
+  const [form, setForm] = useState(empty);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  function startEdit(i: Income) {
+    setEditId(i.id);
+    setForm({ amount: String(i.amount), currency: i.currency, category: i.category, payerName: i.payerName, description: i.description, receivedAt: i.receivedAt });
+    setError("");
+  }
+  function cancelEdit() {
+    setEditId(null);
+    setForm(empty);
+    setError("");
+  }
+
+  async function submit() {
+    const amt = Number(form.amount);
+    if (!amt || amt <= 0) return setError("Enter a valid amount.");
+    setBusy(true);
+    setError("");
+    try {
+      const payload = {
+        amount: amt,
+        currency: form.currency,
+        category: form.category,
+        payerName: form.payerName.trim() || undefined,
+        description: form.description.trim() || undefined,
+        receivedAt: form.receivedAt,
+      };
+      if (editId) await updateIncome({ data: { id: editId, ...payload } });
+      else await addIncome({ data: payload });
+      cancelEdit();
+      onChanged();
+    } catch (e: any) {
+      setError(e?.message ?? "Couldn't save income.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-border bg-card shadow-soft">
+      <div className="border-b border-border p-4">
+        <h2 className="font-display text-lg font-semibold">Recorded income</h2>
+        <p className="text-xs text-muted-foreground">Money members paid straight into the community's bank account or in cash. It counts toward income and the surplus/deficit for this period, but not the funds position, since it never passed through Kommunity.</p>
+      </div>
+
+      {/* Add / edit form */}
+      <div className="grid gap-2 border-b border-border p-4 md:grid-cols-12">
+        <input type="date" value={form.receivedAt} onChange={(e) => setForm((f) => ({ ...f, receivedAt: e.target.value }))} className="rp-in md:col-span-2" aria-label="Date received" />
+        <select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} className="rp-in md:col-span-2" aria-label="Category">
+          {INCOME_CATEGORY_LIST.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <input value={form.payerName} onChange={(e) => setForm((f) => ({ ...f, payerName: e.target.value }))} placeholder="Paid by (optional)" className="rp-in md:col-span-2" />
+        <input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Note (optional)" className="rp-in md:col-span-2" />
+        <select value={form.currency} onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value as "NGN" | "USD" }))} className="rp-in md:col-span-1" aria-label="Currency">
+          <option value="NGN">₦</option>
+          <option value="USD">$</option>
+        </select>
+        <input value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value.replace(/[^\d.]/g, "") }))} inputMode="decimal" placeholder="Amount" className="rp-in md:col-span-2" />
+        <div className="flex gap-2 md:col-span-1">
+          <button onClick={submit} disabled={busy} title={editId ? "Save" : "Add income"} className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60">
+            {editId ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+          </button>
+          {editId && (
+            <button onClick={cancelEdit} className="inline-flex items-center justify-center rounded-lg border border-border px-2 text-muted-foreground hover:bg-muted" title="Cancel">
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      </div>
+      {error && <p className="px-4 pt-2 text-xs text-destructive">{error}</p>}
+
+      {/* List */}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[720px] text-sm">
+          <thead className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
+            <tr>
+              <th className="px-4 py-2.5 font-medium">Date</th>
+              <th className="px-4 py-2.5 font-medium">Category</th>
+              <th className="px-4 py-2.5 font-medium">Paid by</th>
+              <th className="px-4 py-2.5 font-medium">Note</th>
+              <th className="px-4 py-2.5 font-medium">Proof</th>
+              <th className="px-4 py-2.5 font-medium text-right">Amount</th>
+              <th className="px-4 py-2.5 font-medium text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {income.map((i) => (
+              <IncomeRow key={i.id} i={i} editing={editId === i.id} onEdit={() => startEdit(i)} onChanged={onChanged} />
+            ))}
+            {income.length === 0 && (
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">No transfers or cash recorded for this period. Add one above.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function IncomeRow({ i, editing, onEdit, onChanged }: { i: Income; editing: boolean; onEdit: () => void; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+
+  async function onFile(file: File | undefined) {
+    if (!file) return;
+    if (file.size > 3.3 * 1024 * 1024) return alert("File too large (max ~3MB).");
+    if (!["image/png", "image/jpeg", "image/webp", "application/pdf"].includes(file.type)) return alert("Please use a PNG, JPG, WebP, or PDF.");
+    setBusy(true);
+    try {
+      const dataBase64 = await fileToBase64(file);
+      await uploadIncomeReceipt({ data: { id: i.id, name: file.name, mime: file.type as any, dataBase64 } });
+      onChanged();
+    } catch {
+      alert("Upload failed. Try a smaller file.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function view() {
+    const r = await getIncomeReceipt({ data: { id: i.id } });
+    if (r) openBase64(r.mime, r.dataBase64);
+  }
+
+  return (
+    <tr className={`border-t border-border ${editing ? "bg-primary/5" : ""}`}>
+      <td className="px-4 py-2.5 text-muted-foreground">{i.receivedAt}</td>
+      <td className="px-4 py-2.5">{i.category}</td>
+      <td className="px-4 py-2.5">{i.payerName || "—"}</td>
+      <td className="px-4 py-2.5 text-muted-foreground">{i.description || "—"}</td>
+      <td className="px-4 py-2.5">
+        {i.hasReceipt ? (
+          <span className="inline-flex items-center gap-2">
+            <button onClick={view} className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline"><Eye className="h-3.5 w-3.5" /> View</button>
+            <button onClick={() => removeIncomeReceipt({ data: { id: i.id } }).then(onChanged)} title="Remove proof" className="text-muted-foreground hover:text-destructive"><X className="h-3.5 w-3.5" /></button>
+          </span>
+        ) : (
+          <label className="inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground">
+            <Paperclip className="h-3.5 w-3.5" /> {busy ? "Uploading…" : "Attach"}
+            <input type="file" accept="image/png,image/jpeg,image/webp,application/pdf" className="hidden" onChange={(ev) => onFile(ev.target.files?.[0])} />
+          </label>
+        )}
+      </td>
+      <td className="px-4 py-2.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">{money(i.currency, i.amount)}</td>
+      <td className="px-4 py-2.5 text-right">
+        <span className="inline-flex items-center gap-2">
+          <button onClick={onEdit} title="Edit" className="text-muted-foreground hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
+          <button onClick={() => deleteIncome({ data: { id: i.id } }).then(onChanged)} title="Delete" className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
+        </span>
+      </td>
+    </tr>
   );
 }
 

@@ -1,5 +1,6 @@
-// Treasurer's financial report: what the community collected (dues + donations)
-// over a period, net of platform fees, plus the all-time funds position (net
+// Treasurer's financial report: what the community collected (dues + donations
+// through Paystack, plus income the admin recorded by hand for bank transfers
+// and cash) over a period, net of platform fees, plus the all-time funds position (net
 // collected vs paid out = currently held). Scoped to the admin's community and
 // split by currency, since a plan can price in ₦ and $. Read-only aggregation
 // over dues_payments / donation_payments / payouts — never the platform's own
@@ -58,14 +59,24 @@ export const getFinancialReport = createServerFn({ method: "POST" })
       GROUP BY dp.currency
     `;
 
+    // Income recorded by hand (bank transfers / cash) — no platform fee.
+    const manual = await sql`
+      SELECT currency, COALESCE(SUM(amount), 0) AS gross, COUNT(*) AS cnt
+      FROM public.community_income
+      WHERE community_id = ${communityId}::uuid
+        AND (${from}::date IS NULL OR received_at >= ${from}::date)
+        AND (${to}::date IS NULL OR received_at <= ${to}::date)
+      GROUP BY currency
+    `;
+
     // Assemble per-currency summary.
     const byCurrency = new Map<Currency, {
       currency: Currency; duesGross: number; duesNet: number; donationsGross: number; donationsNet: number;
-      gross: number; fees: number; net: number; count: number;
+      recordedGross: number; gross: number; fees: number; net: number; count: number;
     }>();
     const ensure = (c: Currency) => {
       let e = byCurrency.get(c);
-      if (!e) { e = { currency: c, duesGross: 0, duesNet: 0, donationsGross: 0, donationsNet: 0, gross: 0, fees: 0, net: 0, count: 0 }; byCurrency.set(c, e); }
+      if (!e) { e = { currency: c, duesGross: 0, duesNet: 0, donationsGross: 0, donationsNet: 0, recordedGross: 0, gross: 0, fees: 0, net: 0, count: 0 }; byCurrency.set(c, e); }
       return e;
     };
     for (const r of dues) {
@@ -78,8 +89,13 @@ export const getFinancialReport = createServerFn({ method: "POST" })
       e.donationsGross += n(r.gross); e.donationsNet += n(r.net);
       e.gross += n(r.gross); e.fees += n(r.fees); e.net += n(r.net); e.count += n(r.cnt);
     }
+    for (const r of manual) {
+      const e = ensure(r.currency as Currency);
+      e.recordedGross += n(r.gross);
+      e.gross += n(r.gross); e.net += n(r.gross); e.count += n(r.cnt);
+    }
 
-    // Monthly breakdown (dues vs donations gross) per currency.
+    // Monthly breakdown (dues vs donations vs recorded income, gross) per currency.
     const monthlyRows = await sql`
       SELECT to_char(t.paid_at, 'YYYY-MM') AS month, t.currency, t.kind, COALESCE(SUM(t.amount), 0) AS gross
       FROM (
@@ -94,16 +110,24 @@ export const getFinancialReport = createServerFn({ method: "POST" })
         WHERE d.community_id = ${communityId}::uuid AND dp.status = 'paid'
           AND (${from}::date IS NULL OR dp.paid_at >= ${from}::date)
           AND (${to}::date IS NULL OR dp.paid_at < (${to}::date + INTERVAL '1 day'))
+        UNION ALL
+        SELECT ci.received_at::timestamptz, ci.currency, 'recorded' AS kind, ci.amount
+        FROM public.community_income ci
+        WHERE ci.community_id = ${communityId}::uuid
+          AND (${from}::date IS NULL OR ci.received_at >= ${from}::date)
+          AND (${to}::date IS NULL OR ci.received_at <= ${to}::date)
       ) t
       GROUP BY month, t.currency, t.kind
       ORDER BY month
     `;
-    const monthMap = new Map<string, { month: string; currency: Currency; dues: number; donations: number }>();
+    const monthMap = new Map<string, { month: string; currency: Currency; dues: number; donations: number; recorded: number }>();
     for (const r of monthlyRows) {
       const key = `${r.month}|${r.currency}`;
       let e = monthMap.get(key);
-      if (!e) { e = { month: r.month as string, currency: r.currency as Currency, dues: 0, donations: 0 }; monthMap.set(key, e); }
-      if (r.kind === "dues") e.dues += n(r.gross); else e.donations += n(r.gross);
+      if (!e) { e = { month: r.month as string, currency: r.currency as Currency, dues: 0, donations: 0, recorded: 0 }; monthMap.set(key, e); }
+      if (r.kind === "dues") e.dues += n(r.gross);
+      else if (r.kind === "donation") e.donations += n(r.gross);
+      else e.recorded += n(r.gross);
     }
 
     // Member dues contributions (range).
@@ -126,6 +150,8 @@ export const getFinancialReport = createServerFn({ method: "POST" })
     `;
 
     // All-time funds position: lifetime net collected vs lifetime paid out.
+    // Recorded income is deliberately left out: it went straight into the
+    // community's own account and was never held on the platform.
     const lifetimeNet = await sql`
       SELECT currency, COALESCE(SUM(net), 0) AS net FROM (
         SELECT dp.currency, dp.community_net AS net
@@ -216,7 +242,8 @@ export const getFinancialReport = createServerFn({ method: "POST" })
     };
   });
 
-// Flat transaction ledger for CSV export (dues + donations) in the range.
+// Flat transaction ledger for CSV export (dues, donations, recorded income and
+// expenses) in the range.
 export const exportFinancialTransactions = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((i) => dateRange.parse(i))
@@ -241,6 +268,15 @@ export const exportFinancialTransactions = createServerFn({ method: "POST" })
         WHERE d.community_id = ${communityId}::uuid AND dp.status = 'paid'
           AND (${from}::date IS NULL OR dp.paid_at >= ${from}::date)
           AND (${to}::date IS NULL OR dp.paid_at < (${to}::date + INTERVAL '1 day'))
+        UNION ALL
+        SELECT (ci.received_at)::timestamptz AS paid_at, 'Income (recorded)' AS kind,
+               COALESCE(NULLIF(ci.payer_name, ''), ci.category) AS name, '' AS email,
+               ci.currency, ci.amount AS gross, 0 AS fee, ci.amount AS net,
+               concat_ws(' - ', ci.category, NULLIF(ci.description, '')) AS reference
+        FROM public.community_income ci
+        WHERE ci.community_id = ${communityId}::uuid
+          AND (${from}::date IS NULL OR ci.received_at >= ${from}::date)
+          AND (${to}::date IS NULL OR ci.received_at <= ${to}::date)
         UNION ALL
         -- Expenses as outflows: net is negative so the Net column sums to the
         -- true period surplus/deficit.
@@ -404,6 +440,148 @@ export const getExpenseReceipt = createServerFn({ method: "POST" })
     const rows = await sql`
       SELECT receipt_base64, receipt_mime, receipt_name
       FROM public.community_expenses
+      WHERE id = ${data.id}::uuid AND community_id = ${communityId}::uuid AND receipt_base64 IS NOT NULL
+      LIMIT 1
+    `;
+    const r = rows[0];
+    if (!r) return null;
+    return { name: (r.receipt_name as string | null) ?? "receipt", mime: r.receipt_mime as string, dataBase64: r.receipt_base64 as string };
+  });
+
+// ── Recorded income (admin-managed) ──────────────────────────────────────
+// For communities whose members pay by bank transfer or cash instead of the
+// payment link. Same shape as expenses, plus who paid.
+
+const INCOME_CATEGORIES = ["Dues", "Donation", "Levy", "Event", "Sponsorship", "Other"] as const;
+export const INCOME_CATEGORY_LIST = INCOME_CATEGORIES;
+
+export const listIncome = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => dateRange.parse(i))
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) return [];
+    const from = data.from ?? null;
+    const to = data.to ?? null;
+    const rows = await sql`
+      SELECT id, amount, currency, category, payer_name, description, received_at,
+             (receipt_base64 IS NOT NULL) AS has_receipt, receipt_name
+      FROM public.community_income
+      WHERE community_id = ${communityId}::uuid
+        AND (${from}::date IS NULL OR received_at >= ${from}::date)
+        AND (${to}::date IS NULL OR received_at <= ${to}::date)
+      ORDER BY received_at DESC, created_at DESC
+    `;
+    return rows.map((r) => ({
+      id: r.id as string,
+      amount: n(r.amount),
+      currency: r.currency as Currency,
+      category: r.category as string,
+      payerName: (r.payer_name as string | null) ?? "",
+      description: (r.description as string | null) ?? "",
+      receivedAt: new Date(r.received_at as string).toISOString().slice(0, 10),
+      hasReceipt: !!r.has_receipt,
+      receiptName: (r.receipt_name as string | null) ?? null,
+    }));
+  });
+
+const incomeInput = z.object({
+  amount: z.number().positive().max(1_000_000_000),
+  currency: z.enum(["NGN", "USD"]),
+  category: z.string().min(1).max(60),
+  payerName: z.string().max(120).optional().nullable(),
+  description: z.string().max(300).optional().nullable(),
+  receivedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+export const addIncome = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => incomeInput.parse(i))
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) throw new Error("You don't manage a community yet.");
+    await sql`
+      INSERT INTO public.community_income (community_id, amount, currency, category, payer_name, description, received_at, created_by)
+      VALUES (${communityId}::uuid, ${data.amount}, ${data.currency}, ${data.category}, ${data.payerName ?? null}, ${data.description ?? null}, ${data.receivedAt}::date, ${context.userId}::uuid)
+    `;
+    return { ok: true };
+  });
+
+export const updateIncome = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => incomeInput.extend({ id: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) throw new Error("You don't manage a community yet.");
+    await sql`
+      UPDATE public.community_income
+      SET amount = ${data.amount}, currency = ${data.currency}, category = ${data.category},
+          payer_name = ${data.payerName ?? null}, description = ${data.description ?? null},
+          received_at = ${data.receivedAt}::date, updated_at = now()
+      WHERE id = ${data.id}::uuid AND community_id = ${communityId}::uuid
+    `;
+    return { ok: true };
+  });
+
+export const deleteIncome = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => z.object({ id: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) throw new Error("You don't manage a community yet.");
+    await sql`DELETE FROM public.community_income WHERE id = ${data.id}::uuid AND community_id = ${communityId}::uuid`;
+    return { ok: true };
+  });
+
+// Proof of payment (bank alert screenshot, teller), same limits as expense receipts.
+export const uploadIncomeReceipt = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        name: z.string().min(1).max(200),
+        mime: z.enum(RECEIPT_MIMES),
+        dataBase64: z.string().min(1).max(MAX_RECEIPT_B64),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) throw new Error("You don't manage a community yet.");
+    const res = await sql`
+      UPDATE public.community_income
+      SET receipt_base64 = ${data.dataBase64}, receipt_mime = ${data.mime}, receipt_name = ${data.name}, updated_at = now()
+      WHERE id = ${data.id}::uuid AND community_id = ${communityId}::uuid
+      RETURNING id
+    `;
+    if (res.length === 0) throw new Error("Income entry not found.");
+    return { ok: true };
+  });
+
+export const removeIncomeReceipt = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => z.object({ id: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) throw new Error("You don't manage a community yet.");
+    await sql`
+      UPDATE public.community_income
+      SET receipt_base64 = NULL, receipt_mime = NULL, receipt_name = NULL, updated_at = now()
+      WHERE id = ${data.id}::uuid AND community_id = ${communityId}::uuid
+    `;
+    return { ok: true };
+  });
+
+export const getIncomeReceipt = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => z.object({ id: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) return null;
+    const rows = await sql`
+      SELECT receipt_base64, receipt_mime, receipt_name
+      FROM public.community_income
       WHERE id = ${data.id}::uuid AND community_id = ${communityId}::uuid AND receipt_base64 IS NOT NULL
       LIMIT 1
     `;
