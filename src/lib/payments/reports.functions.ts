@@ -99,19 +99,21 @@ export const getFinancialReport = createServerFn({ method: "POST" })
     const monthlyRows = await sql`
       SELECT to_char(t.paid_at, 'YYYY-MM') AS month, t.currency, t.kind, COALESCE(SUM(t.amount), 0) AS gross
       FROM (
-        SELECT dp.paid_at, dp.currency, 'dues' AS kind, dp.amount
+        -- currency::text in every branch: payments use the payment_currency
+        -- enum, recorded income/expenses use plain text, and UNION needs one type.
+        SELECT dp.paid_at, dp.currency::text AS currency, 'dues' AS kind, dp.amount
         FROM public.dues_payments dp JOIN public.dues_plans p ON p.id = dp.plan_id
         WHERE p.community_id = ${communityId}::uuid AND dp.status = 'paid'
           AND (${from}::date IS NULL OR dp.paid_at >= ${from}::date)
           AND (${to}::date IS NULL OR dp.paid_at < (${to}::date + INTERVAL '1 day'))
         UNION ALL
-        SELECT dp.paid_at, dp.currency, 'donation' AS kind, dp.amount
+        SELECT dp.paid_at, dp.currency::text, 'donation' AS kind, dp.amount
         FROM public.donation_payments dp JOIN public.donations d ON d.id = dp.donation_id
         WHERE d.community_id = ${communityId}::uuid AND dp.status = 'paid'
           AND (${from}::date IS NULL OR dp.paid_at >= ${from}::date)
           AND (${to}::date IS NULL OR dp.paid_at < (${to}::date + INTERVAL '1 day'))
         UNION ALL
-        SELECT ci.received_at::timestamptz, ci.currency, 'recorded' AS kind, ci.amount
+        SELECT ci.received_at::timestamptz, ci.currency::text, 'recorded' AS kind, ci.amount
         FROM public.community_income ci
         WHERE ci.community_id = ${communityId}::uuid
           AND (${from}::date IS NULL OR ci.received_at >= ${from}::date)
@@ -256,14 +258,14 @@ export const exportFinancialTransactions = createServerFn({ method: "POST" })
     const rows = await sql`
       SELECT paid_at, kind, name, email, currency, gross, fee, net, reference FROM (
         SELECT dp.paid_at, 'Dues' AS kind, dp.member_name AS name, dp.member_email AS email,
-               dp.currency, dp.amount AS gross, dp.platform_fee AS fee, dp.community_net AS net, dp.provider_ref AS reference
+               dp.currency::text AS currency, dp.amount AS gross, dp.platform_fee AS fee, dp.community_net AS net, dp.provider_ref AS reference
         FROM public.dues_payments dp JOIN public.dues_plans p ON p.id = dp.plan_id
         WHERE p.community_id = ${communityId}::uuid AND dp.status = 'paid'
           AND (${from}::date IS NULL OR dp.paid_at >= ${from}::date)
           AND (${to}::date IS NULL OR dp.paid_at < (${to}::date + INTERVAL '1 day'))
         UNION ALL
         SELECT dp.paid_at, 'Donation' AS kind, dp.payer_name AS name, dp.payer_email AS email,
-               dp.currency, dp.amount AS gross, dp.platform_fee AS fee, dp.community_net AS net, dp.provider_ref AS reference
+               dp.currency::text AS currency, dp.amount AS gross, dp.platform_fee AS fee, dp.community_net AS net, dp.provider_ref AS reference
         FROM public.donation_payments dp JOIN public.donations d ON d.id = dp.donation_id
         WHERE d.community_id = ${communityId}::uuid AND dp.status = 'paid'
           AND (${from}::date IS NULL OR dp.paid_at >= ${from}::date)
@@ -271,7 +273,7 @@ export const exportFinancialTransactions = createServerFn({ method: "POST" })
         UNION ALL
         SELECT (ci.received_at)::timestamptz AS paid_at, 'Income (recorded)' AS kind,
                COALESCE(NULLIF(ci.payer_name, ''), ci.category) AS name, '' AS email,
-               ci.currency, ci.amount AS gross, 0 AS fee, ci.amount AS net,
+               ci.currency::text, ci.amount AS gross, 0 AS fee, ci.amount AS net,
                concat_ws(' - ', ci.category, NULLIF(ci.description, '')) AS reference
         FROM public.community_income ci
         WHERE ci.community_id = ${communityId}::uuid
@@ -281,7 +283,7 @@ export const exportFinancialTransactions = createServerFn({ method: "POST" })
         -- Expenses as outflows: net is negative so the Net column sums to the
         -- true period surplus/deficit.
         SELECT (e.spent_at)::timestamptz AS paid_at, 'Expense' AS kind, e.category AS name, '' AS email,
-               e.currency, e.amount AS gross, 0 AS fee, (-e.amount) AS net, COALESCE(e.description, '') AS reference
+               e.currency::text, e.amount AS gross, 0 AS fee, (-e.amount) AS net, COALESCE(e.description, '') AS reference
         FROM public.community_expenses e
         WHERE e.community_id = ${communityId}::uuid
           AND (${from}::date IS NULL OR e.spent_at >= ${from}::date)
