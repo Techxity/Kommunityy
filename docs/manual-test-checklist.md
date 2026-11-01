@@ -43,7 +43,7 @@ Legend: ☐ = to test.
 - ☐ **Automated reminder cron**: trigger `/api/cron/trials` (which also runs dues reminders) with the `CRON_SECRET` bearer; confirm only overdue members not reminded in ~25 days are contacted.
 - ☐ **Collection rate** figure looks sane against known data.
 
-## 5. SMS (Termii) — needs a funded Termii wallet + approved Sender ID + DND route
+## 5. SMS (BulkSMSNigeria) — needs a funded BulkSMSNigeria account + approved Sender ID + DND gateway
 
 - ☐ **Wallet top-up**: SMS → Top up → Paystack. Confirm the wallet is credited the **full amount you chose** (fee added on top at checkout), and a `topup` ledger row appears.
 - ☐ **Test send** to your own number on the **DND route**; confirm it arrives, a `debit` ledger row is written, and the balance drops by the expected amount.
