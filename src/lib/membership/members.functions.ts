@@ -562,20 +562,40 @@ export const getMyMembershipHere = createServerFn({ method: "POST" })
     return { hasCommunity: true, isMember: !!rows[0] };
   });
 
-// Adds the signed-in admin as a member of their own community (so they can pay
-// dues from the app). Links an existing unclaimed member row with their email
-// if one exists; otherwise creates a fresh active member. Idempotent.
+// Adds the signed-in admin as an active member of their own community, so they
+// can use the member side (dues, profile, birthdays…) like anyone else. Reuses
+// a member row that's already theirs — linked to their account, or an
+// unclaimed row with their email/phone (e.g. one they added from the Members
+// page, whose invite can't be accepted because their account already exists)
+// — and reactivates it if it was pending/inactive. Otherwise creates a fresh
+// active member. Idempotent.
 export const joinMyCommunityAsMember = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new AppError("You don't manage a community yet.");
 
-    const already = await sql`SELECT id FROM public.members WHERE community_id = ${communityId}::uuid AND user_id = ${context.userId}::uuid LIMIT 1`;
-    if (already[0]) {
-      await sql`INSERT INTO public.user_roles (user_id, role, community_id) VALUES (${context.userId}::uuid, 'member', ${communityId}::uuid) ON CONFLICT DO NOTHING`;
+    const grantMemberRole = () =>
+      sql`INSERT INTO public.user_roles (user_id, role, community_id) VALUES (${context.userId}::uuid, 'member', ${communityId}::uuid) ON CONFLICT DO NOTHING`;
+    // Claim (if unlinked) and activate an existing row; counts against the
+    // plan's member limit only when it wasn't already active.
+    const activate = async (row: Record<string, unknown>) => {
+      if (row.status !== "active") await assertMemberCapacity(communityId, 1);
+      await sql`
+        UPDATE public.members
+        SET user_id = ${context.userId}::uuid, status = 'active', joined_at = COALESCE(joined_at, now()), updated_at = now()
+        WHERE id = ${row.id as string}::uuid
+      `;
+      await grantMemberRole();
       return { ok: true };
-    }
+    };
+
+    const already = await sql`
+      SELECT id, status FROM public.members
+      WHERE community_id = ${communityId}::uuid AND user_id = ${context.userId}::uuid
+      ORDER BY (status = 'active') DESC LIMIT 1
+    `;
+    if (already[0]) return activate(already[0]);
 
     const users = await sql`SELECT name, email, phone FROM public.users WHERE id = ${context.userId}::uuid LIMIT 1`;
     const u = users[0];
@@ -584,18 +604,28 @@ export const joinMyCommunityAsMember = createServerFn({ method: "POST" })
     const email = (u.email as string | null) ?? null;
     const phone = (u.phone as string | null) ?? null;
 
-    // Link an existing member row with this admin's email if one is unclaimed.
+    // A member row with this admin's email (or phone) that isn't theirs yet.
     if (email) {
       const byEmail = await sql`
-        SELECT id, user_id FROM public.members WHERE community_id = ${communityId}::uuid AND lower(email) = lower(${email}) LIMIT 1
+        SELECT id, user_id, status FROM public.members
+        WHERE community_id = ${communityId}::uuid AND lower(email) = lower(${email})
+        ORDER BY (user_id IS NULL) DESC LIMIT 1
       `;
       if (byEmail[0]) {
-        if (!byEmail[0].user_id) {
-          await sql`UPDATE public.members SET user_id = ${context.userId}::uuid, status = 'active', joined_at = COALESCE(joined_at, now()), updated_at = now() WHERE id = ${byEmail[0].id}::uuid`;
+        if (byEmail[0].user_id) {
+          throw new AppError("A member with your email is already linked to a different account. Edit that member's email on the Members page, then try again.");
         }
-        await sql`INSERT INTO public.user_roles (user_id, role, community_id) VALUES (${context.userId}::uuid, 'member', ${communityId}::uuid) ON CONFLICT DO NOTHING`;
-        return { ok: true };
+        return activate(byEmail[0]);
       }
+    }
+    const myPhone = phone ? normalizeNgPhone(phone) : null;
+    if (myPhone) {
+      const rows = await sql`
+        SELECT id, user_id, status, phone FROM public.members
+        WHERE community_id = ${communityId}::uuid AND user_id IS NULL AND phone IS NOT NULL
+      `;
+      const byPhone = rows.find((r) => normalizeNgPhone(r.phone as string) === myPhone);
+      if (byPhone) return activate(byPhone);
     }
 
     await assertMemberCapacity(communityId, 1);

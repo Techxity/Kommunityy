@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { listMembers, updateMember, setMembersStatus, bulkCreateMembers, resetMemberLogin, promoteMemberToAdmin, demoteMemberAdmin } from "@/lib/membership/members.functions";
+import { listMembers, updateMember, setMembersStatus, bulkCreateMembers, resetMemberLogin, promoteMemberToAdmin, demoteMemberAdmin, getMyMembershipHere, joinMyCommunityAsMember } from "@/lib/membership/members.functions";
 import { listMyChapters } from "@/lib/membership/chapters.functions";
 import { sendInvites } from "@/lib/membership/invites.functions";
 import { resendMemberInvite } from "@/lib/membership/member-accounts.functions";
@@ -27,6 +27,7 @@ import {
   Check,
   AlertTriangle,
   Download,
+  UserPlus,
 } from "lucide-react";
 
 export const Route = createFileRoute("/admin/members/")({
@@ -55,6 +56,24 @@ function MembersPage() {
   const [resettingId, setResettingId] = useState<string | null>(null);
 
   const [roleBusyId, setRoleBusyId] = useState<string | null>(null);
+  // Is the signed-in admin also a member here? null = still checking.
+  const [iAmMember, setIAmMember] = useState<boolean | null>(null);
+  const [joiningSelf, setJoiningSelf] = useState(false);
+
+  async function addMeAsMember() {
+    setJoiningSelf(true);
+    try {
+      await joinMyCommunityAsMember();
+      setIAmMember(true);
+      setInviteNote("You're now a member too. Use the workspace switcher at the top to open the member view.");
+      refresh();
+    } catch (err: any) {
+      setInviteNote(err?.message ?? "Couldn't add you as a member.");
+    } finally {
+      setJoiningSelf(false);
+      setTimeout(() => setInviteNote(""), 8000);
+    }
+  }
 
   async function makeAdmin(memberId: string) {
     if (typeof window !== "undefined" && !window.confirm("Make this member an admin? They'll be able to manage the community.")) return;
@@ -130,6 +149,7 @@ function MembersPage() {
 
   useEffect(() => {
     refresh();
+    getMyMembershipHere().then((s) => setIAmMember(s.isMember)).catch(() => setIAmMember(null));
     listMyChapters().then((rows) => setChapters(rows.map((c) => ({ id: c.id, name: c.name }))));
   }, []);
 
@@ -260,6 +280,11 @@ function MembersPage() {
           >
             <ClipboardList className="h-4 w-4" /> Onboarding form
           </Link>
+          {iAmMember === false && (
+            <button onClick={addMeAsMember} disabled={joiningSelf} className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground shadow-soft hover:bg-muted disabled:opacity-50">
+              <UserPlus className="h-4 w-4" /> {joiningSelf ? "Adding you…" : "Add me as a member"}
+            </button>
+          )}
           <button onClick={() => setShowBulkUpload(true)} className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground shadow-soft hover:bg-muted">
             <FileUp className="h-4 w-4" /> Bulk upload
           </button>

@@ -89,12 +89,15 @@ function Reports() {
   const [report, setReport] = useState<Report | null | undefined>(undefined);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [income, setIncome] = useState<Income[]>([]);
+  const [loadError, setLoadError] = useState("");
   const [exporting, setExporting] = useState(false);
 
   const range = useMemo(() => presetRange(preset), [preset]);
 
   function load() {
-    getFinancialReport({ data: range }).then(setReport).catch(() => setReport(null));
+    getFinancialReport({ data: range })
+      .then((r) => { setLoadError(""); setReport(r); })
+      .catch((e: any) => { setLoadError(e?.message ?? "Couldn't load the report."); setReport(null); });
     listExpenses({ data: range }).then(setExpenses).catch(() => setExpenses([]));
     listIncome({ data: range }).then(setIncome).catch(() => setIncome([]));
   }
@@ -154,6 +157,8 @@ function Reports() {
 
       {report === undefined ? (
         <div className="min-h-[30vh]" />
+      ) : loadError ? (
+        <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">Couldn't load the financial report: {loadError}</p>
       ) : !report ? (
         <p className="text-sm text-muted-foreground">You don't manage a community yet.</p>
       ) : (
