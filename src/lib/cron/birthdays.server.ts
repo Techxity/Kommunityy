@@ -9,6 +9,7 @@ import { birthdayCardAttachment } from "@/lib/birthday-card";
 import { birthdayEmail, celebrantsDigestEmail } from "@/lib/email-templates";
 import { sendWhatsAppTemplate, isWhatsAppConfigured } from "@/lib/whatsapp";
 import { sendCommunitySms, type SmsTarget } from "@/lib/sms/send.server";
+import { signSms } from "@/lib/sms/segments";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -94,7 +95,7 @@ export async function runBirthdayJob(): Promise<BirthdayJobResult> {
     const smsPhone = (m.phone as string | null) ?? (m.whatsapp as string | null) ?? null;
     if (smsPhone) {
       const list = smsByCommunity.get(communityId) ?? [];
-      list.push({ memberId: m.id as string, phone: smsPhone, optOut: !!m.sms_opt_out, body: `Happy birthday, ${firstName}! ${message}` });
+      list.push({ memberId: m.id as string, phone: smsPhone, optOut: !!m.sms_opt_out, body: signSms(communityName, `Happy birthday, ${firstName}! ${message}`) });
       smsByCommunity.set(communityId, list);
     }
   }

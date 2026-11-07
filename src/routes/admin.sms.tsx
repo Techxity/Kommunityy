@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { getSmsOverview, saveSmsSettings, startSmsTopup, verifySmsTopup } from "@/lib/sms/sms.functions";
+import { getSmsOverview, saveSmsSettings, sendTestSms, startSmsTopup, verifySmsTopup } from "@/lib/sms/sms.functions";
 import { MessageSquare, Wallet, Save, Loader2, Send, AlertTriangle } from "lucide-react";
 
 export const Route = createFileRoute("/admin/sms")({
@@ -66,6 +66,7 @@ function SmsPage() {
 
       <WalletCard ov={ov} onChanged={refresh} />
       <SettingsCard ov={ov} onSaved={refresh} />
+      <TestSendCard ov={ov} onSent={refresh} />
       <StatementCard ov={ov} />
     </div>
   );
@@ -157,7 +158,6 @@ function WalletCard({ ov, onChanged }: { ov: NonNullable<Overview>; onChanged: (
 function SettingsCard({ ov, onSaved }: { ov: NonNullable<Overview>; onSaved: () => void }) {
   const s = ov.settings;
   const [enabled, setEnabled] = useState(s.enabled);
-  const [senderId, setSenderId] = useState(s.senderId ?? "");
   const [route, setRoute] = useState<"dnd" | "generic">(s.route);
   const [chBirthdays, setChBirthdays] = useState(s.chBirthdays);
   const [chReminders, setChReminders] = useState(s.chReminders);
@@ -175,7 +175,6 @@ function SettingsCard({ ov, onSaved }: { ov: NonNullable<Overview>; onSaved: () 
       await saveSmsSettings({
         data: {
           enabled,
-          senderId: senderId.trim() || null,
           route,
           chBirthdays,
           chReminders,
@@ -198,20 +197,12 @@ function SettingsCard({ ov, onSaved }: { ov: NonNullable<Overview>; onSaved: () 
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-display text-lg font-semibold">SMS settings</h2>
-          <p className="text-xs text-muted-foreground">You control whether SMS is on and what it's used for.</p>
+          <p className="text-xs text-muted-foreground">You control whether SMS is on and what it's used for. Texts show as from Kommunity and name your community in the message.</p>
         </div>
         <Toggle checked={enabled} onChange={setEnabled} label="Enable SMS" />
       </div>
 
       <div className="mt-5 grid gap-5 md:grid-cols-2">
-        <Field label="Sender ID" hint="3–11 letters/numbers, approved by BulkSMSNigeria (e.g. your community's short name).">
-          <input
-            value={senderId}
-            onChange={(e) => setSenderId(e.target.value.slice(0, 11))}
-            placeholder="e.g. IrewoleEst"
-            className="input"
-          />
-        </Field>
         <Field label="Route" hint="DND reaches members on the Do-Not-Disturb list (recommended). Generic is promotional only.">
           <select value={route} onChange={(e) => setRoute(e.target.value as "dnd" | "generic")} className="input">
             <option value="dnd">DND (transactional — reaches everyone)</option>
@@ -249,6 +240,54 @@ function SettingsCard({ ov, onSaved }: { ov: NonNullable<Overview>; onSaved: () 
         </button>
       </div>
       <style>{`.input{width:100%;border-radius:0.5rem;border:1px solid var(--color-border);background:var(--color-background);padding:0.5rem 0.75rem;font-size:0.875rem;outline:none}.input:focus{border-color:var(--color-ring)}`}</style>
+    </div>
+  );
+}
+
+function TestSendCard({ ov, onSent }: { ov: NonNullable<Overview>; onSent: () => void }) {
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const ready = ov.settings.enabled;
+
+  async function send() {
+    setBusy(true);
+    setResult(null);
+    try {
+      const res = await sendTestSms({ data: { phone } });
+      setResult(res);
+      onSent();
+    } catch (err: any) {
+      setResult({ ok: false, message: err?.message ?? "Couldn't send the test." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
+      <h2 className="font-display text-lg font-semibold">Send a test text</h2>
+      <p className="text-xs text-muted-foreground">
+        {ready ? "Sends one text to this number only, charged to your wallet." : "Enable SMS and save your settings first."}
+      </p>
+      <div className="mt-4 flex max-w-md flex-wrap items-center gap-2">
+        <input
+          aria-label="Phone number"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          inputMode="tel"
+          placeholder="0803 000 0000"
+          className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-ring"
+        />
+        <button
+          onClick={send}
+          disabled={busy || !ready || !phone.trim()}
+          className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
+        >
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} Send test
+        </button>
+      </div>
+      {result && <p className={`mt-3 rounded-lg px-3 py-2 text-xs ${result.ok ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>{result.message}</p>}
     </div>
   );
 }

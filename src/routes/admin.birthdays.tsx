@@ -248,7 +248,7 @@ function Birthdays() {
           <div className="flex flex-wrap items-center justify-end gap-2">
             <span className="text-xs text-muted-foreground">Send via:</span>
             <ChannelChip label="Email" checked={chEmail} onChange={setChEmail} available />
-            <ChannelChip label="SMS" checked={chSms} onChange={setChSms} available={!!sendInfo?.smsAvailable} hint="Turn on SMS and set a Sender ID on the SMS page first." />
+            <ChannelChip label="SMS" checked={chSms} onChange={setChSms} available={!!sendInfo?.smsAvailable} hint="Turn on SMS on the SMS page first." />
             <ChannelChip label="WhatsApp" checked={chWa} onChange={setChWa} available={!!sendInfo?.whatsappConfigured} hint="WhatsApp isn't set up for this platform." />
           </div>
           <button

@@ -7,6 +7,7 @@ import { resolveActiveMember } from "./active-member.server";
 import { sendEmailsBatch } from "@/lib/email";
 import { broadcastEmail } from "@/lib/email-templates";
 import { sendCommunitySms, type SmsTarget } from "@/lib/sms/send.server";
+import { signSms } from "@/lib/sms/segments";
 
 export const listBroadcasts = createServerFn({ method: "POST" })
   .middleware([requireAuth])
@@ -106,7 +107,7 @@ export const sendBroadcast = createServerFn({ method: "POST" })
     }
 
     // SMS channel (no-op unless SMS + the broadcasts channel are on). Sends the
-    // raw body to every active member with a phone number.
+    // body, signed with the community's name, to every active member with a phone.
     let smsSent = 0;
     if (data.viaSms) {
       const smsMembers = members.filter((member) => member.phone != null);
@@ -114,7 +115,7 @@ export const sendBroadcast = createServerFn({ method: "POST" })
         memberId: m.id as string,
         phone: m.phone as string,
         optOut: !!m.sms_opt_out,
-        body: data.body,
+        body: signSms(communityName, data.body),
       }));
       const r = await sendCommunitySms({ communityId, channel: "broadcast", targets });
       smsSent = r.sent;

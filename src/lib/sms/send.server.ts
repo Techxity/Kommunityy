@@ -8,7 +8,8 @@ import { sendEmail } from "@/lib/email";
 import { segmentInfo } from "./segments";
 import { normalizeNgPhone } from "./phone";
 import { getSmsSettings, getBalanceKobo, reserveFunds, refundFunds, type SmsSettings } from "./wallet.server";
-import { smsProvider, SMS_PROVIDER_NAME } from "./provider.server";
+import { smsProvider, smsSenderId, SMS_PROVIDER_NAME } from "./provider.server";
+import { rateKobo } from "./rates";
 import { appOrigin } from "@/lib/app-origin.server";
 
 function dlrCallbackUrl(): string | undefined {
@@ -41,14 +42,6 @@ export type SmsSendSummary = {
   reason?: string;
 };
 
-// Per-page rate in kobo, set to the provider's rate incl. VAT (pass-through). Env-driven so a
-// price change is one line. Defaults are placeholders — set the real rate card.
-function rateKobo(route: "dnd" | "generic"): number {
-  const dnd = Number(process.env.SMS_RATE_DND_KOBO) || 400;
-  const generic = Number(process.env.SMS_RATE_GENERIC_KOBO) || 300;
-  return route === "dnd" ? dnd : generic;
-}
-
 function channelEnabled(settings: SmsSettings, channel: SmsChannel): boolean {
   switch (channel) {
     case "birthday":
@@ -58,7 +51,7 @@ function channelEnabled(settings: SmsSettings, channel: SmsChannel): boolean {
     case "broadcast":
       return settings.chBroadcasts;
     case "test":
-      return true; // a manual test only needs SMS enabled + a sender ID
+      return true; // a manual test only needs SMS enabled
   }
 }
 
@@ -79,7 +72,7 @@ export async function sendCommunitySms(args: {
   targets: SmsTarget[];
   // `force` skips the per-channel automation toggle (chBirthdays/chReminders/…)
   // for an explicit admin-initiated send — SMS must still be enabled, have a
-  // sender ID, and have wallet balance.
+  // and have wallet balance.
   force?: boolean;
 }): Promise<SmsSendSummary> {
   const { communityId, channel, targets, force } = args;
@@ -88,7 +81,6 @@ export async function sendCommunitySms(args: {
   const off = (reason: string): SmsSendSummary => ({ attempted: false, sent: 0, failed: 0, skipped: targets.length, costKobo: 0, sentMemberIds: [], reason });
   if (!settings.enabled) return off("SMS disabled");
   if (!force && !channelEnabled(settings, channel)) return off("channel off");
-  if (!settings.senderId) return off("no sender ID set");
 
   const rate = rateKobo(settings.route);
 
@@ -153,7 +145,7 @@ export async function sendCommunitySms(args: {
   await runPool(toSend, 5, async (p) => {
     const res = await smsProvider.sendOne({
       to: p.msisdn,
-      from: settings.senderId as string,
+      from: smsSenderId(),
       body: p.body,
       route: settings.route,
       unicode: p.unicode,

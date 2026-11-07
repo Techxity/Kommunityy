@@ -14,13 +14,9 @@ import { grossUpNgn } from "./paystack-fee";
 import { normalizeNgPhone } from "./phone";
 import { assertSuperAdmin, assertCommunityAdmin } from "@/lib/payments/authz";
 import { smsProvider } from "./provider.server";
+import { rateKobo } from "./rates";
+import { sendCommunitySms } from "./send.server";
 import { appOrigin } from "@/lib/app-origin.server";
-
-function rateKobo(route: "dnd" | "generic"): number {
-  const dnd = Number(process.env.SMS_RATE_DND_KOBO) || 400;
-  const generic = Number(process.env.SMS_RATE_GENERIC_KOBO) || 300;
-  return route === "dnd" ? dnd : generic;
-}
 
 // Everything the broadcast composer needs to show a live SMS cost estimate:
 // whether SMS broadcasting is usable, the wallet balance, the per-page rate,
@@ -29,9 +25,10 @@ export const getSmsComposeInfo = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
-    if (!communityId) return { available: false, balanceKobo: 0, ratePerPageKobo: 0, recipients: 0 };
+    if (!communityId) return { available: false, balanceKobo: 0, ratePerPageKobo: 0, recipients: 0, communityName: "" };
     const settings = await getSmsSettings(communityId);
-    const available = settings.enabled && settings.chBroadcasts && !!settings.senderId;
+    const available = settings.enabled && settings.chBroadcasts;
+    const communities = await sql`SELECT name FROM public.communities WHERE id = ${communityId}::uuid LIMIT 1`;
     const balanceKobo = await getBalanceKobo(communityId);
     const rows = await sql`
       SELECT phone FROM public.members
@@ -39,7 +36,7 @@ export const getSmsComposeInfo = createServerFn({ method: "POST" })
         AND phone IS NOT NULL AND sms_opt_out = false
     `;
     const recipients = rows.reduce((n, r) => n + (normalizeNgPhone(r.phone as string | null) ? 1 : 0), 0);
-    return { available, balanceKobo, ratePerPageKobo: rateKobo(settings.route), recipients };
+    return { available, balanceKobo, ratePerPageKobo: rateKobo(settings.route), recipients, communityName: (communities[0]?.name as string | undefined) ?? "" };
   });
 
 // Snapshot for the SMS admin page: settings, balance, and recent activity.
@@ -100,7 +97,6 @@ export const saveSmsSettings = createServerFn({ method: "POST" })
     z
       .object({
         enabled: z.boolean(),
-        senderId: z.string().max(11).optional().nullable(),
         route: z.enum(["dnd", "generic"]),
         chBirthdays: z.boolean(),
         chReminders: z.boolean(),
@@ -112,17 +108,13 @@ export const saveSmsSettings = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
     if (!communityId) throw new Error("You don't manage a community yet.");
-    // A 3–11 char alphanumeric sender ID is required to actually send; allow
-    // saving a blank one (SMS just can't send until it's set + approved).
-    const senderId = data.senderId?.trim() || null;
     await sql`
       INSERT INTO public.community_sms_settings
-        (community_id, enabled, sender_id, route, ch_birthdays, ch_reminders, ch_broadcasts, low_balance_kobo, updated_at)
+        (community_id, enabled, route, ch_birthdays, ch_reminders, ch_broadcasts, low_balance_kobo, updated_at)
       VALUES
-        (${communityId}::uuid, ${data.enabled}, ${senderId}, ${data.route}, ${data.chBirthdays}, ${data.chReminders}, ${data.chBroadcasts}, ${data.lowBalanceNgn * 100}, now())
+        (${communityId}::uuid, ${data.enabled}, ${data.route}, ${data.chBirthdays}, ${data.chReminders}, ${data.chBroadcasts}, ${data.lowBalanceNgn * 100}, now())
       ON CONFLICT (community_id) DO UPDATE SET
         enabled = EXCLUDED.enabled,
-        sender_id = EXCLUDED.sender_id,
         route = EXCLUDED.route,
         ch_birthdays = EXCLUDED.ch_birthdays,
         ch_reminders = EXCLUDED.ch_reminders,
@@ -131,6 +123,34 @@ export const saveSmsSettings = createServerFn({ method: "POST" })
         updated_at = now()
     `;
     return { ok: true };
+  });
+
+// Texts one number so an admin can check their setup without messaging every
+// member. Charged to the wallet like any other text.
+export const sendTestSms = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => z.object({ phone: z.string().min(7).max(30) }).parse(i))
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) throw new Error("You don't manage a community yet.");
+    if (!normalizeNgPhone(data.phone)) throw new Error("Enter a valid Nigerian mobile number.");
+    const rows = await sql`SELECT name FROM public.communities WHERE id = ${communityId}::uuid LIMIT 1`;
+    const name = (rows[0]?.name as string | undefined) ?? "your community";
+    const res = await sendCommunitySms({
+      communityId,
+      channel: "test",
+      targets: [{ phone: data.phone, body: `Test message from ${name} on Kommunity. Your SMS setup is working.` }],
+    });
+    if (res.sent === 1) return { ok: true, message: "Sent. Check the phone, then watch Recent messages for delivery." };
+    if (res.failed > 0) {
+      const logged = await sql`
+        SELECT error FROM public.sms_messages
+        WHERE community_id = ${communityId}::uuid AND channel = 'test'
+        ORDER BY created_at DESC LIMIT 1
+      `;
+      return { ok: false, message: `Not sent: ${(logged[0]?.error as string | null) ?? "the provider rejected it"}` };
+    }
+    return { ok: false, message: `Not sent: ${res.reason ?? "check your SMS settings"}.` };
   });
 
 // Starts a Paystack checkout to top up the SMS wallet. The community is credited

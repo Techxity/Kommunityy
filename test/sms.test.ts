@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { segmentInfo, pageCount } from "../src/lib/sms/segments.ts";
+import { segmentInfo, pageCount, signSms } from "../src/lib/sms/segments.ts";
 import { normalizeNgPhone } from "../src/lib/sms/phone.ts";
 import { grossUpNgn } from "../src/lib/sms/paystack-fee.ts";
 
@@ -73,7 +73,8 @@ test("grossUpNgn: nets the intended amount after Paystack fee", () => {
 });
 
 // ── BulkSMSNigeria adapter + delivery-report webhook helpers ──────────────
-import { parseSendResponse } from "../src/lib/sms/bulksmsnigeria.server.ts";
+import { parseSendResponse, parseBalance } from "../src/lib/sms/bulksmsnigeria.server.ts";
+import { rateKobo, DEFAULT_RATE_KOBO } from "../src/lib/sms/rates.ts";
 import { classifyDlrStatus, parseDlrPayload, checkDlrToken } from "../src/lib/sms/dlr.ts";
 
 test("parseSendResponse: success returns the message id", () => {
@@ -86,6 +87,35 @@ test("parseSendResponse: error status / HTTP failure is not ok", () => {
   assert.equal(r.ok, false);
   assert.equal(r.error, "BSNG-2012: Duplicate");
   assert.equal(parseSendResponse(500, {}, "234803").ok, false);
+});
+
+test("parseSendResponse: reads the documented nested error message", () => {
+  const body = { status: "error", code: "BSNG-2012", error: { message: "Duplicate message.", code: "BSNG-2012" } };
+  assert.equal(parseSendResponse(409, body, "2348031234567").error, "BSNG-2012: Duplicate message.");
+});
+
+test("signSms: names the community, caps long names, leaves empty text alone", () => {
+  assert.equal(signSms("BlueCedar", "Meeting on Sunday"), "BlueCedar: Meeting on Sunday");
+  assert.equal(signSms("A very long community name that goes on and on", "Hi").length, 34);
+  assert.equal(signSms("BlueCedar", "  "), "  ");
+});
+
+test("parseBalance: uses the spendable total, not just the SMS wallet", () => {
+  const body = { data: { status: "success" }, balance: { total_balance: 9884.24, universal_wallet: "9879.23", sms_wallet: "5.01" } };
+  assert.equal(parseBalance(body), 9884.24);
+  assert.equal(parseBalance({ balance: { sms_wallet: "5.01" } }), 5.01);
+  assert.equal(parseBalance({}), null);
+});
+
+test("rateKobo: env wins, and the fallback isn't below published cost", () => {
+  assert.ok(DEFAULT_RATE_KOBO >= Math.ceil(649 * 1.075));
+  const saved = process.env.SMS_RATE_DND_KOBO;
+  delete process.env.SMS_RATE_DND_KOBO;
+  assert.equal(rateKobo("dnd"), DEFAULT_RATE_KOBO);
+  process.env.SMS_RATE_DND_KOBO = "900";
+  assert.equal(rateKobo("dnd"), 900);
+  if (saved === undefined) delete process.env.SMS_RATE_DND_KOBO;
+  else process.env.SMS_RATE_DND_KOBO = saved;
 });
 
 test("parseSendResponse: a skipped recipient counts as failed (refunded)", () => {

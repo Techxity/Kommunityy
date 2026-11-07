@@ -10,7 +10,6 @@ export type LedgerKind = "topup" | "debit" | "refund" | "adjustment";
 
 export type SmsSettings = {
   enabled: boolean;
-  senderId: string | null;
   route: "dnd" | "generic";
   chBirthdays: boolean;
   chReminders: boolean;
@@ -32,13 +31,12 @@ export async function getBalanceKobo(communityId: string): Promise<number> {
 export async function getSmsSettings(communityId: string): Promise<SmsSettings> {
   await ensureSmsRows(communityId);
   const rows = await sql`
-    SELECT enabled, sender_id, route, ch_birthdays, ch_reminders, ch_broadcasts, low_balance_kobo
+    SELECT enabled, route, ch_birthdays, ch_reminders, ch_broadcasts, low_balance_kobo
     FROM public.community_sms_settings WHERE community_id = ${communityId}::uuid LIMIT 1
   `;
   const r = rows[0] ?? {};
   return {
     enabled: !!r.enabled,
-    senderId: (r.sender_id as string | null) ?? null,
     route: (r.route as "dnd" | "generic") ?? "dnd",
     chBirthdays: !!r.ch_birthdays,
     chReminders: !!r.ch_reminders,

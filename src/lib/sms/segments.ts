@@ -42,6 +42,15 @@ function gsm7Units(text: string): number {
   return n;
 }
 
+// All texts come from one shared sender ID, so a message that doesn't name its
+// community needs this to say who it's from. Lives here because the composer
+// must count these characters too, or its cost estimate falls short. Capped so a
+// long name can't push a short message onto a second page.
+export function signSms(communityName: string, body: string): string {
+  if (!body.trim()) return body;
+  return `${communityName.trim().slice(0, 30).trim()}: ${body}`;
+}
+
 export function segmentInfo(text: string): SegmentInfo {
   const gsm = isGsm7(text);
   const encoding: Encoding = gsm ? "gsm7" : "unicode";

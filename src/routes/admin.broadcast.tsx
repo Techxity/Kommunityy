@@ -4,7 +4,7 @@ import { Megaphone, Send, Mail, MessageSquare, AlertTriangle } from "lucide-reac
 import { listBroadcasts, sendBroadcast } from "@/lib/membership/broadcasts.functions";
 import { listMembers } from "@/lib/membership/members.functions";
 import { getSmsComposeInfo } from "@/lib/sms/sms.functions";
-import { segmentInfo } from "@/lib/sms/segments";
+import { segmentInfo, signSms } from "@/lib/sms/segments";
 import { requireModule } from "@/lib/module-gate";
 
 export const Route = createFileRoute("/admin/broadcast")({
@@ -43,7 +43,7 @@ function Broadcast() {
     refresh();
   }, []);
 
-  const seg = segmentInfo(body);
+  const seg = segmentInfo(signSms(sms?.communityName ?? "", body));
   const smsCostKobo = sms ? seg.pages * sms.ratePerPageKobo * sms.recipients : 0;
   const smsAffordable = sms ? smsCostKobo <= sms.balanceKobo : true;
 

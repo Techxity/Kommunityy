@@ -9,6 +9,7 @@ import { birthdayEmail } from "@/lib/email-templates";
 import { sendWhatsAppTemplate, isWhatsAppConfigured } from "@/lib/whatsapp";
 import { toDateOnlyString } from "@/lib/date-only";
 import { sendCommunitySms, type SmsTarget } from "@/lib/sms/send.server";
+import { signSms } from "@/lib/sms/segments";
 import { getSmsSettings, getBalanceKobo } from "@/lib/sms/wallet.server";
 
 // Whether SMS/WhatsApp are available for the birthday send channel chooser.
@@ -19,7 +20,7 @@ export const getBirthdaySendInfo = createServerFn({ method: "POST" })
     if (!communityId) return { smsAvailable: false, smsBalanceKobo: 0, whatsappConfigured: false };
     const settings = await getSmsSettings(communityId);
     return {
-      smsAvailable: settings.enabled && !!settings.senderId,
+      smsAvailable: settings.enabled,
       smsBalanceKobo: await getBalanceKobo(communityId),
       whatsappConfigured: isWhatsAppConfigured(),
     };
@@ -156,7 +157,7 @@ export const sendBirthdayMessages = createServerFn({ method: "POST" })
     );
 
     // SMS — explicit admin choice, so force past the automation toggle (still
-    // needs SMS enabled + a sender ID + wallet balance). Uses the phone field,
+    // needs SMS enabled + wallet balance). Uses the phone field,
     // falling back to the WhatsApp number.
     let smsSent = 0;
     let smsTotal = 0;
@@ -167,7 +168,7 @@ export const sendBirthdayMessages = createServerFn({ method: "POST" })
         memberId: m.id as string,
         phone: (m.phone as string | null) ?? (m.whatsapp as string | null) ?? null,
         optOut: !!m.sms_opt_out,
-        body: `Happy birthday, ${(m.name as string).split(" ")[0]}! ${message}`,
+        body: signSms(communityName, `Happy birthday, ${(m.name as string).split(" ")[0]}! ${message}`),
       }));
       smsTotal = smsTargets.filter((t) => t.phone && !t.optOut).length;
       const r = await sendCommunitySms({ communityId, channel: "birthday", targets: smsTargets, force: true });
