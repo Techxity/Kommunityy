@@ -35,6 +35,7 @@ function Dues() {
   const [history, setHistory] = useState<Payment[]>([]);
   const [activeMembers, setActiveMembers] = useState(0);
   const [arrears, setArrears] = useState<Arrears | null>(null);
+  const [arrearsError, setArrearsError] = useState("");
   const [reminding, setReminding] = useState<string | "all" | null>(null);
   const [remindMsg, setRemindMsg] = useState("");
   const [saving, setSaving] = useState(false);
@@ -61,7 +62,13 @@ function Dues() {
     getMyDuesPlan().then(setPlan);
     listDuesPayments().then(setHistory);
     getDashboardStats().then((s) => setActiveMembers(s.activeMembers));
-    getDuesArrears().then(setArrears);
+    loadArrears();
+  }
+
+  function loadArrears() {
+    getDuesArrears()
+      .then((a) => { setArrearsError(""); setArrears(a); })
+      .catch((err: any) => setArrearsError(err?.message ?? "Couldn't load members and arrears."));
   }
 
   async function remind(memberIds?: string[]) {
@@ -74,7 +81,7 @@ function Dues() {
       if (r.failed) parts.push(`${r.failed} failed`);
       if (r.skipped) parts.push(`${r.skipped} skipped (no email on file)`);
       setRemindMsg(parts.join(" · "));
-      getDuesArrears().then(setArrears);
+      loadArrears();
     } catch (err: any) {
       setRemindMsg(err?.message ?? "Couldn't send reminders.");
     } finally {
@@ -214,6 +221,7 @@ function Dues() {
       {recordFor && plan && (
         <RecordPaymentDialog
           members={arrears?.members ?? []}
+          loadError={arrearsError}
           initialMemberId={recordFor.memberId}
           interval={plan.interval}
           onClose={() => setRecordFor(null)}
@@ -283,6 +291,7 @@ function Dues() {
               <MiniStat icon={Banknote} label="Total outstanding" value={arrears?.summary?.totalOutstandingLabel ?? "—"} tone={arrears?.summary && (arrears.summary.outstandingNgn > 0 || arrears.summary.outstandingUsd > 0) ? "warn" : "default"} />
             </div>
 
+            {arrearsError && <p className="mx-4 mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">Couldn't load arrears: {arrearsError}</p>}
             {remindMsg && <p className="px-4 pt-3 text-xs text-muted-foreground">{remindMsg}</p>}
 
             <div className="overflow-x-auto">
@@ -534,12 +543,14 @@ function RatesCard({ interval, defaultLabel, onChanged }: { interval: string; de
 // as fully paid whatever was received.
 function RecordPaymentDialog({
   members,
+  loadError,
   initialMemberId,
   interval,
   onClose,
   onSaved,
 }: {
   members: Arrears["members"];
+  loadError: string;
   initialMemberId: string;
   interval: string;
   onClose: () => void;
@@ -611,6 +622,11 @@ function RecordPaymentDialog({
                 <option value="">Choose a member…</option>
                 {members.map((m) => (<option key={m.memberId} value={m.memberId}>{m.name}</option>))}
               </select>
+              {members.length === 0 && (
+                <p className="mt-1 text-xs text-destructive">
+                  {loadError ? `Couldn't load members: ${loadError}` : "No active members yet. Add or approve members first."}
+                </p>
+              )}
             </Field>
           </div>
           <Field label={`Number of ${unit}s`}>
