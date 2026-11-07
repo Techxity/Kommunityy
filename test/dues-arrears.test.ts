@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { periodsDue, laterYm, computeArrears, resolveMemberDues } from "../src/lib/dues-arrears.ts";
+import { periodsDue, laterYm, computeArrears, resolveMemberDues, resolveMemberPrice, primaryCurrencyOf, mergePaidTotals } from "../src/lib/dues-arrears.ts";
 
 test("periodsDue counts the current period as owed (monthly)", () => {
   // Same month → 1 period due.
@@ -119,4 +119,34 @@ test("computeArrears: quarterly plan tallies in quarters", () => {
   assert.equal(r.expectedPeriods, 3);
   assert.equal(r.arrearsPeriods, 2);
   assert.equal(r.amountOwed, 24000);
+});
+
+test("resolveMemberPrice: custom beats rate beats plan default", () => {
+  const plan = { amountNgn: 10000, amountUsd: 10 };
+  const rate = { amountNgn: 500000, amountUsd: null };
+  const custom = { amountNgn: 350000, amountUsd: null };
+  assert.deepEqual(resolveMemberPrice(plan, null, null), { ...plan, source: "plan" });
+  assert.deepEqual(resolveMemberPrice(plan, rate, null), { ...rate, source: "rate" });
+  assert.deepEqual(resolveMemberPrice(plan, rate, custom), { ...custom, source: "custom" });
+});
+
+test("resolveMemberPrice: an empty override falls through to the next level", () => {
+  const plan = { amountNgn: 10000, amountUsd: null };
+  const empty = { amountNgn: null, amountUsd: null };
+  assert.equal(resolveMemberPrice(plan, empty, empty).source, "plan");
+});
+
+test("resolveMemberPrice: a custom amount in one currency doesn't inherit the other", () => {
+  const price = resolveMemberPrice({ amountNgn: 10000, amountUsd: 10 }, null, { amountNgn: null, amountUsd: 200 });
+  assert.equal(price.amountNgn, null);
+  assert.equal(price.amountUsd, 200);
+  assert.equal(primaryCurrencyOf(price), "USD");
+});
+
+test("mergePaidTotals: adds linked and email-matched payments, keeps the latest", () => {
+  const linked = { paidPeriods: 2, lastPaid: "2026-10-01T00:00:00.000Z", lastCurrency: "NGN" as const };
+  const byEmail = { paidPeriods: 3, lastPaid: "2026-06-01T00:00:00.000Z", lastCurrency: "USD" as const };
+  assert.deepEqual(mergePaidTotals(linked, byEmail), { paidPeriods: 5, lastPaid: linked.lastPaid, lastCurrency: "NGN" });
+  assert.deepEqual(mergePaidTotals(undefined, byEmail), byEmail);
+  assert.equal(mergePaidTotals(undefined, undefined), undefined);
 });

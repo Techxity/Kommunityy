@@ -7,7 +7,17 @@
 import { sql } from "@/lib/db/client";
 import { parseYm, currentYm } from "@/lib/dues-period";
 import { toDateOnlyString } from "@/lib/date-only";
-import { computeArrears, laterYm, resolveMemberDues } from "@/lib/dues-arrears";
+import {
+  computeArrears,
+  laterYm,
+  mergePaidTotals,
+  primaryCurrencyOf,
+  resolveMemberDues,
+  resolveMemberPrice,
+  type DuesAmounts,
+  type DuesPriceSource,
+  type PaidTotals,
+} from "@/lib/dues-arrears";
 
 export type ArrearsMemberRow = {
   memberId: string;
@@ -21,6 +31,10 @@ export type ArrearsMemberRow = {
   paidPeriods: number;
   periodsBehind: number;
   amountOwed: number;
+  unitAmount: number; // what this member pays per period, in `currency`
+  priceSource: DuesPriceSource;
+  rateName: string | null;
+  duesPayToken: string;
   lastPaidAt: string | null; // ISO instant, or null if they've never paid
   lastRemindedAt: string | null; // ISO instant, or null if never reminded
 };
@@ -36,6 +50,27 @@ export type CommunityArrears = {
   } | null;
   members: ArrearsMemberRow[]; // all active members, defaulters first
 };
+
+const numOrNull = (v: unknown) => (v != null ? Number(v) : null);
+
+// One member's price per period, for checkout and charge validation. Scoped to
+// the community so a member id can only ever price that community's dues.
+export async function loadMemberPrice(memberId: string, communityId: string, plan: DuesAmounts) {
+  const rows = await sql`
+    SELECT m.dues_custom_ngn, m.dues_custom_usd, r.amount_ngn AS rate_ngn, r.amount_usd AS rate_usd
+    FROM public.members m
+    LEFT JOIN public.dues_rates r ON r.id = m.dues_rate_id
+    WHERE m.id = ${memberId}::uuid AND m.community_id = ${communityId}::uuid
+    LIMIT 1
+  `;
+  const r = rows[0];
+  if (!r) return resolveMemberPrice(plan, null, null);
+  return resolveMemberPrice(
+    plan,
+    { amountNgn: numOrNull(r.rate_ngn), amountUsd: numOrNull(r.rate_usd) },
+    { amountNgn: numOrNull(r.dues_custom_ngn), amountUsd: numOrNull(r.dues_custom_usd) },
+  );
+}
 
 // Computes arrears for every active member of a community. Returns plan: null
 // (and no members) when the community has no active dues plan — there's nothing
@@ -62,22 +97,25 @@ export async function computeCommunityArrears(communityId: string): Promise<Comm
   const nowYm = currentYm();
 
   const memberRows = await sql`
-    SELECT id, name, email, phone, whatsapp, sms_opt_out,
-           COALESCE(joined_at, created_at) AS since,
-           last_dues_reminder_at
-    FROM public.members
-    WHERE community_id = ${communityId}::uuid AND status = 'active'
-    ORDER BY name ASC
+    SELECT m.id, m.name, m.email, m.phone, m.whatsapp, m.sms_opt_out,
+           COALESCE(m.joined_at, m.created_at) AS since,
+           m.last_dues_reminder_at, m.dues_pay_token, m.dues_custom_ngn, m.dues_custom_usd,
+           r.name AS rate_name, r.amount_ngn AS rate_ngn, r.amount_usd AS rate_usd
+    FROM public.members m
+    LEFT JOIN public.dues_rates r ON r.id = m.dues_rate_id
+    WHERE m.community_id = ${communityId}::uuid AND m.status = 'active'
+    ORDER BY m.name ASC
   `;
 
-  // Dues payments key by member_email (the pay link is public and collects an
-  // email, not a member id), so paid periods are aggregated by lowercased
-  // email and matched back to members. A member with no email on file can't be
-  // matched — they show as 0 paid and are flagged in the UI as "no email".
+  // Payments made or recorded since member_id existed are linked directly.
+  // Older ones (and pay-link payments from an unrecognised email) only carry
+  // member_email, so those are matched by lowercased email. A row with a
+  // member_id never falls into the email bucket, so nothing counts twice.
   // last_currency = the currency of the member's most recent payment, so we
   // bill their arrears in the currency they actually use.
   const payRows = await sql`
-    SELECT lower(dp.member_email) AS email,
+    SELECT dp.member_id,
+           CASE WHEN dp.member_id IS NULL THEN lower(dp.member_email) END AS email,
            COALESCE(SUM(dp.months), 0) AS paid_periods,
            MAX(dp.paid_at) AS last_paid,
            (ARRAY_AGG(dp.currency ORDER BY dp.paid_at DESC))[1] AS last_currency
@@ -85,27 +123,32 @@ export async function computeCommunityArrears(communityId: string): Promise<Comm
     JOIN public.dues_plans p ON p.id = dp.plan_id
     WHERE p.community_id = ${communityId}::uuid
       AND dp.status = 'paid'
-      AND dp.member_email IS NOT NULL
-    GROUP BY lower(dp.member_email)
+      AND (dp.member_id IS NOT NULL OR dp.member_email IS NOT NULL)
+    GROUP BY dp.member_id, CASE WHEN dp.member_id IS NULL THEN lower(dp.member_email) END
   `;
-  const paidByEmail = new Map<
-    string,
-    { paidPeriods: number; lastPaid: string | null; lastCurrency: "NGN" | "USD" | null }
-  >();
+  const paidById = new Map<string, PaidTotals>();
+  const paidByEmail = new Map<string, PaidTotals>();
   for (const r of payRows) {
-    paidByEmail.set(r.email as string, {
+    const totals: PaidTotals = {
       paidPeriods: Number(r.paid_periods ?? 0),
       lastPaid: r.last_paid ? new Date(r.last_paid as string).toISOString() : null,
       lastCurrency: (r.last_currency as "NGN" | "USD" | null) ?? null,
-    });
+    };
+    if (r.member_id) paidById.set(r.member_id as string, totals);
+    else paidByEmail.set(r.email as string, totals);
   }
 
   const members: ArrearsMemberRow[] = memberRows.map((m) => {
     const email = (m.email as string | null) ?? null;
-    const paid = email ? paidByEmail.get(email.toLowerCase()) : undefined;
+    const paid = mergePaidTotals(paidById.get(m.id as string), email ? paidByEmail.get(email.toLowerCase()) : undefined);
     const joinedYm = parseYm(toDateOnlyString(m.since));
     const startYm = laterYm(planStartYm, joinedYm);
-    const { currency, unitAmount } = resolveMemberDues(paid?.lastCurrency, amountNgn, amountUsd, primaryCurrency);
+    const price = resolveMemberPrice(
+      { amountNgn, amountUsd },
+      { amountNgn: numOrNull(m.rate_ngn), amountUsd: numOrNull(m.rate_usd) },
+      { amountNgn: numOrNull(m.dues_custom_ngn), amountUsd: numOrNull(m.dues_custom_usd) },
+    );
+    const { currency, unitAmount } = resolveMemberDues(paid?.lastCurrency, price.amountNgn, price.amountUsd, primaryCurrencyOf(price));
     const a = computeArrears({ startYm, nowYm, interval, paidPeriods: paid?.paidPeriods ?? 0, unitAmount });
     return {
       memberId: m.id as string,
@@ -119,6 +162,10 @@ export async function computeCommunityArrears(communityId: string): Promise<Comm
       paidPeriods: a.paidPeriods,
       periodsBehind: a.arrearsPeriods,
       amountOwed: a.amountOwed,
+      unitAmount,
+      priceSource: price.source,
+      rateName: (m.rate_name as string | null) ?? null,
+      duesPayToken: m.dues_pay_token as string,
       lastPaidAt: paid?.lastPaid ?? null,
       lastRemindedAt: m.last_dues_reminder_at
         ? new Date(m.last_dues_reminder_at as string).toISOString()

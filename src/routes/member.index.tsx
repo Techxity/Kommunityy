@@ -35,7 +35,7 @@ function isBirthdayToday(dob: string): boolean {
 function MemberHome() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
   const [ballot, setBallot] = useState<Ballot | null>(null);
-  const [dues, setDues] = useState<DuesInfo>({ plan: null, coverage: { nextDue: null }, history: [] });
+  const [dues, setDues] = useState<DuesInfo>({ plan: null, payToken: null, coverage: { nextDue: null }, history: [] });
   const [broadcasts, setBroadcasts] = useState<Broadcasts>([]);
   const [executives, setExecutives] = useState<Executives>([]);
   const [callTree, setCallTree] = useState<CallTreeHistory>([]);

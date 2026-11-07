@@ -183,7 +183,7 @@ function Reports() {
                 <Tile icon={Banknote} label="Gross collected" value={money(s.currency, s.gross)} sub={`${s.count} payments`} />
                 <Tile icon={Receipt} label="Platform fees" value={money(s.currency, s.fees)} sub="deducted" />
                 <Tile icon={Wallet} label="Net to community" value={money(s.currency, s.net)} sub="after fees" strong />
-                <Tile icon={Banknote} label="Dues / Donations" value={`${money(s.currency, s.duesGross)} / ${money(s.currency, s.donationsGross)}`} sub="paid online" />
+                <Tile icon={Banknote} label="Dues / Donations" value={`${money(s.currency, s.duesGross)} / ${money(s.currency, s.donationsGross)}`} sub="gross split" />
                 {s.recordedGross > 0 && (
                   <Tile icon={NotebookPen} label="Recorded income" value={money(s.currency, s.recordedGross)} sub="transfers & cash" />
                 )}
@@ -396,6 +396,9 @@ function IncomeSection({ income, onChanged }: { income: Income[]; onChanged: () 
           )}
         </div>
       </div>
+      {form.category === "Dues" && (
+        <p className="px-4 pt-2 text-xs text-muted-foreground">To mark a member as paid, use Dues → Record payment instead. Adding the same money here as well would count it twice.</p>
+      )}
       {error && <p className="px-4 pt-2 text-xs text-destructive">{error}</p>}
 
       {/* List */}

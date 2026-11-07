@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { listMembers, updateMember, setMembersStatus, bulkCreateMembers, resetMemberLogin, promoteMemberToAdmin, demoteMemberAdmin, getMyMembershipHere, joinMyCommunityAsMember } from "@/lib/membership/members.functions";
+import { listMembers, updateMember, setMembersStatus, bulkCreateMembers, resetMemberLogin, promoteMemberToAdmin, demoteMemberAdmin, getMyMembershipHere, joinMyCommunityAsMember, setMembersRate } from "@/lib/membership/members.functions";
+import { listDuesRates } from "@/lib/payments/dues-rates.functions";
 import { listMyChapters } from "@/lib/membership/chapters.functions";
 import { sendInvites } from "@/lib/membership/invites.functions";
 import { resendMemberInvite } from "@/lib/membership/member-accounts.functions";
@@ -35,12 +36,20 @@ export const Route = createFileRoute("/admin/members/")({
 });
 
 type Member = Awaited<ReturnType<typeof listMembers>>[number];
+type DuesRate = Awaited<ReturnType<typeof listDuesRates>>[number];
+
+// What the member pays relative to the plan, in the order pricing resolves.
+function duesLabel(m: Member, rates: DuesRate[]): string {
+  if (m.duesCustomNgn != null || m.duesCustomUsd != null) return "Custom";
+  return rates.find((r) => r.id === m.duesRateId)?.name ?? "Default";
+}
 type Chapter = { id: string; name: string };
 
 function MembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [rates, setRates] = useState<DuesRate[]>([]);
   const [query, setQuery] = useState("");
   const [showInvite, setShowInvite] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
@@ -140,6 +149,19 @@ function MembersPage() {
     }
   }
 
+  async function applyRate(value: string) {
+    if (!value) return;
+    try {
+      await setMembersRate({ data: { ids: Array.from(selected), rateId: value === "default" ? null : value } });
+      setSelected(new Set());
+      refresh();
+      listDuesRates().then(setRates).catch(() => {});
+    } catch (err: any) {
+      setInviteNote(err?.message ?? "Couldn't set the rate.");
+      setTimeout(() => setInviteNote(""), 6000);
+    }
+  }
+
   function refresh() {
     listMembers({ data: {} }).then((all) => {
       setMembers(all.filter((m) => m.status === "active" || m.status === "inactive"));
@@ -150,6 +172,7 @@ function MembersPage() {
   useEffect(() => {
     refresh();
     getMyMembershipHere().then((s) => setIAmMember(s.isMember)).catch(() => setIAmMember(null));
+    listDuesRates().then(setRates).catch(() => setRates([]));
     listMyChapters().then((rows) => setChapters(rows.map((c) => ({ id: c.id, name: c.name }))));
   }, []);
 
@@ -224,12 +247,12 @@ function MembersPage() {
       const extraKeys = Array.from(new Set(all.flatMap((m) => Object.keys(m.extra ?? {}))));
       const headers = [
         "Name", "Email", "Phone", "WhatsApp", "Date of Birth", "Gender", "Role",
-        "Chapter", "Country", "Address", "Status", "Joined", "Has account",
+        "Chapter", "Country", "Address", "Status", "Joined", "Has account", "Dues rate", "Custom dues NGN", "Custom dues USD",
         ...extraKeys,
       ];
       const rows = all.map((m) => [
         m.name, m.email, m.phone, m.whatsapp, m.dob, m.gender, m.role,
-        m.chapter, m.country, m.address, m.status, m.joined, m.hasAccount ? "Yes" : "No",
+        m.chapter, m.country, m.address, m.status, m.joined, m.hasAccount ? "Yes" : "No", duesLabel(m, rates), m.duesCustomNgn ?? "", m.duesCustomUsd ?? "",
         ...extraKeys.map((k) => m.extra?.[k] ?? ""),
       ]);
       downloadCsv(`members-${new Date().toISOString().slice(0, 10)}`, headers, rows);
@@ -252,6 +275,9 @@ function MembersPage() {
         country: updated.country || undefined,
         chapterId: updated.chapterId || null,
         status: updated.status as "pending" | "active" | "inactive" | "rejected",
+        duesRateId: updated.duesRateId || null,
+        duesCustomNgn: updated.duesCustomNgn,
+        duesCustomUsd: updated.duesCustomUsd,
       },
     });
     setEditing(null);
@@ -383,7 +409,20 @@ function MembersPage() {
                 </span>
               )}
             </label>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              {rates.length > 0 && (
+                <select
+                  aria-label="Set dues rate for selected members"
+                  disabled={selected.size === 0}
+                  value=""
+                  onChange={(e) => applyRate(e.target.value)}
+                  className="rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground disabled:opacity-40"
+                >
+                  <option value="">Set rate…</option>
+                  <option value="default">Plan default</option>
+                  {rates.map((r) => (<option key={r.id} value={r.id}>{r.name}</option>))}
+                </select>
+              )}
               <button
                 disabled={selected.size === 0}
                 onClick={() => { setStatus(selected, "inactive"); setSelected(new Set()); }}
@@ -419,6 +458,7 @@ function MembersPage() {
                 <th className="px-4 py-3 font-medium">Role</th>
                 <th className="px-4 py-3 font-medium">Chapter</th>
                 <th className="px-4 py-3 font-medium">Country</th>
+                <th className="px-4 py-3 font-medium">Dues</th>
                 <th className="px-4 py-3 font-medium">Phone</th>
                 <th className="px-4 py-3 font-medium">Joined</th>
                 <th className="px-4 py-3 font-medium">Status</th>
@@ -457,6 +497,7 @@ function MembersPage() {
                     <td className="px-4 py-3">{m.role}</td>
                     <td className="px-4 py-3 text-muted-foreground">{m.chapter}</td>
                     <td className="px-4 py-3 text-muted-foreground">{m.country}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{duesLabel(m, rates)}</td>
                     <td className="px-4 py-3 text-muted-foreground">{m.phone}</td>
                     <td className="px-4 py-3 text-muted-foreground">{m.joined}</td>
                     <td className="px-4 py-3">
@@ -531,7 +572,7 @@ function MembersPage() {
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  <td colSpan={10} className="px-4 py-8 text-center text-sm text-muted-foreground">
                     No members match your filters.
                   </td>
                 </tr>
@@ -546,6 +587,7 @@ function MembersPage() {
           member={editing}
           chapters={chapters}
           roles={roles}
+          rates={rates}
           countries={countries}
           onClose={() => setEditing(null)}
           onSave={saveEdit}
@@ -610,9 +652,11 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   chapter: ["chapter"],
   dob: ["dob", "date of birth", "birthday"],
   gender: ["gender", "sex"],
+  rate: ["rate", "dues rate"],
+  duesAmount: ["dues amount", "custom dues", "rent"],
 };
 
-type BulkRow = { name: string; email?: string; phone?: string; whatsapp?: string; role?: string; chapter?: string; dob?: string; gender?: "Male" | "Female" };
+type BulkRow = { name: string; email?: string; phone?: string; whatsapp?: string; role?: string; chapter?: string; dob?: string; gender?: "Male" | "Female"; rate?: string; duesAmount?: number };
 
 function parseBulkCsv(text: string): { rows: BulkRow[]; invalidCount: number; headerError: string | null } {
   const table = parseCsv(text);
@@ -649,6 +693,7 @@ function parseBulkCsv(text: string): { rows: BulkRow[]; invalidCount: number; he
       continue;
     }
     const dobRaw = get("dob");
+    const duesAmount = Number(get("duesAmount").replace(/[^\d.]/g, ""));
     rows.push({
       name,
       email: emailValid ? email : undefined,
@@ -658,6 +703,8 @@ function parseBulkCsv(text: string): { rows: BulkRow[]; invalidCount: number; he
       chapter: get("chapter") || undefined,
       dob: /^\d{4}-\d{2}-\d{2}$/.test(dobRaw) ? dobRaw : undefined,
       gender: parseGender(get("gender")),
+      rate: get("rate") || undefined,
+      duesAmount: duesAmount > 0 ? duesAmount : undefined,
     });
   }
   return { rows, invalidCount, headerError: null };
@@ -887,6 +934,7 @@ function EditMemberModal({
   member,
   chapters,
   roles,
+  rates,
   countries,
   onClose,
   onSave,
@@ -894,6 +942,7 @@ function EditMemberModal({
   member: Member;
   chapters: Chapter[];
   roles: string[];
+  rates: DuesRate[];
   countries: string[];
   onClose: () => void;
   onSave: (m: Member) => void;
@@ -951,6 +1000,18 @@ function EditMemberModal({
             <datalist id="country-options">
               {countries.map((c) => (<option key={c} value={c} />))}
             </datalist>
+          </Field>
+          <Field label="Dues rate">
+            <select value={draft.duesRateId} onChange={(e) => update("duesRateId", e.target.value)} className="input">
+              <option value="">Plan default</option>
+              {rates.map((r) => (<option key={r.id} value={r.id}>{r.name}</option>))}
+            </select>
+          </Field>
+          <Field label="Custom amount ₦ (overrides the rate)">
+            <input inputMode="decimal" value={draft.duesCustomNgn ?? ""} onChange={(e) => update("duesCustomNgn", Number(e.target.value.replace(/[^\d.]/g, "")) || null)} className="input" />
+          </Field>
+          <Field label="Custom amount $ (overrides the rate)">
+            <input inputMode="decimal" value={draft.duesCustomUsd ?? ""} onChange={(e) => update("duesCustomUsd", Number(e.target.value.replace(/[^\d.]/g, "")) || null)} className="input" />
           </Field>
           <Field label="Status">
             <select value={draft.status} onChange={(e) => update("status", e.target.value)} className="input">

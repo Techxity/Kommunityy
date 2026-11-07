@@ -83,6 +83,24 @@ The **Arrears & defaulters** section is the heart of dues management. It shows:
 - Click **Remind all** to nudge every defaulter at once.
 Members with no email or phone on file are flagged and skipped. Automated reminders also go out on a schedule, and each member is only reminded about once a month so nobody is spammed.
 
+### Different amounts for different members
+
+If members pay different dues or rent, go to **Dues → Rates** and add a rate for each amount, such as "2-bed flat ₦500,000". Then assign rates on the **Members** page: open a member to set their rate, or tick several members and use **Set rate**. You can also add a "Rate" column to a bulk upload.
+
+For a one-off exception, type a custom amount on the member instead. A member's price is their custom amount if they have one, otherwise their rate, otherwise your plan's default amount.
+
+Changing a rate also changes what's shown as owed for periods those members are already behind on.
+
+Members on a rate or custom amount pay through their own link, which their reminders include automatically. They can also sign in and pay from their dues page. If they use the shared pay link, they're asked to use their personal link or sign in, so nobody can look up what someone else pays.
+
+### Record a bank transfer or cash payment
+
+When a member pays straight into your account, click **Record payment** at the top of the Dues page, or **Record** beside their name. Choose how many periods it covers and enter the amount received. The member is marked as paid, reminders stop, and the money appears in your financial report. It isn't added to your payout balance, because it's already in your account.
+
+Each period you choose counts as fully paid, even if the amount received is less. If you make a mistake, delete the entry from **Payment history**.
+
+Don't also add the same money under **Recorded income** on the financial report, or it will be counted twice.
+
 ### Payment history
 The **Payment history** table lists every dues payment recorded, newest first.
 

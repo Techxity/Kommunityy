@@ -58,6 +58,9 @@ function mapRow(r: Record<string, unknown>) {
     communityName: (r.community_name as string | null) ?? "",
     smsOptOut: !!r.sms_opt_out,
     isAdmin: !!r.is_admin,
+    duesRateId: (r.dues_rate_id as string | null) ?? "",
+    duesCustomNgn: r.dues_custom_ngn != null ? Number(r.dues_custom_ngn) : null,
+    duesCustomUsd: r.dues_custom_usd != null ? Number(r.dues_custom_usd) : null,
   };
 }
 
@@ -267,6 +270,9 @@ export const updateMember = createServerFn({ method: "POST" })
         country: z.string().max(80).optional(),
         chapterId: z.string().uuid().optional().nullable(),
         status: z.enum(["pending", "active", "inactive", "rejected"]),
+        duesRateId: z.string().uuid().optional().nullable(),
+        duesCustomNgn: z.number().positive().max(1_000_000_000).optional().nullable(),
+        duesCustomUsd: z.number().positive().max(1_000_000_000).optional().nullable(),
       })
       .parse(i),
   )
@@ -292,6 +298,9 @@ export const updateMember = createServerFn({ method: "POST" })
         country = ${data.country ?? null},
         chapter_id = ${data.chapterId ?? null},
         status = ${data.status},
+        dues_rate_id = (SELECT id FROM public.dues_rates WHERE id = ${data.duesRateId ?? null}::uuid AND community_id = ${communityId}::uuid),
+        dues_custom_ngn = ${data.duesCustomNgn ?? null},
+        dues_custom_usd = ${data.duesCustomUsd ?? null},
         joined_at = CASE WHEN ${data.status} = 'active' AND joined_at IS NULL THEN now() ELSE joined_at END,
         updated_at = now()
       WHERE id = ${data.id}::uuid AND community_id = ${communityId}::uuid
@@ -302,6 +311,25 @@ export const updateMember = createServerFn({ method: "POST" })
     if (data.status === "active") {
       await ensureMemberInvite(data.id).catch(() => {});
     }
+    return { ok: true };
+  });
+
+// Puts several members on one rate at once (null = back to the plan default).
+// A member's custom amount, if any, still wins over the rate.
+export const setMembersRate = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((i) => z.object({ ids: z.array(z.string().uuid()).min(1).max(5000), rateId: z.string().uuid().nullable() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const communityId = await communityIdForAdmin(context.userId, context.activeCommunityId);
+    if (!communityId) throw new Error("You don't manage a community yet.");
+    if (data.rateId) {
+      const rates = await sql`SELECT id FROM public.dues_rates WHERE id = ${data.rateId}::uuid AND community_id = ${communityId}::uuid`;
+      if (!rates[0]) throw new Error("Rate not found.");
+    }
+    await sql`
+      UPDATE public.members SET dues_rate_id = ${data.rateId}::uuid, updated_at = now()
+      WHERE id = ANY(${data.ids}::uuid[]) AND community_id = ${communityId}::uuid
+    `;
     return { ok: true };
   });
 
@@ -329,6 +357,8 @@ export const bulkCreateMembers = createServerFn({ method: "POST" })
               gender: z.enum(GENDER_OPTIONS).optional(),
               role: z.string().max(60).optional(),
               chapter: z.string().max(120).optional(),
+              rate: z.string().max(120).optional(),
+              duesAmount: z.number().positive().max(1_000_000_000).optional(),
             }),
           )
           .min(1)
@@ -344,7 +374,7 @@ export const bulkCreateMembers = createServerFn({ method: "POST" })
     // one; rows with neither are dropped (the uploader already filters these).
     type Norm = {
       name: string; email: string | null; phone: string | null; phoneNorm: string | null;
-      whatsapp?: string; dob?: string; gender?: string; role?: string; chapter?: string;
+      whatsapp?: string; dob?: string; gender?: string; role?: string; chapter?: string; rate?: string; duesAmount?: number;
     };
     const norm: Norm[] = [];
     for (const r of data.rows) {
@@ -352,7 +382,7 @@ export const bulkCreateMembers = createServerFn({ method: "POST" })
       const phone = (r.phone ?? "").trim() || null;
       const phoneNorm = phone ? normalizeNgPhone(phone) : null;
       if (!email && !phoneNorm) continue;
-      norm.push({ name: r.name, email, phone, phoneNorm, whatsapp: r.whatsapp, dob: r.dob, gender: r.gender, role: r.role, chapter: r.chapter });
+      norm.push({ name: r.name, email, phone, phoneNorm, whatsapp: r.whatsapp, dob: r.dob, gender: r.gender, role: r.role, chapter: r.chapter, rate: r.rate, duesAmount: r.duesAmount });
     }
     if (norm.length === 0) throw new Error("No valid rows — each member needs a name and an email or a phone number.");
 
@@ -383,6 +413,16 @@ export const bulkCreateMembers = createServerFn({ method: "POST" })
 
     const chapterRows = await sql`SELECT id, name FROM public.chapters WHERE community_id = ${communityId}::uuid`;
     const chapterByName = new Map(chapterRows.map((c) => [String(c.name).toLowerCase(), c.id as string]));
+    const rateRows = await sql`SELECT id, name FROM public.dues_rates WHERE community_id = ${communityId}::uuid`;
+    const rateByName = new Map(rateRows.map((r) => [String(r.name).toLowerCase(), r.id as string]));
+    // A spreadsheet's "dues amount" has no currency, so it's taken to be the
+    // plan's main one.
+    const planRows = await sql`
+      SELECT amount_ngn FROM public.dues_plans
+      WHERE community_id = ${communityId}::uuid AND active = true
+      ORDER BY created_at DESC LIMIT 1
+    `;
+    const customInUsd = !!planRows[0] && planRows[0].amount_ngn == null;
 
     // Bare "YYYY-MM-DD" only — anything else from a messy spreadsheet cell is
     // dropped rather than guessed at (ambiguous MM/DD vs DD/MM date formats
@@ -401,12 +441,15 @@ export const bulkCreateMembers = createServerFn({ method: "POST" })
         gender: r.gender ?? null,
         role: r.role ?? null,
         chapter_id: r.chapter ? (chapterByName.get(r.chapter.toLowerCase()) ?? null) : null,
+        dues_rate_id: r.rate ? (rateByName.get(r.rate.toLowerCase()) ?? null) : null,
+        dues_custom_ngn: customInUsd ? null : (r.duesAmount ?? null),
+        dues_custom_usd: customInUsd ? (r.duesAmount ?? null) : null,
       }));
       const inserted = await sql`
-        INSERT INTO public.members (community_id, name, email, phone, whatsapp, dob, gender, role, chapter_id, status, joined_at)
-        SELECT ${communityId}::uuid, x.name, x.email, x.phone, x.whatsapp, x.dob::date, x.gender, x.role, x.chapter_id::uuid, 'active', now()
+        INSERT INTO public.members (community_id, name, email, phone, whatsapp, dob, gender, role, chapter_id, dues_rate_id, dues_custom_ngn, dues_custom_usd, status, joined_at)
+        SELECT ${communityId}::uuid, x.name, x.email, x.phone, x.whatsapp, x.dob::date, x.gender, x.role, x.chapter_id::uuid, x.dues_rate_id::uuid, x.dues_custom_ngn, x.dues_custom_usd, 'active', now()
         FROM jsonb_to_recordset(${JSON.stringify(payload)}::jsonb)
-          AS x(name text, email text, phone text, whatsapp text, dob text, gender text, role text, chapter_id text)
+          AS x(name text, email text, phone text, whatsapp text, dob text, gender text, role text, chapter_id text, dues_rate_id text, dues_custom_ngn numeric, dues_custom_usd numeric)
         RETURNING id, email
       `;
       // Only members with an email get a setup-invite email; phone-only members

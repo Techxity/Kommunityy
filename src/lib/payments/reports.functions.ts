@@ -132,10 +132,12 @@ export const getFinancialReport = createServerFn({ method: "POST" })
       else e.recorded += n(r.gross);
     }
 
-    // Member dues contributions (range).
+    // Member dues contributions (range). Grouped by member, falling back to
+    // email, so a phone-only member gets their own row and someone with both
+    // older email-only payments and newer linked ones doesn't appear twice.
     const memberRows = await sql`
       SELECT COALESCE(NULLIF(MAX(dp.member_name), ''), '—') AS name,
-             lower(COALESCE(dp.member_email, '')) AS email,
+             lower(COALESCE(MAX(dp.member_email), '')) AS email,
              dp.currency,
              COALESCE(SUM(dp.amount), 0) AS total,
              COALESCE(SUM(dp.months), 0) AS periods,
@@ -143,22 +145,28 @@ export const getFinancialReport = createServerFn({ method: "POST" })
              MAX(dp.paid_at) AS last_paid
       FROM public.dues_payments dp
       JOIN public.dues_plans p ON p.id = dp.plan_id
+      LEFT JOIN LATERAL (
+        SELECT m.id FROM public.members m
+        WHERE dp.member_id IS NULL AND m.community_id = p.community_id AND lower(m.email) = lower(dp.member_email)
+        LIMIT 1
+      ) matched ON true
       WHERE p.community_id = ${communityId}::uuid AND dp.status = 'paid'
         AND (${from}::date IS NULL OR dp.paid_at >= ${from}::date)
         AND (${to}::date IS NULL OR dp.paid_at < (${to}::date + INTERVAL '1 day'))
-      GROUP BY lower(COALESCE(dp.member_email, '')), dp.currency
+      GROUP BY COALESCE(dp.member_id, matched.id)::text, CASE WHEN COALESCE(dp.member_id, matched.id) IS NULL THEN lower(dp.member_email) END, dp.currency
       ORDER BY total DESC
       LIMIT 500
     `;
 
     // All-time funds position: lifetime net collected vs lifetime paid out.
-    // Recorded income is deliberately left out: it went straight into the
-    // community's own account and was never held on the platform.
+    // Recorded income and recorded dues transfers (settlement_mode 'direct')
+    // are deliberately left out: they went straight into the community's own
+    // account and were never held on the platform.
     const lifetimeNet = await sql`
       SELECT currency, COALESCE(SUM(net), 0) AS net FROM (
         SELECT dp.currency, dp.community_net AS net
         FROM public.dues_payments dp JOIN public.dues_plans p ON p.id = dp.plan_id
-        WHERE p.community_id = ${communityId}::uuid AND dp.status = 'paid'
+        WHERE p.community_id = ${communityId}::uuid AND dp.status = 'paid' AND dp.settlement_mode <> 'direct'
         UNION ALL
         SELECT dp.currency, dp.community_net AS net
         FROM public.donation_payments dp JOIN public.donations d ON d.id = dp.donation_id

@@ -58,6 +58,11 @@ export async function runDuesReminderJob(baseUrl: string): Promise<DuesReminderJ
     if (eligible.length === 0) continue;
 
     const amountLabel = (m: (typeof eligible)[number]) => `${m.currency === "NGN" ? "₦" : "$"}${Math.round(m.amountOwed).toLocaleString()}`;
+    // Members on their own price need the personal link; the shared one only
+    // shows the plan default. Others keep the shorter link, so their texts
+    // don't grow and cost an extra page.
+    const memberPayUrl = (m: (typeof eligible)[number]) =>
+      payUrl && m.priceSource !== "plan" ? `${payUrl}?m=${m.duesPayToken}` : payUrl;
 
     const messages = eligible
       .filter((m) => m.email)
@@ -72,7 +77,7 @@ export async function runDuesReminderJob(baseUrl: string): Promise<DuesReminderJ
           amountLabel: amountLabel(m),
           periodsBehind: m.periodsBehind,
           periodWord,
-          payUrl,
+          payUrl: memberPayUrl(m),
         }),
       }));
 
@@ -89,7 +94,7 @@ export async function runDuesReminderJob(baseUrl: string): Promise<DuesReminderJ
         memberId: m.memberId,
         phone: m.phone,
         optOut: m.smsOptOut,
-        body: `Hi ${first(m.name)}, your ${communityName} dues are ${m.periodsBehind} ${periodWord}${m.periodsBehind === 1 ? "" : "s"} behind (${amountLabel(m)}).${payUrl ? ` Pay: ${payUrl}` : ""}`,
+        body: `Hi ${first(m.name)}, your ${communityName} dues are ${m.periodsBehind} ${periodWord}${m.periodsBehind === 1 ? "" : "s"} behind (${amountLabel(m)}).${payUrl ? ` Pay: ${memberPayUrl(m)}` : ""}`,
       })),
     });
     totalSmsSent += sms.sent;

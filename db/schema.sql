@@ -23,7 +23,7 @@ DO $$ BEGIN
   CREATE TYPE public.payment_currency AS ENUM ('NGN', 'USD');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
-  CREATE TYPE public.payment_provider AS ENUM ('paystack', 'stripe');
+  CREATE TYPE public.payment_provider AS ENUM ('paystack', 'stripe', 'manual');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   CREATE TYPE public.dues_interval AS ENUM ('monthly', 'quarterly', 'yearly');
@@ -202,6 +202,21 @@ CREATE TABLE IF NOT EXISTS public.chapters (
 );
 CREATE INDEX IF NOT EXISTS chapters_community_id_idx ON public.chapters(community_id);
 
+-- ── Dues rates (see db/migrations/032_member_dues_rates.sql) ────────────
+-- Named prices assigned to members. Belong to the community, not a plan,
+-- because saveDuesPlan replaces the plan row on every edit.
+CREATE TABLE IF NOT EXISTS public.dues_rates (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  community_id uuid NOT NULL REFERENCES public.communities(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  amount_ngn numeric(12,2) CHECK (amount_ngn > 0),
+  amount_usd numeric(12,2) CHECK (amount_usd > 0),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (amount_ngn IS NOT NULL OR amount_usd IS NOT NULL)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS dues_rates_community_name_idx ON public.dues_rates(community_id, lower(name));
+
 -- ── Members ─────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.members (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -226,8 +241,13 @@ CREATE TABLE IF NOT EXISTS public.members (
   last_birthday_sent_year int,
   last_birthday_sent_at timestamptz,
   last_dues_reminder_at timestamptz,
-  sms_opt_out boolean NOT NULL DEFAULT false
+  sms_opt_out boolean NOT NULL DEFAULT false,
+  dues_rate_id uuid REFERENCES public.dues_rates(id) ON DELETE SET NULL,
+  dues_custom_ngn numeric(12,2) CHECK (dues_custom_ngn > 0),
+  dues_custom_usd numeric(12,2) CHECK (dues_custom_usd > 0),
+  dues_pay_token text NOT NULL DEFAULT substr(replace(gen_random_uuid()::text, '-', ''), 1, 16)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS members_dues_pay_token_idx ON public.members(dues_pay_token);
 CREATE INDEX IF NOT EXISTS members_community_id_idx ON public.members(community_id);
 CREATE INDEX IF NOT EXISTS members_status_idx ON public.members(community_id, status);
 -- Hot path: every member-facing lookup resolves the row via user_id.
@@ -346,12 +366,18 @@ CREATE TABLE IF NOT EXISTS public.dues_payments (
   paystack_fee numeric NOT NULL DEFAULT 0,
   platform_fee numeric NOT NULL DEFAULT 0,
   community_net numeric NOT NULL DEFAULT 0,
-  settlement_mode text NOT NULL DEFAULT 'platform_held' CHECK (settlement_mode IN ('platform_held', 'subaccount_split')),
+  -- 'direct' = a transfer the admin recorded; it never reached the platform,
+  -- so it stays out of the payout balance.
+  settlement_mode text NOT NULL DEFAULT 'platform_held' CHECK (settlement_mode IN ('platform_held', 'subaccount_split', 'direct')),
   -- Multi-month dues: one payment can cover several billing periods.
   months int NOT NULL DEFAULT 1,
   period_start date,
+  member_id uuid REFERENCES public.members(id) ON DELETE SET NULL,
+  note text,
+  recorded_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
   UNIQUE (provider, provider_ref)
 );
+CREATE INDEX IF NOT EXISTS dues_payments_member_id_idx ON public.dues_payments(member_id) WHERE member_id IS NOT NULL;
 
 -- ── Donations (campaigns) ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.donations (

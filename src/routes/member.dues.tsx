@@ -14,7 +14,7 @@ function MemberDues() {
   const navigate = useNavigate();
   const [paying, setPaying] = useState(false);
   const [payErr, setPayErr] = useState<string | null>(null);
-  const [info, setInfo] = useState<DuesInfo>({ plan: null, coverage: { nextDue: null }, history: [] });
+  const [info, setInfo] = useState<DuesInfo>({ plan: null, payToken: null, coverage: { nextDue: null }, history: [] });
 
   useEffect(() => {
     getMyDuesInfo().then(setInfo).catch(() => {});
@@ -30,7 +30,7 @@ function MemberDues() {
       // for yet (the month after they're paid through), so they can just pick
       // how many periods to pay forward.
       const from = info.coverage.nextDue ?? undefined;
-      navigate({ to: "/pay-dues/$planId", params: { planId }, search: from ? { from } : {} });
+      navigate({ to: "/pay-dues/$planId", params: { planId }, search: { ...(from ? { from } : {}), ...(info.payToken ? { m: info.payToken } : {}) } });
     } catch (e: any) {
       setPayErr(e.message ?? "Could not start payment");
       setPaying(false);

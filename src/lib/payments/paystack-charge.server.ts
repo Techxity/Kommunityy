@@ -15,6 +15,7 @@ import { sql } from "@/lib/db/client";
 import { sendEmail } from "@/lib/email";
 import { paymentReceiptEmail } from "@/lib/email-templates";
 import { monthsPerPeriod, parseYm, addMonths, formatYm } from "@/lib/dues-period";
+import { loadMemberPrice } from "@/lib/dues-arrears.server";
 import { toDateOnlyString } from "@/lib/date-only";
 import { creditWallet } from "@/lib/sms/wallet.server";
 
@@ -207,17 +208,24 @@ export async function applyVerifiedCharge(
       typeof meta.period_start === "string" && /^\d{4}-\d{2}-\d{2}$/.test(meta.period_start) ? meta.period_start : null;
     const memberName = (meta.member_name as string | undefined) ?? email ?? "Member";
     // The months claimed in metadata must actually have been paid for.
+    // Checked against this member's own price, which may differ from the plan's.
     const planPrice = await sql`SELECT amount_ngn, amount_usd FROM public.dues_plans WHERE id = ${meta.plan_id} LIMIT 1`;
-    const unit = Number(currency === "NGN" ? planPrice[0]?.amount_ngn : planPrice[0]?.amount_usd);
+    const memberId: string | null = typeof meta.member_id === "string" && /^[0-9a-f-]{36}$/i.test(meta.member_id) ? meta.member_id : null;
+    const planAmounts = {
+      amountNgn: planPrice[0]?.amount_ngn != null ? Number(planPrice[0].amount_ngn) : null,
+      amountUsd: planPrice[0]?.amount_usd != null ? Number(planPrice[0].amount_usd) : null,
+    };
+    const price = memberId && community_id ? await loadMemberPrice(memberId, community_id, planAmounts) : planAmounts;
+    const unit = Number(currency === "NGN" ? price.amountNgn : price.amountUsd);
     if (!planPrice[0] || !unit || !paidAtLeast(gross, unit * months)) {
       console.error(`[charge] dues ${reference}: paid ${gross} ${currency} for ${months} period(s) of plan ${meta.plan_id} — not applied`);
       return { applied: false };
     }
     const inserted = await sql`
       INSERT INTO public.dues_payments
-        (plan_id, member_name, member_email, amount, currency, provider, provider_ref, status, paystack_fee, platform_fee, community_net, settlement_mode, months, period_start)
+        (plan_id, member_id, member_name, member_email, amount, currency, provider, provider_ref, status, paystack_fee, platform_fee, community_net, settlement_mode, months, period_start)
       VALUES
-        (${meta.plan_id}, ${memberName}, ${email ?? null}, ${gross}, ${currency}, 'paystack', ${reference}, 'paid', ${paystack_fee}, ${platform_fee}, ${community_net}, ${settlement_mode}, ${months}, ${period_start}::date)
+        (${meta.plan_id}, ${memberId}::uuid, ${memberName}, ${email ?? null}, ${gross}, ${currency}, 'paystack', ${reference}, 'paid', ${paystack_fee}, ${platform_fee}, ${community_net}, ${settlement_mode}, ${months}, ${period_start}::date)
       ON CONFLICT (provider, provider_ref) DO NOTHING
       RETURNING id
     `;

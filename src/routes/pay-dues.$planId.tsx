@@ -9,15 +9,18 @@ import { monthsPerPeriod, periodUnit, parseYm, currentYm, addMonths, ymToDateStr
 export const Route = createFileRoute("/pay-dues/$planId")({
   // Optional ?from=YYYY-MM-DD (the first period to pay for, e.g. the month
   // after the member is already paid through) and ?months=N, both passed by
-  // the member dues page. Only same-shape values survive.
-  validateSearch: (search: Record<string, unknown>): { from?: string; months?: number } => {
+  // the member dues page, and ?m=<token> from a personal pay link, which shows
+  // that member's own price. Only same-shape values survive.
+  validateSearch: (search: Record<string, unknown>): { from?: string; months?: number; m?: string } => {
     const from = typeof search.from === "string" && /^\d{4}-\d{2}-\d{2}$/.test(search.from) ? search.from : undefined;
     const monthsRaw = Number(search.months);
     const months = Number.isFinite(monthsRaw) && monthsRaw >= 1 && monthsRaw <= 12 ? Math.floor(monthsRaw) : undefined;
-    return { ...(from ? { from } : {}), ...(months ? { months } : {}) };
+    const m = typeof search.m === "string" && /^[0-9a-f]{8,64}$/.test(search.m) ? search.m : undefined;
+    return { ...(from ? { from } : {}), ...(months ? { months } : {}), ...(m ? { m } : {}) };
   },
-  loader: async ({ params }) => {
-    const plan = await getDuesPlan({ data: { plan_id: params.planId } });
+  loaderDeps: ({ search }) => ({ m: search.m }),
+  loader: async ({ params, deps }) => {
+    const plan = await getDuesPlan({ data: { plan_id: params.planId, member_token: deps.m } });
     if (!plan) throw notFound();
     return { plan };
   },
@@ -45,8 +48,8 @@ function PayDuesPage() {
   const acceptNgn = !!plan.amount_ngn;
   const acceptUsd = !!plan.amount_usd;
   const [currency, setCurrency] = useState<"NGN" | "USD">(acceptNgn ? "NGN" : "USD");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [name, setName] = useState(plan.member?.name ?? "");
+  const [email, setEmail] = useState(plan.member?.email ?? "");
   const [months, setMonths] = useState(search.months ?? 1);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -116,6 +119,7 @@ function PayDuesPage() {
           member_email: email,
           months,
           period_start: ymToDateStr(startYm),
+          member_token: plan.member ? search.m : undefined,
         },
       });
       window.location.href = res.authorization_url;

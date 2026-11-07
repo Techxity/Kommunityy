@@ -8,7 +8,7 @@ Legend: ☐ = to test.
 
 ## 0. Prerequisites (do these first — nothing works without them)
 
-- ☐ **Run all pending DB migrations**, especially the newest: `016`, `018`–`025`. (022 dues reminders, 023 SMS wallet, 024 expenses, 025 expense receipts + funds-position flag.)
+- ☐ **Run all pending DB migrations**, especially the newest: `016`, `018`–`032`. (022 dues reminders, 023 SMS wallet, 024 expenses, 025 expense receipts + funds-position flag, 031 recorded income, 032 dues rates + recorded payments.)
 - ☐ **Set all Vercel env vars** (see the env list): `DATABASE_URL`, `PAYSTACK_SECRET_KEY`, `RESEND_API_KEY`, `RESEND_FROM_ADDRESS`, `APP_URL`, `CRON_SECRET`; plus `BULKSMSNIGERIA_API_TOKEN`, `SMS_DLR_TOKEN` and the `SMS_RATE_*_KOBO` rates when enabling SMS.
 - ☐ **Set the Paystack webhook** to `https://<domain>/api/public/paystack-webhook`.
 - ☐ **Verify a Resend sending domain** and set `RESEND_FROM_ADDRESS` to an address on it (otherwise email falls back to the limited test sender).
@@ -42,6 +42,11 @@ Legend: ☐ = to test.
 - ☐ **Manual reminders** (Remind / Remind all): defaulters with email get the email; result message counts are right; "last reminded" updates.
 - ☐ **Automated reminder cron**: trigger `/api/cron/trials` (which also runs dues reminders) with the `CRON_SECRET` bearer; confirm only overdue members not reminded in ~25 days are contacted.
 - ☐ **Collection rate** figure looks sane against known data.
+- ☐ **Rates**: create a rate on Dues, assign it from Members (one member and bulk "Set rate"). The defaulters list and that member's dues page show the rate's amount. A custom amount on the member beats the rate.
+- ☐ **Personal pay link**: open `/pay-dues/<plan>?m=<token>` from a reminder sent to a member on a rate. It shows their price and pays that amount in Paystack test mode, and the payment is applied.
+- ☐ **Shared pay link**: entering the email of a member on a rate is refused with "Use your personal pay link or sign in". A member on the default amount can still pay.
+- ☐ **Record payment**: record a transfer for a defaulter. They drop off the list or owe fewer periods, stop getting reminders, see it in their history, and it appears in the financial report. The payout balance and funds position **don't** change.
+- ☐ **Delete a recorded payment**: the member owes those periods again. Paystack payments have no delete option.
 
 ## 5. SMS (BulkSMSNigeria) — needs a funded BulkSMSNigeria account + approved Sender ID + DND gateway
 
